@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+wheels/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+
+# Environment
+.env
+.env.local
+
+# Data (large files — tracked via DVC or manual download)
+data/raw/
+data/processed/
+data/indices/
+data/results/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+
+# Pytest
+.pytest_cache/
+htmlcov/
+.coverage
+
+# IDE
+.idea/
+.vscode/
+*.swp

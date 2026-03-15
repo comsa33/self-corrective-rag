@@ -1,0 +1,85 @@
+[project]
+name = "self-corrective-rag"
+version = "0.1.0"
+description = "Self-Corrective RAG with DSPy-based Multi-dimensional Quality Assessment"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    # DSPy (3.x: new API with typed predictors)
+    "dspy>=3.1",
+    # LLM
+    "openai>=2.20",
+    "litellm>=1.80",
+    # Retrieval
+    "faiss-cpu>=1.13",
+    "rank-bm25>=0.2",
+    "sentence-transformers>=5.0",
+    # Data
+    "datasets>=4.0",
+    "pandas>=3.0",
+    # Evaluation
+    "rouge-score>=0.1",
+    "bert-score>=0.3",
+    # Utilities
+    "python-dotenv>=1.2",
+    "pydantic>=2.12",
+    "pydantic-settings>=2.13",
+    "rich>=14.0",
+    "loguru>=0.7",
+    "tqdm>=4.60",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=6.0",
+    "pre-commit>=4.0",
+    "ruff>=0.11",
+]
+notebook = [
+    "jupyter>=1.0",
+    "matplotlib>=3.10",
+    "scipy>=1.15",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src", "config"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "SIM",  # flake8-simplify
+    "RUF",  # ruff-specific rules
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "E402",   # module level import not at top (needed for sys.path manipulation)
+    "B008",   # do not perform function calls in argument defaults
+    "SIM108", # use ternary operator (readability preference)
+    "RUF002", # ambiguous unicode characters in docstrings
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["src", "config", "experiments"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
