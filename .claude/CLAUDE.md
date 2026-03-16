@@ -40,6 +40,10 @@ uv run python experiments/run.py --all --sample 20
 - **RQ4**: Structure-aware tools — full vs w/o section vs w/o term
 - **RQ5**: DSPy optimization — Manual/Unopt/Bootstrap/MIPROv2
 
+## Datasets
+- **Open-domain QA** (baseline comparison): PopQA, HotpotQA, Natural Questions
+- **Enterprise/Domain** (practical applicability): FinanceBench (SEC filings, CC-BY-NC-4.0)
+
 ## Key Parameters
 - QUALITY_THRESHOLD = 55
 - MAX_RETRY = 3

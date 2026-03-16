@@ -28,6 +28,7 @@ experiment:
     - popqa
     - hotpotqa
     - natural_questions
+    - financebench
   # Ablation flags — all enabled by default
   enable_iteration: true
   enable_accumulation: true
