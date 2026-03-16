@@ -26,7 +26,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from loguru import logger
 
-from config.settings import settings
+from agentic_rag.config.settings import settings
+from agentic_rag.optimization.bootstrap import optimize_bootstrap
+from agentic_rag.optimization.collector import TrainingCollector
+from agentic_rag.optimization.mipro import optimize_mipro
+from agentic_rag.pipeline.self_corrective import SelfCorrectiveRAGPipeline
 from experiments.common import (
     load_dataset,
     load_retriever,
@@ -35,10 +39,6 @@ from experiments.common import (
     save_results,
     setup_experiment,
 )
-from src.optimization.bootstrap import optimize_bootstrap
-from src.optimization.collector import TrainingCollector
-from src.optimization.mipro import optimize_mipro
-from src.pipeline.self_corrective import SelfCorrectiveRAGPipeline
 
 
 def run_rq4(

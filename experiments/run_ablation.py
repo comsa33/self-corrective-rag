@@ -25,7 +25,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from loguru import logger
 
-from config.settings import settings
+from agentic_rag.config.settings import settings
+from agentic_rag.pipeline.self_corrective import SelfCorrectiveRAGPipeline
 from experiments.common import (
     load_dataset,
     load_retriever,
@@ -34,7 +35,6 @@ from experiments.common import (
     save_results,
     setup_experiment,
 )
-from src.pipeline.self_corrective import SelfCorrectiveRAGPipeline
 
 
 @dataclass
@@ -171,7 +171,7 @@ def run_ablation(
 
 def _print_ablation_impact(all_results: dict[str, list[dict]]) -> None:
     """Compute and print the impact of removing each contribution."""
-    from src.evaluation.metrics import evaluate_batch
+    from agentic_rag.evaluation.metrics import evaluate_batch
 
     logger.info("\n=== Contribution Impact Summary ===")
 

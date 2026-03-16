@@ -1,0 +1,45 @@
+# Base configuration — shared defaults for all experiments.
+# Override per-pipeline or per-experiment via layered YAML configs.
+
+model:
+  preprocess_model: gpt-4o-mini
+  evaluate_model: gpt-4o-mini
+  generate_model: gpt-4o
+  agent_model: gpt-4o
+  embedding_model: text-embedding-3-small
+  embedding_dimension: 1536
+  temperature: 0.0
+  max_tokens: 4096
+
+retrieval:
+  top_k: 50
+  text_top_k: 40
+  query_method: rrf
+  hybrid_weight: 0.48
+  max_passages: 30
+
+evaluation:
+  quality_threshold: 55
+  max_retry_count: 3
+
+experiment:
+  seed: 42
+  datasets:
+    - popqa
+    - hotpotqa
+    - natural_questions
+  # Ablation flags — all enabled by default
+  enable_iteration: true
+  enable_accumulation: true
+  enable_4d_evaluation: true
+  enable_refinement: true
+  enable_agent_routing: true
+  enable_dspy: true
+  enable_rlm_refinement: false
+
+rlm:
+  max_iterations: 15
+  max_llm_calls: 30
+  max_output_chars: 50000
+  # enabled_tools: null = all tools (search, structure, terminology, evaluate, inspect)
+  enabled_tools: null

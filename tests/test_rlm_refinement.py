@@ -17,11 +17,11 @@ from unittest.mock import MagicMock
 import dspy
 import pytest
 
-from config.settings import settings
-from src.retriever.indexer import DocumentIndexer, Passage
-from src.retriever.section_index import SectionIndex
-from src.retriever.term_index import TermIndex
-from src.signatures.rlm_refinement import RLMRefinementSignature
+from agentic_rag.config.settings import settings
+from agentic_rag.retriever.indexer import DocumentIndexer, Passage
+from agentic_rag.retriever.section_index import SectionIndex
+from agentic_rag.retriever.term_index import TermIndex
+from agentic_rag.signatures.rlm_refinement import RLMRefinementSignature
 
 
 # ---------------------------------------------------------------------------
@@ -224,7 +224,7 @@ class TestRLMRefinementSignature:
 # ---------------------------------------------------------------------------
 class TestRLMTools:
     def test_search_passages_tool(self, passages):
-        from src.pipeline.rlm_tools import create_rlm_tools
+        from agentic_rag.pipeline.rlm_tools import create_rlm_tools
 
         mock_retriever = MagicMock()
         mock_retriever.search.return_value = [("p1", 0.95), ("p3", 0.80)]
@@ -246,7 +246,7 @@ class TestRLMTools:
         assert "content_preview" in result[0]
 
     def test_list_sections_tool(self, passages):
-        from src.pipeline.rlm_tools import create_rlm_tools
+        from agentic_rag.pipeline.rlm_tools import create_rlm_tools
 
         indexer = DocumentIndexer.__new__(DocumentIndexer)
         indexer.passages = passages
@@ -262,7 +262,7 @@ class TestRLMTools:
         assert len(result) >= 1
 
     def test_get_terminology_tool(self, passages):
-        from src.pipeline.rlm_tools import create_rlm_tools
+        from agentic_rag.pipeline.rlm_tools import create_rlm_tools
 
         indexer = DocumentIndexer.__new__(DocumentIndexer)
         indexer.passages = passages
@@ -277,7 +277,7 @@ class TestRLMTools:
         assert isinstance(result, list)
 
     def test_get_passage_detail_tool(self, passages):
-        from src.pipeline.rlm_tools import create_rlm_tools
+        from agentic_rag.pipeline.rlm_tools import create_rlm_tools
 
         indexer = DocumentIndexer.__new__(DocumentIndexer)
         indexer.passages = passages
@@ -292,7 +292,7 @@ class TestRLMTools:
         assert "content" in result
 
     def test_get_passage_detail_not_found(self, passages):
-        from src.pipeline.rlm_tools import create_rlm_tools
+        from agentic_rag.pipeline.rlm_tools import create_rlm_tools
 
         indexer = DocumentIndexer.__new__(DocumentIndexer)
         indexer.passages = passages
@@ -307,7 +307,7 @@ class TestRLMTools:
 
     def test_tool_error_handling(self):
         """Tools should return error JSON, not raise exceptions."""
-        from src.pipeline.rlm_tools import create_rlm_tools
+        from agentic_rag.pipeline.rlm_tools import create_rlm_tools
 
         mock_retriever = MagicMock()
         mock_retriever.search.side_effect = RuntimeError("Search failed")

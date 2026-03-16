@@ -8,14 +8,14 @@ from __future__ import annotations
 
 import dspy
 
-from src.signatures.agents import (
+from agentic_rag.signatures.agents import (
     ClarificationSignature,
     DomainExpertSignature,
     FallbackSignature,
 )
-from src.signatures.evaluate import EvaluationSignature
-from src.signatures.generate import QnAGenerateSignature
-from src.signatures.preprocess import (
+from agentic_rag.signatures.evaluate import EvaluationSignature
+from agentic_rag.signatures.generate import QnAGenerateSignature
+from agentic_rag.signatures.preprocess import (
     HyDEPreprocessSignature,
     PreprocessSignature,
 )

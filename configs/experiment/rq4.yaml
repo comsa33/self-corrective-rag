@@ -1,0 +1,48 @@
+# RQ4: Do structure-aware retrieval tools (section index, terminology
+# mapping) improve the agent's effectiveness on enterprise documents?
+#
+# Compares: Full tools / w/o section_index / w/o term_index / w/o both
+# Tests C3's contribution for structured document navigation.
+
+name: "RQ4: Structure-Aware Tools"
+description: >
+  Evaluate the impact of structure-aware retrieval tools (section index
+  and terminology mapping) on agent performance with enterprise documents.
+
+variants:
+  - name: Full Tools
+    pipeline: agentic
+    experiment:
+      enable_rlm_refinement: true
+
+  - name: w/o Section Index
+    pipeline: agentic
+    experiment:
+      enable_rlm_refinement: true
+    rlm:
+      enabled_tools:
+        - search
+        - terminology
+        - evaluate
+        - inspect
+
+  - name: w/o Terminology
+    pipeline: agentic
+    experiment:
+      enable_rlm_refinement: true
+    rlm:
+      enabled_tools:
+        - search
+        - structure
+        - evaluate
+        - inspect
+
+  - name: w/o Structure Tools
+    pipeline: agentic
+    experiment:
+      enable_rlm_refinement: true
+    rlm:
+      enabled_tools:
+        - search
+        - evaluate
+        - inspect

@@ -27,7 +27,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from loguru import logger
 from rich.console import Console
 
-from config.settings import settings
+from agentic_rag.config.settings import settings
 from experiments.run_ablation import run_ablation
 from experiments.run_rq1 import run_rq1
 from experiments.run_rq2 import run_rq2

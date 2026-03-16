@@ -1,0 +1,2 @@
+# Naive RAG — single-pass retrieval + generation, no evaluation or correction.
+pipeline: naive

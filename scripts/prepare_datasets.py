@@ -26,7 +26,7 @@ from loguru import logger
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from config.settings import settings
+from agentic_rag.config.settings import settings
 
 
 def prepare_popqa(output_dir: Path, sample_size: int | None = None) -> Path:

@@ -17,11 +17,11 @@ from loguru import logger
 from rich.console import Console
 from rich.table import Table
 
-from config.settings import settings
-from src.evaluation.metrics import evaluate_batch
-from src.pipeline.base import BasePipeline
-from src.retriever.hybrid import HybridRetriever
-from src.retriever.indexer import DocumentIndexer
+from agentic_rag.config.settings import settings
+from agentic_rag.evaluation.metrics import evaluate_batch
+from agentic_rag.pipeline.base import BasePipeline
+from agentic_rag.retriever.hybrid import HybridRetriever
+from agentic_rag.retriever.indexer import DocumentIndexer
 
 console = Console()
 
