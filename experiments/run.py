@@ -101,7 +101,7 @@ def run_experiment(
 
     setup_experiment()
     dataset = load_dataset(dataset_name, sample_size)
-    retriever, indexer = load_retriever()
+    retriever, indexer = load_retriever(dataset_name=dataset_name)
 
     # Handle train/val split for optimization experiments (e.g., RQ4)
     test_data = dataset
@@ -152,7 +152,7 @@ def run_ablation(
 
     setup_experiment()
     dataset = load_dataset(dataset_name, sample_size)
-    retriever, indexer = load_retriever()
+    retriever, indexer = load_retriever(dataset_name=dataset_name)
 
     all_results: dict[str, list[dict]] = {}
     for variant in variants:
