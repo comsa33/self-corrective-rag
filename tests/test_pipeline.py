@@ -27,12 +27,6 @@ class TestPipelineImports:
 
         assert issubclass(LoopRAGPipeline, BasePipeline)
 
-    def test_backward_compat_self_corrective(self):
-        from agentic_rag.pipeline.loop import LoopRAGPipeline
-        from agentic_rag.pipeline.self_corrective import SelfCorrectiveRAGPipeline
-
-        assert SelfCorrectiveRAGPipeline is LoopRAGPipeline
-
     def test_import_all_from_package(self):
         from agentic_rag.pipeline import (
             AgenticRAGPipeline,
