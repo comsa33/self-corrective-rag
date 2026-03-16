@@ -7,7 +7,7 @@ import json
 import dspy
 from loguru import logger
 
-from agentic_rag.config.settings import settings
+from agentic_rag.config.settings import make_lm, settings
 from agentic_rag.signatures.decompose import DecomposeQuerySignature
 
 
@@ -30,7 +30,7 @@ def make_decompose_query():
             JSON string: {is_multi_hop, sub_questions, reasoning}
         """
         try:
-            with dspy.context(lm=dspy.LM(settings.model.preprocess_model)):
+            with dspy.context(lm=make_lm(settings.model.preprocess_model)):
                 result = decomposer(question=question)
 
             output = {

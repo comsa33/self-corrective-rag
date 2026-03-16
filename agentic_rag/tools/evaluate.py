@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 import dspy
 from loguru import logger
 
-from agentic_rag.config.settings import settings
+from agentic_rag.config.settings import make_lm, settings
 from agentic_rag.pipeline.base import BasePipeline
 
 if TYPE_CHECKING:
@@ -49,7 +49,7 @@ def make_evaluate_passages(
 
             context = BasePipeline.format_passages(passages)
 
-            with dspy.context(lm=dspy.LM(settings.model.evaluate_model)):
+            with dspy.context(lm=make_lm(settings.model.evaluate_model)):
                 eval_result = evaluator(
                     question=question,
                     passages=context,

@@ -17,7 +17,7 @@ from __future__ import annotations
 import dspy
 from loguru import logger
 
-from agentic_rag.config.settings import settings
+from agentic_rag.config.settings import make_lm, settings
 from agentic_rag.pipeline._mixin import SelfCorrectiveMixin
 from agentic_rag.pipeline.base import PipelineResult
 from agentic_rag.retriever.indexer import Passage
@@ -151,7 +151,7 @@ class LoopRAGPipeline(SelfCorrectiveMixin):
 
             # --- C2: 4D Quality Evaluation ---
             if exp.enable_4d_evaluation:
-                with dspy.context(lm=dspy.LM(settings.model.evaluate_model)):
+                with dspy.context(lm=make_lm(settings.model.evaluate_model)):
                     eval_result = self.evaluator(
                         question=search_query,
                         passages=context,

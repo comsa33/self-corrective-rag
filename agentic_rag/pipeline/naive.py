@@ -10,7 +10,7 @@ from __future__ import annotations
 import dspy
 from loguru import logger
 
-from agentic_rag.config.settings import settings
+from agentic_rag.config.settings import make_lm, settings
 from agentic_rag.pipeline.base import BasePipeline, PipelineResult
 from agentic_rag.retriever.hybrid import HybridRetriever
 from agentic_rag.retriever.indexer import DocumentIndexer
@@ -57,7 +57,7 @@ class NaiveRAGPipeline(BasePipeline):
         # 2. Generate
         context = self.format_passages(passages)
 
-        with dspy.context(lm=dspy.LM(settings.model.generate_model)):
+        with dspy.context(lm=make_lm(settings.model.generate_model)):
             gen_result = self.generator(
                 question=question,
                 passages=context,

@@ -17,7 +17,7 @@ import re
 import dspy
 from loguru import logger
 
-from agentic_rag.config.settings import settings
+from agentic_rag.config.settings import make_lm, settings
 from agentic_rag.pipeline._mixin import SelfCorrectiveMixin
 from agentic_rag.pipeline.base import PipelineResult
 from agentic_rag.retriever.indexer import Passage
@@ -112,7 +112,7 @@ class AgenticRAGPipeline(SelfCorrectiveMixin):
             f"query='{search_query}', keywords={search_keywords[:5]}"
         )
 
-        with dspy.context(lm=dspy.LM(settings.model.agent_model)):
+        with dspy.context(lm=make_lm(settings.model.agent_model)):
             result = react(
                 question=search_query,
                 initial_query=hyde_query or search_query,
