@@ -76,11 +76,7 @@ class SelfCorrectiveMixin(BasePipeline):
             )
 
         search_query = prep_result.rephrased_question
-        search_keywords = list(
-            set(prep_result.product_keywords)
-            | set(prep_result.keyword_words)
-            | set(prep_result.subject_keywords)
-        )
+        search_keywords = list(set(prep_result.search_keywords))
 
         hyde_query = None
         if self.use_hyde and hasattr(prep_result, "hypothetical_answer"):

@@ -29,6 +29,7 @@ variants:
     rlm:
       enabled_tools:
         - search
+        - decompose
         - structure
         - terminology
         - inspect

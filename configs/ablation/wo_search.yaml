@@ -9,6 +9,7 @@ experiment:
 
 rlm:
   enabled_tools:
+    - decompose
     - structure
     - terminology
     - evaluate

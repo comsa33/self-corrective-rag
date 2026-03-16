@@ -18,29 +18,35 @@ class RLMRefinementSignature(dspy.Signature):
 
     Available tools
     ===============
-    - search_passages(query, top_k=10): Search internal documents. Returns JSON
-      list of {id, title, content_preview, score}.
+    - search_passages(query, top_k=10): Search documents with a query. Returns
+      JSON list of {id, title, content_preview, score}.
+    - decompose_query(question): Decompose a complex multi-hop question into
+      simpler sub-questions. Returns {is_multi_hop, sub_questions, reasoning}.
+      Use this early for questions that involve multiple entities or reasoning steps.
     - list_document_sections(keyword): Browse document table of contents.
       Returns matching sections with source and passage counts.
     - get_terminology(user_term): Map user language to document terminology.
       Returns a list of document-specific terms matching the user term.
     - evaluate_passages(question, passage_ids_json): Run 4D quality evaluation
       on selected passages. Returns {relevance, coverage, specificity,
-      sufficiency, total, action, reasoning}.
+      sufficiency, total, action, reasoning, suggested_query, keywords_to_add}.
     - get_passage_detail(passage_id): Read the full content of a passage.
 
     Strategy guidelines
     ===================
-    1. Start with the initial query and keywords to perform an initial search.
-    2. Evaluate the retrieved passages with evaluate_passages.
-    3. If quality is insufficient (total < quality_threshold):
-       a. Use list_document_sections to discover document structure.
-       b. Use get_terminology to find correct document-specific terms.
-       c. Construct improved queries using discovered terms and sections.
-       d. Search again with refined queries.
-    4. Accumulate promising passages across searches (up to max_passages).
+    1. For complex questions, start with decompose_query to identify sub-questions.
+    2. Search with the initial query and keywords. For multi-hop questions,
+       search each sub-question separately.
+    3. Evaluate the retrieved passages with evaluate_passages.
+    4. If quality is insufficient (total < quality_threshold):
+       a. Use the evaluation feedback (suggested_query, keywords_to_add) to
+          construct improved queries.
+       b. Use list_document_sections to discover document structure.
+       c. Use get_terminology to find correct document-specific terms.
+       d. Search again with refined queries incorporating discovered terms.
+    5. Accumulate promising passages across searches (up to max_passages).
        Drop low-quality passages if you exceed the limit.
-    5. When evaluation passes or you cannot improve further, SUBMIT your results.
+    6. When evaluation passes or you cannot improve further, SUBMIT your results.
     """
 
     # --- Inputs ---
