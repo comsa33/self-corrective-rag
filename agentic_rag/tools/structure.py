@@ -1,4 +1,4 @@
-"""Document structure browsing tool for RLM agentic retrieval."""
+"""Document structure browsing tool for agentic retrieval."""
 
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ def make_list_document_sections(indexer: DocumentIndexer):
         """
         try:
             results = indexer.section_index.search(keyword)
-            logger.debug(f"[RLM:list_sections] keyword='{keyword}', results={len(results)}")
+            logger.debug(f"[Agent:list_sections] keyword='{keyword}', results={len(results)}")
             return json.dumps(results[:20], ensure_ascii=False)
         except Exception as e:
             return json.dumps({"error": str(e)})

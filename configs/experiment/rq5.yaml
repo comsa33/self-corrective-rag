@@ -17,21 +17,21 @@ variants:
     pipeline: agentic
     experiment:
       enable_dspy: false
-      enable_rlm_refinement: true
+      enable_agentic_refinement: true
 
   - name: DSPy Unoptimized
     pipeline: agentic
     experiment:
-      enable_rlm_refinement: true
+      enable_agentic_refinement: true
 
   - name: DSPy + Bootstrap
     pipeline: agentic
     experiment:
-      enable_rlm_refinement: true
+      enable_agentic_refinement: true
     optimization: bootstrap
 
   - name: DSPy + MIPROv2
     pipeline: agentic
     experiment:
-      enable_rlm_refinement: true
+      enable_agentic_refinement: true
     optimization: mipro

@@ -1,4 +1,4 @@
-"""RLM tool registry for agentic retrieval refinement.
+"""Tool registry for agentic retrieval refinement.
 
 Each tool wraps existing pipeline components (retriever, indexer, evaluator)
 via closures. All tools return JSON strings and handle exceptions internally
@@ -50,7 +50,7 @@ def create_tools(
             Valid names: search, structure, terminology, evaluate, inspect.
 
     Returns:
-        List of callable tools for the RLM sandbox.
+        List of callable tools for the ReAct agent.
     """
     tool_names = enabled_tools or list(TOOL_REGISTRY.keys())
     tools = []

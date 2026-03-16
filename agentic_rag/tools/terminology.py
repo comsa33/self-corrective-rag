@@ -1,4 +1,4 @@
-"""Terminology mapping tool for RLM agentic retrieval."""
+"""Terminology mapping tool for agentic retrieval."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ def make_get_terminology(indexer: DocumentIndexer):
         """
         try:
             results = indexer.term_index.lookup(user_term, top_k=5)
-            logger.debug(f"[RLM:get_terminology] '{user_term}' → {results}")
+            logger.debug(f"[Agent:get_terminology] '{user_term}' → {results}")
             return json.dumps(results, ensure_ascii=False)
         except Exception as e:
             return json.dumps({"error": str(e)})

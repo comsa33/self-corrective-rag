@@ -1,7 +1,7 @@
 """Quality score progression analysis across refinement iterations.
 
 Tracks how quality scores (4D: relevance, coverage, specificity, sufficiency)
-change across iterations for both for-loop and RLM refinement approaches.
+change across iterations for both for-loop and ReAct agentic refinement approaches.
 
 Usage:
     from experiments.analysis.score_progression import ScoreProgressionAnalyzer

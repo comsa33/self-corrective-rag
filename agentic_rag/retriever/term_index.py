@@ -1,7 +1,7 @@
 """Terminology mapping index for vocabulary gap bridging.
 
 Maps user-facing terms to document-internal terminology, enabling
-RLM tools to translate user language into document language for
+agent tools to translate user language into document language for
 more effective retrieval. No LLM calls — frequency-based extraction
 with fuzzy matching.
 """

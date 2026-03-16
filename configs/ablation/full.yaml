@@ -1,7 +1,7 @@
-# Full System — RLM + all 5 tools (proposed method).
-name: Full (RLM + All Tools)
+# Full System — ReAct agent + all 6 tools (proposed method).
+name: Full (Agent + All Tools)
 contribution: All
 pipeline: agentic
 
 experiment:
-  enable_rlm_refinement: true
+  enable_agentic_refinement: true

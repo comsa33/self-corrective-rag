@@ -1,7 +1,7 @@
 """Shared logic for self-corrective RAG pipelines.
 
 Preprocessing, generation, and agent routing are identical across
-the agentic (RLM) and loop (for-loop) pipeline variants. This mixin
+the agentic (ReAct) and loop (for-loop) pipeline variants. This mixin
 keeps that logic in one place.
 """
 

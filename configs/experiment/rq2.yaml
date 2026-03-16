@@ -1,4 +1,4 @@
-# RQ2: How does the RLM agent use its tools, and what tool-call
+# RQ2: How does the ReAct agent use its tools, and what tool-call
 # patterns emerge during autonomous retrieval refinement?
 #
 # Analysis-focused RQ: trajectory analysis, tool call frequency,
@@ -7,7 +7,7 @@
 
 name: "RQ2: Tool Usage Analysis"
 description: >
-  Analyze RLM agent tool-call trajectories including call frequency,
+  Analyze ReAct agent tool-call trajectories including call frequency,
   sequence patterns, and strategic behavior across question types.
 
 # Only one variant — the full agentic pipeline with trajectory capture
@@ -15,4 +15,4 @@ variants:
   - name: Agentic (Full Tools)
     pipeline: agentic
     experiment:
-      enable_rlm_refinement: true
+      enable_agentic_refinement: true

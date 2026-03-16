@@ -24,11 +24,11 @@ import yaml
 
 from agentic_rag.config.settings import (
     PROJECT_ROOT,
+    AgentSettings,
     EvaluationSettings,
     ExperimentSettings,
     ModelSettings,
     RetrievalSettings,
-    RLMSettings,
     Settings,
     settings,
 )
@@ -104,7 +104,7 @@ def apply_settings(config: dict[str, Any]) -> Settings:
         "retrieval": (settings.retrieval, RetrievalSettings),
         "evaluation": (settings.evaluation, EvaluationSettings),
         "experiment": (settings.experiment, ExperimentSettings),
-        "rlm": (settings.rlm, RLMSettings),
+        "agent": (settings.agent, AgentSettings),
     }
 
     for section_key, (section_obj, _section_cls) in section_map.items():
@@ -192,7 +192,7 @@ def load_experiment_config(
     for v in raw.get("variants", []):
         # Build per-variant overrides from experiment/model/retrieval sections
         variant_overrides = {}
-        for section in ("experiment", "model", "retrieval", "evaluation", "rlm"):
+        for section in ("experiment", "model", "retrieval", "evaluation", "agent"):
             if section in v:
                 variant_overrides[section] = v[section]
 
@@ -237,7 +237,7 @@ def load_ablation_configs(
         raw = _load_yaml(yaml_path)
 
         variant_overrides = {}
-        for section in ("experiment", "model", "retrieval", "evaluation", "rlm"):
+        for section in ("experiment", "model", "retrieval", "evaluation", "agent"):
             if section in raw:
                 variant_overrides[section] = raw[section]
 

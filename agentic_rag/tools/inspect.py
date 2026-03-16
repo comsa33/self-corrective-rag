@@ -1,4 +1,4 @@
-"""Passage inspection tool for RLM agentic retrieval."""
+"""Passage inspection tool for agentic retrieval."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ def make_get_passage_detail(indexer: DocumentIndexer):
             p = indexer.get_passage(passage_id)
             if p is None:
                 return json.dumps({"error": f"Passage '{passage_id}' not found"})
-            logger.debug(f"[RLM:get_passage_detail] id={passage_id}")
+            logger.debug(f"[Agent:get_passage_detail] id={passage_id}")
             return json.dumps(
                 {
                     "id": p.id,
