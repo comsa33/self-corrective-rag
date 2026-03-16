@@ -25,7 +25,9 @@ RESULTS_DIR = DATA_DIR / "results"
 class ModelSettings(BaseSettings):
     """LLM and embedding model configuration."""
 
-    model_config = SettingsConfigDict(env_prefix="")
+    model_config = SettingsConfigDict(
+        env_prefix="", env_file=".env", env_file_encoding="utf-8", extra="ignore"
+    )
 
     # LLM models
     preprocess_model: str = Field("gpt-4o-mini", alias="PREPROCESS_MODEL")

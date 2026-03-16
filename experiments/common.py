@@ -35,11 +35,11 @@ def setup_experiment(seed: int | None = None) -> None:
     random.seed(seed)
     np.random.seed(seed)
 
-    # Configure DSPy LM
+    # Configure DSPy LM — API keys are read from environment variables
+    # (OPENAI_API_KEY, GEMINI_API_KEY, etc.) by litellm automatically.
     dspy.configure(
         lm=dspy.LM(
             settings.model.generate_model,
-            api_key=settings.openai_api_key,
             temperature=settings.model.temperature,
         )
     )
@@ -69,8 +69,17 @@ def load_dataset(name: str, sample_size: int | None = None) -> list[dict]:
     return items
 
 
-def load_retriever(index_dir: Path | None = None) -> tuple[HybridRetriever, DocumentIndexer]:
-    """Load pre-built retrieval indices."""
+def load_retriever(
+    index_dir: Path | None = None, dataset_name: str | None = None
+) -> tuple[HybridRetriever, DocumentIndexer]:
+    """Load pre-built retrieval indices.
+
+    Args:
+        index_dir: Explicit index directory. Takes precedence.
+        dataset_name: Dataset name to look up in data/indices/{name}/.
+    """
+    if index_dir is None and dataset_name:
+        index_dir = settings.index_dir / dataset_name
     index_dir = index_dir or settings.index_dir
     indexer = DocumentIndexer()
     retriever = indexer.load(index_dir)
