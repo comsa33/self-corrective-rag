@@ -33,7 +33,13 @@ class DenseRetriever:
     # Embedding
     # ------------------------------------------------------------------
     def _get_embed_fn(self):
-        """Lazy-load the embedding function."""
+        """Lazy-load the embedding function.
+
+        Supports three embedding backends:
+        - OpenAI: model names starting with "text-embedding"
+        - litellm: model names with "/" (e.g., "gemini/text-embedding-004")
+        - sentence-transformers: all other model names (local, free)
+        """
         if self._embed_fn is not None:
             return self._embed_fn
 
@@ -51,8 +57,20 @@ class DenseRetriever:
                 return np.array(vecs, dtype=np.float32)
 
             self._embed_fn = _openai_embed
+
+        elif "/" in model_name:
+            # litellm-compatible embeddings (Gemini, Cohere, etc.)
+            import litellm
+
+            def _litellm_embed(texts: list[str]) -> np.ndarray:
+                resp = litellm.embedding(model=model_name, input=texts)
+                vecs = [e["embedding"] for e in resp.data]
+                return np.array(vecs, dtype=np.float32)
+
+            self._embed_fn = _litellm_embed
+
         else:
-            # sentence-transformers (e5-large-v2, etc.)
+            # sentence-transformers (all-MiniLM-L6-v2, e5-large-v2, etc.)
             from sentence_transformers import SentenceTransformer
 
             st_model = SentenceTransformer(model_name)
