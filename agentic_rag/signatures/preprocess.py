@@ -13,8 +13,8 @@ class PreprocessSignature(dspy.Signature):
 
     Given a user question and optional conversation history, produce:
     1. A self-contained rephrased question (no pronouns referencing history).
-    2. A topic category from the predefined list.
-    3. Three keyword groups for hybrid search (product, core, subject).
+    2. A topic category describing the question's domain.
+    3. Search keywords optimized for hybrid retrieval (dense + sparse).
     4. Three recommended follow-up questions.
     """
 
@@ -30,20 +30,10 @@ class PreprocessSignature(dspy.Signature):
         desc="The question rephrased as a standalone, self-contained query."
     )
     topic_category: str = dspy.OutputField(
-        desc=(
-            "One of the 13 predefined categories: "
-            "일반, DSL 함수, 시나리오, API, 아키텍처, DevOps, "
-            "데이터, 보안, 성능, UI/UX, 통합, 트러블슈팅, 기타"
-        )
+        desc="The broad domain or topic of the question (e.g. science, history, geography, technology, entertainment, general)."
     )
-    product_keywords: list[str] = dspy.OutputField(
-        desc="Keywords related to specific products or services."
-    )
-    keyword_words: list[str] = dspy.OutputField(
-        desc="Core search keywords extracted from the question."
-    )
-    subject_keywords: list[str] = dspy.OutputField(
-        desc="Subject-level keywords for topic matching."
+    search_keywords: list[str] = dspy.OutputField(
+        desc="5-10 search keywords optimized for retrieval. Include entities, core concepts, and synonyms."
     )
     recommended_questions: list[str] = dspy.OutputField(
         desc="Three recommended follow-up questions."
@@ -70,20 +60,10 @@ class HyDEPreprocessSignature(dspy.Signature):
         desc="The question rephrased as a standalone, self-contained query."
     )
     topic_category: str = dspy.OutputField(
-        desc=(
-            "One of the 13 predefined categories: "
-            "일반, DSL 함수, 시나리오, API, 아키텍처, DevOps, "
-            "데이터, 보안, 성능, UI/UX, 통합, 트러블슈팅, 기타"
-        )
+        desc="The broad domain or topic of the question (e.g. science, history, geography, technology, entertainment, general)."
     )
-    product_keywords: list[str] = dspy.OutputField(
-        desc="Keywords related to specific products or services."
-    )
-    keyword_words: list[str] = dspy.OutputField(
-        desc="Core search keywords extracted from the question."
-    )
-    subject_keywords: list[str] = dspy.OutputField(
-        desc="Subject-level keywords for topic matching."
+    search_keywords: list[str] = dspy.OutputField(
+        desc="5-10 search keywords optimized for retrieval. Include entities, core concepts, and synonyms."
     )
     recommended_questions: list[str] = dspy.OutputField(
         desc="Three recommended follow-up questions."

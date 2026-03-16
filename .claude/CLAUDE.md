@@ -8,7 +8,7 @@ PhD 논문 실험 코드베이스: Agentic Self-Corrective RAG — Autonomous Re
 
 ## Tech Stack
 - **Python 3.11** (uv managed)
-- **DSPy 3.1+** — 8 Signatures (including RLM), ChainOfThought/Predict/ReAct modules
+- **DSPy 3.1+** — 8 Signatures (including RLM, Decompose), ChainOfThought/Predict/ReAct modules
 - **FAISS + BM25 + RRF** — Hybrid retrieval
 - **OpenAI API** via litellm — gpt-4o-mini (preprocess/evaluate), gpt-4o (generate/agent)
 - **PyYAML** — YAML config system for experiment management
@@ -28,7 +28,7 @@ uv run python experiments/run.py --all --sample 20
 ```
 
 ## 4 Core Contributions (RLM-centric)
-- **C1**: Tool-Augmented Agentic Refinement — RLM REPL + 5 tools (core method)
+- **C1**: Tool-Augmented Agentic Refinement — RLM REPL + 6 tools (core method)
 - **C2**: Multi-dimensional Quality Assessment as Tool — 4D eval as agent tool
 - **C3**: Structure-Aware Retrieval Tools — section_index + term_index
 - **C4**: DSPy Declarative Pipeline + RLM Integration
@@ -63,7 +63,8 @@ agentic_rag/
     section_index.py         — Document section/TOC index (C3)
     term_index.py            — User term → doc terminology mapping (C3)
   signatures/
-    preprocess.py            — Query classification & decomposition
+    preprocess.py            — Query rephrasing & keyword extraction
+    decompose.py             — Multi-hop query decomposition
     evaluate.py              — 4D quality assessment
     generate.py              — Answer generation
     agents.py                — 3-way agent routing
@@ -71,6 +72,7 @@ agentic_rag/
   tools/                     — RLM tools (1st class, C1/C2/C3)
     __init__.py              — TOOL_REGISTRY + create_tools(enabled_tools=)
     search.py                — Hybrid retrieval tool
+    decompose.py             — Multi-hop query decomposition tool
     structure.py             — Document section browsing tool
     terminology.py           — Term mapping tool
     evaluate.py              — 4D quality assessment tool
@@ -117,7 +119,7 @@ enable_iteration, enable_accumulation, enable_4d_evaluation,
 enable_refinement, enable_agent_routing, enable_dspy, enable_rlm_refinement
 
 **Tool-level** (in settings.rlm):
-enabled_tools — list of tool names: search, structure, terminology, evaluate, inspect
+enabled_tools — list of tool names: search, decompose, structure, terminology, evaluate, inspect
 (null = all tools enabled)
 
 ## Reference Documents

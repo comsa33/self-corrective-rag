@@ -49,6 +49,7 @@ class TestPipelineImports:
             "terminology",
             "evaluate",
             "inspect",
+            "decompose",
         }
 
 

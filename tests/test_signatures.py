@@ -13,6 +13,7 @@ from agentic_rag.signatures.agents import (
     DomainExpertSignature,
     FallbackSignature,
 )
+from agentic_rag.signatures.decompose import DecomposeQuerySignature
 from agentic_rag.signatures.evaluate import EvaluationSignature
 from agentic_rag.signatures.generate import QnAGenerateSignature
 from agentic_rag.signatures.preprocess import (
@@ -34,9 +35,7 @@ class TestPreprocessSignature:
         fields = PreprocessSignature.output_fields
         assert "rephrased_question" in fields
         assert "topic_category" in fields
-        assert "product_keywords" in fields
-        assert "keyword_words" in fields
-        assert "subject_keywords" in fields
+        assert "search_keywords" in fields
         assert "recommended_questions" in fields
 
     def test_can_create_module(self):
@@ -96,6 +95,22 @@ class TestQnAGenerateSignature:
         assert module is not None
 
 
+class TestDecomposeQuerySignature:
+    def test_input_fields(self):
+        fields = DecomposeQuerySignature.input_fields
+        assert "question" in fields
+
+    def test_output_fields(self):
+        fields = DecomposeQuerySignature.output_fields
+        assert "is_multi_hop" in fields
+        assert "sub_questions" in fields
+        assert "reasoning" in fields
+
+    def test_can_create_module(self):
+        module = dspy.ChainOfThought(DecomposeQuerySignature)
+        assert module is not None
+
+
 class TestAgentSignatures:
     def test_clarification_outputs(self):
         fields = ClarificationSignature.output_fields
@@ -122,14 +137,15 @@ class TestAgentSignatures:
 # Total signature count
 # ---------------------------------------------------------------
 def test_total_signature_count():
-    """Paper claims 7 DSPy Signatures."""
+    """Paper claims 8 DSPy Signatures."""
     signatures = [
         PreprocessSignature,
         HyDEPreprocessSignature,
+        DecomposeQuerySignature,
         EvaluationSignature,
         QnAGenerateSignature,
         ClarificationSignature,
         DomainExpertSignature,
         FallbackSignature,
     ]
-    assert len(signatures) == 7
+    assert len(signatures) == 8

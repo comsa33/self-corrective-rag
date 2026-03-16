@@ -22,6 +22,7 @@ variants:
     rlm:
       enabled_tools:
         - search
+        - decompose
         - terminology
         - evaluate
         - inspect
@@ -33,6 +34,7 @@ variants:
     rlm:
       enabled_tools:
         - search
+        - decompose
         - structure
         - evaluate
         - inspect
@@ -44,5 +46,6 @@ variants:
     rlm:
       enabled_tools:
         - search
+        - decompose
         - evaluate
         - inspect
