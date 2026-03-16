@@ -7,8 +7,55 @@ Does NOT call LLM — tests structure and logic only.
 
 from __future__ import annotations
 
-from config.settings import settings
-from src.pipeline.base import PipelineResult
+from agentic_rag.config.settings import settings
+from agentic_rag.pipeline.base import PipelineResult
+
+
+# ---------------------------------------------------------------
+# Pipeline imports and class hierarchy
+# ---------------------------------------------------------------
+class TestPipelineImports:
+    def test_import_agentic_pipeline(self):
+        from agentic_rag.pipeline.agentic import AgenticRAGPipeline
+        from agentic_rag.pipeline.base import BasePipeline
+
+        assert issubclass(AgenticRAGPipeline, BasePipeline)
+
+    def test_import_loop_pipeline(self):
+        from agentic_rag.pipeline.base import BasePipeline
+        from agentic_rag.pipeline.loop import LoopRAGPipeline
+
+        assert issubclass(LoopRAGPipeline, BasePipeline)
+
+    def test_backward_compat_self_corrective(self):
+        from agentic_rag.pipeline.loop import LoopRAGPipeline
+        from agentic_rag.pipeline.self_corrective import SelfCorrectiveRAGPipeline
+
+        assert SelfCorrectiveRAGPipeline is LoopRAGPipeline
+
+    def test_import_all_from_package(self):
+        from agentic_rag.pipeline import (
+            AgenticRAGPipeline,
+            CRAGReplicaPipeline,
+            LoopRAGPipeline,
+            NaiveRAGPipeline,
+        )
+
+        assert AgenticRAGPipeline is not None
+        assert LoopRAGPipeline is not None
+        assert NaiveRAGPipeline is not None
+        assert CRAGReplicaPipeline is not None
+
+    def test_tools_registry(self):
+        from agentic_rag.tools import TOOL_REGISTRY
+
+        assert set(TOOL_REGISTRY.keys()) == {
+            "search",
+            "structure",
+            "terminology",
+            "evaluate",
+            "inspect",
+        }
 
 
 # ---------------------------------------------------------------
@@ -65,14 +112,14 @@ class TestAblationFlags:
 # ---------------------------------------------------------------
 class TestMetrics:
     def test_exact_match(self):
-        from src.evaluation.metrics import exact_match
+        from agentic_rag.evaluation.metrics import exact_match
 
         assert exact_match("hello world", "hello world") == 1.0
         assert exact_match("Hello World", "hello world") == 1.0
         assert exact_match("hello", "world") == 0.0
 
     def test_f1_score(self):
-        from src.evaluation.metrics import token_f1
+        from agentic_rag.evaluation.metrics import token_f1
 
         # Perfect match
         assert token_f1("the quick brown fox", "the quick brown fox") == 1.0
@@ -83,7 +130,7 @@ class TestMetrics:
         assert token_f1("hello", "world") == 0.0
 
     def test_f1_empty(self):
-        from src.evaluation.metrics import token_f1
+        from agentic_rag.evaluation.metrics import token_f1
 
         assert token_f1("", "") == 1.0  # Both empty = match
         assert token_f1("hello", "") == 0.0
@@ -94,7 +141,7 @@ class TestMetrics:
 # ---------------------------------------------------------------
 class TestCostTracker:
     def test_record_and_summary(self):
-        from src.evaluation.cost_tracker import CostTracker
+        from agentic_rag.evaluation.cost_tracker import CostTracker
 
         tracker = CostTracker()
         tracker.record(
@@ -117,7 +164,7 @@ class TestCostTracker:
         assert summary["total_tokens"] == 450  # 100+50 + 200+100
 
     def test_empty_tracker(self):
-        from src.evaluation.cost_tracker import CostTracker
+        from agentic_rag.evaluation.cost_tracker import CostTracker
 
         tracker = CostTracker()
         summary = tracker.summary()
@@ -129,7 +176,7 @@ class TestCostTracker:
 # ---------------------------------------------------------------
 class TestTrainingCollector:
     def test_add_and_retrieve(self):
-        from src.optimization.collector import TrainingCollector
+        from agentic_rag.optimization.collector import TrainingCollector
 
         collector = TrainingCollector()
         collector.add("TestSig", {"q": "hello"}, {"a": "world"})
@@ -137,7 +184,7 @@ class TestTrainingCollector:
         assert len(collector.get_examples("TestSig")) == 1
 
     def test_to_dspy_examples(self):
-        from src.optimization.collector import TrainingCollector
+        from agentic_rag.optimization.collector import TrainingCollector
 
         collector = TrainingCollector()
         collector.add("TestSig", {"q": "hello"}, {"a": "world"})
@@ -147,7 +194,7 @@ class TestTrainingCollector:
         assert examples[0]["a"] == "world"
 
     def test_save_and_load(self, tmp_dir):
-        from src.optimization.collector import TrainingCollector
+        from agentic_rag.optimization.collector import TrainingCollector
 
         collector = TrainingCollector()
         collector.add("Sig1", {"x": "1"}, {"y": "2"})

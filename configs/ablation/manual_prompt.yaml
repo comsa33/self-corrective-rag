@@ -1,0 +1,8 @@
+# Manual Prompt — disable DSPy optimization, use manual prompts (C4 ablation).
+name: Manual Prompt
+contribution: C4
+pipeline: agentic
+
+experiment:
+  enable_rlm_refinement: true
+  enable_dspy: false

@@ -1,0 +1,15 @@
+# w/o Search Tool — RLM agent cannot perform re-retrieval (C1 ablation).
+# Agent can only browse/evaluate initial passages.
+name: w/o Search (No Re-retrieval)
+contribution: C1
+pipeline: agentic
+
+experiment:
+  enable_rlm_refinement: true
+
+rlm:
+  enabled_tools:
+    - structure
+    - terminology
+    - evaluate
+    - inspect

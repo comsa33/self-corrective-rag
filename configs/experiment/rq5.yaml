@@ -1,0 +1,37 @@
+# RQ5: Does DSPy automatic optimization improve pipeline performance
+# and maintainability compared to manual prompt engineering?
+#
+# Compares: Manual Prompt / DSPy Unoptimized / Bootstrap / MIPROv2
+# Tests C4's contribution for declarative pipeline optimization.
+
+name: "RQ5: DSPy Optimization Effect"
+description: >
+  Compare manual prompts, unoptimized DSPy Signatures,
+  BootstrapFewShot, and MIPROv2 optimization (C4).
+
+train_size: 50
+val_size: 20
+
+variants:
+  - name: Manual Prompt
+    pipeline: agentic
+    experiment:
+      enable_dspy: false
+      enable_rlm_refinement: true
+
+  - name: DSPy Unoptimized
+    pipeline: agentic
+    experiment:
+      enable_rlm_refinement: true
+
+  - name: DSPy + Bootstrap
+    pipeline: agentic
+    experiment:
+      enable_rlm_refinement: true
+    optimization: bootstrap
+
+  - name: DSPy + MIPROv2
+    pipeline: agentic
+    experiment:
+      enable_rlm_refinement: true
+    optimization: mipro

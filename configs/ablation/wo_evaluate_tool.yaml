@@ -1,0 +1,14 @@
+# w/o Evaluate Tool — RLM agent cannot assess passage quality (C2 ablation).
+name: w/o Evaluate Tool
+contribution: C2
+pipeline: agentic
+
+experiment:
+  enable_rlm_refinement: true
+
+rlm:
+  enabled_tools:
+    - search
+    - structure
+    - terminology
+    - inspect

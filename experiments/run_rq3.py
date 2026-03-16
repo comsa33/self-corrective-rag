@@ -27,7 +27,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from loguru import logger
 
-from config.settings import settings
+from agentic_rag.config.settings import settings
+from agentic_rag.pipeline.crag import CRAGReplicaPipeline
+from agentic_rag.pipeline.self_corrective import SelfCorrectiveRAGPipeline
 from experiments.common import (
     load_dataset,
     load_retriever,
@@ -36,8 +38,6 @@ from experiments.common import (
     save_results,
     setup_experiment,
 )
-from src.pipeline.crag_replica import CRAGReplicaPipeline
-from src.pipeline.self_corrective import SelfCorrectiveRAGPipeline
 
 
 def run_rq3(dataset_name: str = "popqa", sample_size: int | None = None):

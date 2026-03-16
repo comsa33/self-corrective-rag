@@ -8,9 +8,9 @@ from __future__ import annotations
 
 import pytest
 
-from src.retriever.hybrid import HybridRetriever
-from src.retriever.indexer import Passage
-from src.retriever.sparse import SparseRetriever
+from agentic_rag.retriever.hybrid import HybridRetriever
+from agentic_rag.retriever.indexer import Passage
+from agentic_rag.retriever.sparse import SparseRetriever
 
 
 @pytest.fixture

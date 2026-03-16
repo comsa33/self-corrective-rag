@@ -1,0 +1,30 @@
+# RQ1: Does RLM-based agentic refinement improve answer quality
+# compared to fixed-loop refinement and single-pass baselines?
+#
+# Compares: Naive / CRAG / Single-Pass / Loop (C1-C5) / Agentic (RLM)
+# Expected: Agentic >= Loop > Single-Pass > CRAG > Naive
+
+name: "RQ1: Agentic vs Baselines"
+description: >
+  Compare RLM-based agentic retrieval refinement against for-loop
+  refinement and single-pass baselines on answer quality metrics.
+
+variants:
+  - name: Naive RAG
+    pipeline: naive
+
+  - name: CRAG Replica
+    pipeline: crag
+
+  - name: Single-Pass
+    pipeline: loop
+    experiment:
+      enable_iteration: false
+
+  - name: Loop Refinement
+    pipeline: loop
+
+  - name: Agentic (RLM)
+    pipeline: agentic
+    experiment:
+      enable_rlm_refinement: true

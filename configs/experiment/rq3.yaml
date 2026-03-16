@@ -1,0 +1,34 @@
+# RQ3: Does 4-dimensional quality assessment as an agent tool
+# improve the RLM agent's decision-making compared to simpler evaluation?
+#
+# Compares: RLM + 4D eval tool / RLM + 1D eval tool / RLM w/o eval tool
+# Tests C2's contribution when used as an agent-accessible tool.
+
+name: "RQ3: 4D Evaluation as Agent Tool"
+description: >
+  Compare the effect of multi-dimensional quality assessment as an
+  agent-accessible tool on RLM decision-making and answer quality.
+
+variants:
+  - name: RLM + 4D Eval Tool
+    pipeline: agentic
+    experiment:
+      enable_rlm_refinement: true
+      enable_4d_evaluation: true
+
+  - name: RLM + 1D Eval Tool
+    pipeline: agentic
+    experiment:
+      enable_rlm_refinement: true
+      enable_4d_evaluation: false
+
+  - name: RLM w/o Eval Tool
+    pipeline: agentic
+    experiment:
+      enable_rlm_refinement: true
+    rlm:
+      enabled_tools:
+        - search
+        - structure
+        - terminology
+        - inspect

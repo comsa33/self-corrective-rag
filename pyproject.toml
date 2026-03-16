@@ -1,7 +1,7 @@
 [project]
-name = "self-corrective-rag"
+name = "agentic-self-corrective-rag"
 version = "0.1.0"
-description = "Self-Corrective RAG with DSPy-based Multi-dimensional Quality Assessment"
+description = "Agentic Self-Corrective RAG: Autonomous Retrieval Refinement via Tool-Augmented Language Models"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -27,6 +27,8 @@ dependencies = [
     "rich>=14.0",
     "loguru>=0.7",
     "tqdm>=4.60",
+    # Config
+    "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]
@@ -51,7 +53,7 @@ testpaths = ["tests"]
 pythonpath = ["."]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src", "config"]
+packages = ["agentic_rag"]
 
 [tool.ruff]
 target-version = "py311"
@@ -77,7 +79,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["src", "config", "experiments"]
+known-first-party = ["agentic_rag", "experiments"]
 
 [tool.ruff.format]
 quote-style = "double"

@@ -1,0 +1,8 @@
+# 1D Evaluation — evaluate tool uses single relevance score instead of 4D (C2 ablation).
+name: 1D Evaluation
+contribution: C2
+pipeline: agentic
+
+experiment:
+  enable_rlm_refinement: true
+  enable_4d_evaluation: false
