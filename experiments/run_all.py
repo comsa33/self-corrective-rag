@@ -33,6 +33,7 @@ from experiments.run_rq1 import run_rq1
 from experiments.run_rq2 import run_rq2
 from experiments.run_rq3 import run_rq3
 from experiments.run_rq4 import run_rq4
+from experiments.run_rq5 import run_rq5
 
 console = Console()
 
@@ -90,6 +91,14 @@ def run_all(
             except Exception as e:
                 logger.error(f"RQ4 failed: {e}")
 
+        # RQ5: RLM refinement
+        if "rq5" not in skip:
+            logger.info("\n--- RQ5: RLM Refinement Effect ---")
+            try:
+                dataset_results["rq5"] = run_rq5(dataset_name, sample_size)
+            except Exception as e:
+                logger.error(f"RQ5 failed: {e}")
+
         # Ablation study
         if "ablation" not in skip:
             logger.info("\n--- Ablation Study ---")
@@ -143,7 +152,10 @@ if __name__ == "__main__":
     )
     parser.add_argument("--sample", type=int, default=None)
     parser.add_argument(
-        "--skip", nargs="*", default=None, help="Experiments to skip: rq1, rq2, rq3, rq4, ablation"
+        "--skip",
+        nargs="*",
+        default=None,
+        help="Experiments to skip: rq1, rq2, rq3, rq4, rq5, ablation",
     )
     args = parser.parse_args()
     run_all(args.dataset, args.sample, args.skip)

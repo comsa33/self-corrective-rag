@@ -42,7 +42,7 @@ class AblationVariant:
     """Configuration for one ablation variant."""
 
     name: str
-    contribution: str  # C1-C5
+    contribution: str  # C1-C6
     description: str
     enable_iteration: bool = True
     enable_accumulation: bool = True
@@ -50,6 +50,7 @@ class AblationVariant:
     enable_refinement: bool = True
     enable_agent_routing: bool = True
     enable_dspy: bool = True
+    enable_rlm_refinement: bool = False
 
 
 ABLATION_VARIANTS = [
@@ -94,6 +95,12 @@ ABLATION_VARIANTS = [
         description="Disable DSPy (use manual prompts)",
         enable_dspy=False,
     ),
+    AblationVariant(
+        name="RLM Refinement",
+        contribution="C6",
+        description="RLM-based agentic refinement replacing for-loop",
+        enable_rlm_refinement=True,
+    ),
 ]
 
 
@@ -126,6 +133,7 @@ def run_ablation(
         settings.experiment.enable_refinement = variant.enable_refinement
         settings.experiment.enable_agent_routing = variant.enable_agent_routing
         settings.experiment.enable_dspy = variant.enable_dspy
+        settings.experiment.enable_rlm_refinement = variant.enable_rlm_refinement
 
         pipeline = SelfCorrectiveRAGPipeline(retriever, indexer)
 
@@ -139,6 +147,7 @@ def run_ablation(
     settings.experiment.enable_refinement = True
     settings.experiment.enable_agent_routing = True
     settings.experiment.enable_dspy = True
+    settings.experiment.enable_rlm_refinement = False
 
     # --- Results ---
     print_comparison_table(all_results, title=f"Ablation Study ({dataset_name})")

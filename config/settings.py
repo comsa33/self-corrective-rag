@@ -111,6 +111,18 @@ class ExperimentSettings(BaseSettings):
     enable_refinement: bool = True  # C3: targeted query refinement
     enable_agent_routing: bool = True  # C4: 3-way agent routing
     enable_dspy: bool = True  # C5: DSPy pipeline (vs manual prompt)
+    enable_rlm_refinement: bool = False  # C6: RLM-based agentic refinement (opt-in)
+
+
+class RLMSettings(BaseSettings):
+    """RLM (Recursive Language Model) hyperparameters for C6."""
+
+    model_config = SettingsConfigDict(env_prefix="RLM_")
+
+    max_iterations: int = 15  # REPL interaction rounds
+    max_llm_calls: int = 30  # sub-LM call budget
+    max_output_chars: int = 50_000  # REPL output size cap
+    verbose: bool = False  # detailed execution logging
 
 
 class Settings(BaseSettings):
@@ -130,6 +142,7 @@ class Settings(BaseSettings):
     retrieval: RetrievalSettings = Field(default_factory=RetrievalSettings)
     evaluation: EvaluationSettings = Field(default_factory=EvaluationSettings)
     experiment: ExperimentSettings = Field(default_factory=ExperimentSettings)
+    rlm: RLMSettings = Field(default_factory=RLMSettings)
 
     # Paths
     project_root: Path = PROJECT_ROOT

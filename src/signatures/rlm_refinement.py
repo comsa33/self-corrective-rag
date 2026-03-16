@@ -1,0 +1,70 @@
+"""RLM-based Agentic Retrieval Refinement Signature (C6).
+
+Defines the DSPy Signature used by dspy.RLM to autonomously refine
+retrieval quality through iterative tool use — searching documents,
+browsing structure, mapping terminology, and evaluating passage quality.
+"""
+
+import dspy
+
+
+class RLMRefinementSignature(dspy.Signature):
+    """Autonomously refine retrieval quality for a user question.
+
+    You are a retrieval refinement agent with access to tools for searching
+    an internal document corpus. Your goal is to find passages that score
+    at or above the quality threshold on a 4-dimensional assessment
+    (Relevance, Coverage, Specificity, Sufficiency — total 0-100).
+
+    Available tools
+    ===============
+    - search_passages(query, top_k=10): Search internal documents. Returns JSON
+      list of {id, title, content_preview, score}.
+    - list_document_sections(keyword): Browse document table of contents.
+      Returns matching sections with source and passage counts.
+    - get_terminology(user_term): Map user language to document terminology.
+      Returns a list of document-specific terms matching the user term.
+    - evaluate_passages(question, passage_ids_json): Run 4D quality evaluation
+      on selected passages. Returns {relevance, coverage, specificity,
+      sufficiency, total, action, reasoning}.
+    - get_passage_detail(passage_id): Read the full content of a passage.
+
+    Strategy guidelines
+    ===================
+    1. Start with the initial query and keywords to perform an initial search.
+    2. Evaluate the retrieved passages with evaluate_passages.
+    3. If quality is insufficient (total < quality_threshold):
+       a. Use list_document_sections to discover document structure.
+       b. Use get_terminology to find correct document-specific terms.
+       c. Construct improved queries using discovered terms and sections.
+       d. Search again with refined queries.
+    4. Accumulate promising passages across searches (up to max_passages).
+       Drop low-quality passages if you exceed the limit.
+    5. When evaluation passes or you cannot improve further, SUBMIT your results.
+    """
+
+    # --- Inputs ---
+    question: str = dspy.InputField(desc="The user's question (rephrased, standalone).")
+    initial_query: str = dspy.InputField(desc="Initial search query from preprocessing.")
+    initial_keywords: list[str] = dspy.InputField(
+        desc="Initial search keywords from preprocessing."
+    )
+    quality_threshold: int = dspy.InputField(
+        desc="Minimum total score (0-100) for passage quality."
+    )
+    max_passages: int = dspy.InputField(desc="Maximum number of passages to accumulate.")
+
+    # --- Outputs ---
+    final_passages: list[str] = dspy.OutputField(
+        desc="List of selected passage IDs for answer generation."
+    )
+    final_action: str = dspy.OutputField(
+        desc='"output" if quality is sufficient, "route_to_agent" if unable to find adequate passages.'
+    )
+    evaluation_scores: list[dict] = dspy.OutputField(
+        desc="List of 4D evaluation score dicts from each evaluation call."
+    )
+    search_log: list[str] = dspy.OutputField(
+        desc="Summary of refinement steps taken (queries used, tools called)."
+    )
+    total_search_calls: int = dspy.OutputField(desc="Total number of search_passages calls made.")

@@ -18,6 +18,7 @@ from loguru import logger
 
 from config.settings import settings
 from src.pipeline.base import BasePipeline, PipelineResult
+from src.pipeline.rlm_tools import create_rlm_tools
 from src.retriever.hybrid import HybridRetriever
 from src.retriever.indexer import DocumentIndexer, Passage
 from src.signatures.agents import (
@@ -31,6 +32,7 @@ from src.signatures.preprocess import (
     HyDEPreprocessSignature,
     PreprocessSignature,
 )
+from src.signatures.rlm_refinement import RLMRefinementSignature
 
 
 class SelfCorrectiveRAGPipeline(BasePipeline):
@@ -74,7 +76,6 @@ class SelfCorrectiveRAGPipeline(BasePipeline):
     ) -> PipelineResult:
         """Execute the full Self-Corrective RAG pipeline."""
         exp = settings.experiment
-        eval_cfg = settings.evaluation
         system_prompt = system_prompt or (
             "You are a helpful knowledge assistant. Answer based on the provided passages."
         )
@@ -111,8 +112,86 @@ class SelfCorrectiveRAGPipeline(BasePipeline):
         )
 
         # ============================================================
-        # STEP 2-3: Self-Corrective Loop (C1 + C2 + C3)
+        # STEP 2-3: Self-Corrective Loop (C1 + C2 + C3) or RLM (C6)
         # ============================================================
+        if exp.enable_rlm_refinement:
+            # --- C6: RLM-based Agentic Retrieval Refinement ---
+            (
+                accumulated_passages,
+                evaluation_scores,
+                action_history,
+                final_action,
+                rlm_llm_calls,
+            ) = self._run_rlm_refinement(search_query, search_keywords, hyde_query)
+            llm_calls += rlm_llm_calls
+        else:
+            # --- Standard for-loop refinement (C1 + C2 + C3) ---
+            (
+                accumulated_passages,
+                evaluation_scores,
+                action_history,
+                final_action,
+                loop_llm_calls,
+            ) = self._run_loop_refinement(search_query, search_keywords, hyde_query)
+            llm_calls += loop_llm_calls
+
+        # ============================================================
+        # STEP 4: Generation or Agent Routing (C4)
+        # ============================================================
+        context = self.format_passages(accumulated_passages)
+        agent_type = None
+
+        if final_action == "route_to_agent" and exp.enable_agent_routing:
+            # C4: 3-Way Agent Routing
+            answer, footnotes, rec_questions, agent_type = self._route_to_agent(
+                search_query, context
+            )
+            llm_calls += 1
+        else:
+            # Standard generation
+            with dspy.context(lm=dspy.LM(settings.model.generate_model)):
+                gen_result = self.generator(
+                    question=search_query,
+                    passages=context,
+                    system_prompt=system_prompt,
+                )
+            llm_calls += 1
+            answer = gen_result.answer
+            footnotes = gen_result.footnotes
+            rec_questions = gen_result.recommended_questions
+
+        return PipelineResult(
+            question=question,
+            answer=answer,
+            footnotes=footnotes,
+            recommended_questions=rec_questions,
+            passages_used=accumulated_passages,
+            total_passages_retrieved=len(accumulated_passages),
+            retry_count=len(action_history) - 1,
+            evaluation_scores=evaluation_scores,
+            action_history=action_history,
+            agent_type=agent_type,
+            llm_calls=llm_calls,
+        )
+
+    # ------------------------------------------------------------------
+    # Standard for-loop refinement (C1 + C2 + C3)
+    # ------------------------------------------------------------------
+    def _run_loop_refinement(
+        self,
+        search_query: str,
+        search_keywords: list[str],
+        hyde_query: str | None,
+    ) -> tuple[list[Passage], list[dict], list[str], str, int]:
+        """Execute the standard for-loop self-corrective refinement.
+
+        Returns (accumulated_passages, evaluation_scores, action_history,
+                 final_action, llm_calls).
+        """
+        exp = settings.experiment
+        eval_cfg = settings.evaluation
+        llm_calls = 0
+
         accumulated_passages: list[Passage] = []
         used_passage_ids: set[str] = set()
         evaluation_scores: list[dict] = []
@@ -142,10 +221,7 @@ class SelfCorrectiveRAGPipeline(BasePipeline):
                 )
 
             # --- Retrieval ---
-            # Build combined query from rephrased question + keywords
             combined_query = (f"{search_query} {' '.join(search_keywords)}").strip()
-
-            # Use HyDE query for dense search if available
             actual_query = hyde_query if hyde_query else combined_query
 
             exclude = used_passage_ids if exp.enable_accumulation else set()
@@ -171,7 +247,6 @@ class SelfCorrectiveRAGPipeline(BasePipeline):
                     for ep in evicted:
                         used_passage_ids.discard(ep.id)
             else:
-                # No accumulation: reset each iteration
                 accumulated_passages = new_passages
                 used_passage_ids = {p.id for p in new_passages}
 
@@ -210,8 +285,7 @@ class SelfCorrectiveRAGPipeline(BasePipeline):
                 evaluation_scores.append(score_dict)
                 action = eval_result.action
             else:
-                # 1D evaluation fallback (ablation: C2 disabled)
-                action = "output"  # always proceed without evaluation
+                action = "output"
                 evaluation_scores.append({"retry": retry, "action": action})
 
             action_history.append(action)
@@ -228,44 +302,84 @@ class SelfCorrectiveRAGPipeline(BasePipeline):
                 break
             # else: "refine" → continue loop
 
-        # ============================================================
-        # STEP 4: Generation or Agent Routing (C4)
-        # ============================================================
-        context = self.format_passages(accumulated_passages)
-        agent_type = None
+        return accumulated_passages, evaluation_scores, action_history, final_action, llm_calls
 
-        if final_action == "route_to_agent" and exp.enable_agent_routing:
-            # C4: 3-Way Agent Routing
-            answer, footnotes, rec_questions, agent_type = self._route_to_agent(
-                search_query, context
-            )
-            llm_calls += 1
-        else:
-            # Standard generation
-            with dspy.context(lm=dspy.LM(settings.model.generate_model)):
-                gen_result = self.generator(
-                    question=search_query,
-                    passages=context,
-                    system_prompt=system_prompt,
-                )
-            llm_calls += 1
-            answer = gen_result.answer
-            footnotes = gen_result.footnotes
-            rec_questions = gen_result.recommended_questions
+    # ------------------------------------------------------------------
+    # RLM-based agentic refinement (C6)
+    # ------------------------------------------------------------------
+    def _run_rlm_refinement(
+        self,
+        search_query: str,
+        search_keywords: list[str],
+        hyde_query: str | None,
+    ) -> tuple[list[Passage], list[dict], list[str], str, int]:
+        """Execute RLM-based agentic retrieval refinement.
 
-        return PipelineResult(
-            question=question,
-            answer=answer,
-            footnotes=footnotes,
-            recommended_questions=rec_questions,
-            passages_used=accumulated_passages,
-            total_passages_retrieved=len(used_passage_ids),
-            retry_count=len(action_history) - 1,
-            evaluation_scores=evaluation_scores,
-            action_history=action_history,
-            agent_type=agent_type,
-            llm_calls=llm_calls,
+        Instead of a fixed for-loop, an RLM agent autonomously decides
+        which tools to use (search, browse sections, map terminology,
+        evaluate) and in what order to optimize retrieval quality.
+
+        Returns (accumulated_passages, evaluation_scores, action_history,
+                 final_action, llm_calls).
+        """
+        rlm_cfg = settings.rlm
+
+        # Create tools that close over pipeline components
+        tools = create_rlm_tools(
+            retriever=self.retriever,
+            indexer=self.indexer,
+            evaluator=self.evaluator,
         )
+
+        # Sub-LM for llm_query() calls inside the REPL (cheap model)
+        sub_lm = dspy.LM(settings.model.evaluate_model)
+
+        # Create RLM instance
+        rlm = dspy.RLM(
+            RLMRefinementSignature,
+            max_iterations=rlm_cfg.max_iterations,
+            max_llm_calls=rlm_cfg.max_llm_calls,
+            max_output_chars=rlm_cfg.max_output_chars,
+            verbose=rlm_cfg.verbose,
+            tools=tools,
+            sub_lm=sub_lm,
+        )
+
+        # Execute RLM with main reasoning model
+        logger.info(
+            f"[SelfCorrectiveRAG:RLM] Starting agentic refinement: "
+            f"query='{search_query}', keywords={search_keywords[:5]}"
+        )
+
+        with dspy.context(lm=dspy.LM(settings.model.agent_model)):
+            result = rlm(
+                question=search_query,
+                initial_query=hyde_query or search_query,
+                initial_keywords=search_keywords,
+                quality_threshold=settings.evaluation.quality_threshold,
+                max_passages=settings.retrieval.max_passages,
+            )
+
+        # Extract results
+        passage_ids = result.final_passages or []
+        accumulated_passages = self.indexer.get_passages(passage_ids)
+        final_action = result.final_action or "output"
+        evaluation_scores = result.evaluation_scores or []
+        action_history = result.search_log or []
+        total_search_calls = result.total_search_calls or 0
+
+        # Estimate LLM calls from trajectory
+        trajectory_steps = len(getattr(result, "trajectory", []))
+        llm_calls = trajectory_steps + total_search_calls
+
+        logger.info(
+            f"[SelfCorrectiveRAG:RLM] Completed: action={final_action}, "
+            f"passages={len(accumulated_passages)}, "
+            f"search_calls={total_search_calls}, "
+            f"trajectory_steps={trajectory_steps}"
+        )
+
+        return accumulated_passages, evaluation_scores, action_history, final_action, llm_calls
 
     # ------------------------------------------------------------------
     # Agent routing (C4)

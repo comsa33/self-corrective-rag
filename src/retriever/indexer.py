@@ -15,6 +15,8 @@ from loguru import logger
 
 from config.settings import settings
 from src.retriever.hybrid import HybridRetriever
+from src.retriever.section_index import SectionIndex
+from src.retriever.term_index import TermIndex
 
 
 @dataclass
@@ -34,6 +36,8 @@ class DocumentIndexer:
     def __init__(self, retriever: HybridRetriever | None = None):
         self.retriever = retriever or HybridRetriever()
         self.passages: list[Passage] = []
+        self.section_index = SectionIndex()
+        self.term_index = TermIndex()
 
     # ------------------------------------------------------------------
     # Document loading
@@ -152,6 +156,15 @@ class DocumentIndexer:
 
         self.passages = self.chunk_passages(all_passages, chunk_size, overlap)
         self.retriever.build_index(self.passages)
+
+        # Build auxiliary indices for RLM tools
+        self.section_index.build(self.passages)
+        self.term_index.build(self.passages)
+        logger.info(
+            f"Built section index ({len(self.section_index.source_to_sections)} sources) "
+            f"and term index ({len(self.term_index.term_map)} terms)"
+        )
+
         return self.retriever
 
     def save(self, index_dir: Path | None = None) -> None:
@@ -173,6 +186,10 @@ class DocumentIndexer:
         with open(index_dir / "passages.jsonl", "w", encoding="utf-8") as f:
             for item in passage_data:
                 f.write(json.dumps(item, ensure_ascii=False) + "\n")
+
+        # Save auxiliary indices
+        self.section_index.save(index_dir / "section_index.json")
+        self.term_index.save(index_dir / "term_index.json")
         logger.info(f"Index saved to {index_dir}")
 
     def load(self, index_dir: Path | None = None) -> HybridRetriever:
@@ -184,6 +201,10 @@ class DocumentIndexer:
         passages_file = index_dir / "passages.jsonl"
         if passages_file.exists():
             self.passages = self.load_jsonl(passages_file)
+
+        # Load auxiliary indices
+        self.section_index.load(index_dir / "section_index.json", self.passages)
+        self.term_index.load(index_dir / "term_index.json", self.passages)
 
         return self.retriever
 
