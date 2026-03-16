@@ -10,7 +10,8 @@ PhD 논문 실험 코드베이스: Agentic Self-Corrective RAG — Autonomous Re
 - **Python 3.11** (uv managed)
 - **DSPy 3.1+** — 8 Signatures + AgenticRefinementSignature, ChainOfThought/Predict/ReAct modules
 - **FAISS + BM25 + RRF** — Hybrid retrieval
-- **OpenAI API** via litellm — gpt-4o-mini (preprocess/evaluate), gpt-4o (generate/agent)
+- **Multi-provider LLM** via litellm — OpenAI/Gemini/local (4 model slots: preprocess, evaluate, generate, agent)
+- **Embeddings** — OpenAI, litellm, or local sentence-transformers (auto-detected by model name)
 - **PyYAML** — YAML config system for experiment management
 - **Ruff** for lint+format, **pre-commit** hooks, **pytest** for tests
 
@@ -20,6 +21,7 @@ uv run pytest tests/                                     # unit tests
 uv run ruff check .                                      # lint
 uv run ruff format .                                     # format
 uv run python scripts/prepare_datasets.py --sample 500   # download data
+uv run python scripts/build_index.py --dataset all        # build FAISS+BM25 indices
 
 # Config-driven experiments
 uv run python experiments/run.py --config configs/experiment/rq1.yaml --sample 20
@@ -101,6 +103,9 @@ configs/
   pipeline/{naive,crag,loop,agentic}.yaml
   experiment/{rq1..rq5}.yaml — Per-RQ experiment configs with variants
   ablation/*.yaml            — 8 tool-level ablation configs
+scripts/
+  prepare_datasets.py        — Download & prepare datasets (PopQA, HotpotQA, NQ, FinanceBench)
+  build_index.py             — Build FAISS+BM25 hybrid indices from dataset passages
 experiments/
   run.py                     — Unified config-driven runner (--config/--ablation/--all)
   common.py                  — Shared experiment utilities
