@@ -1,6 +1,6 @@
-"""RLM-based Agentic Retrieval Refinement Signature (C6).
+"""Agentic Retrieval Refinement Signature for dspy.ReAct.
 
-Defines the DSPy Signature used by dspy.RLM to autonomously refine
+Defines the DSPy Signature used by the ReAct agent to autonomously refine
 retrieval quality through iterative tool use — searching documents,
 browsing structure, mapping terminology, and evaluating passage quality.
 """
@@ -8,7 +8,7 @@ browsing structure, mapping terminology, and evaluating passage quality.
 import dspy
 
 
-class RLMRefinementSignature(dspy.Signature):
+class AgenticRefinementSignature(dspy.Signature):
     """Autonomously refine retrieval quality for a user question.
 
     You are a retrieval refinement agent with access to tools for searching
@@ -46,7 +46,7 @@ class RLMRefinementSignature(dspy.Signature):
        d. Search again with refined queries incorporating discovered terms.
     5. Accumulate promising passages across searches (up to max_passages).
        Drop low-quality passages if you exceed the limit.
-    6. When evaluation passes or you cannot improve further, SUBMIT your results.
+    6. When evaluation passes or you cannot improve further, call finish.
     """
 
     # --- Inputs ---
@@ -60,17 +60,10 @@ class RLMRefinementSignature(dspy.Signature):
     )
     max_passages: int = dspy.InputField(desc="Maximum number of passages to accumulate.")
 
-    # --- Outputs ---
+    # --- Outputs (extracted by ReAct after finish) ---
     final_passages: list[str] = dspy.OutputField(
         desc="List of selected passage IDs for answer generation."
     )
     final_action: str = dspy.OutputField(
         desc='"output" if quality is sufficient, "route_to_agent" if unable to find adequate passages.'
     )
-    evaluation_scores: list[dict] = dspy.OutputField(
-        desc="List of 4D evaluation score dicts from each evaluation call."
-    )
-    search_log: list[str] = dspy.OutputField(
-        desc="Summary of refinement steps taken (queries used, tools called)."
-    )
-    total_search_calls: int = dspy.OutputField(desc="Total number of search_passages calls made.")

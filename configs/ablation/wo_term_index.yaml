@@ -1,12 +1,12 @@
-# w/o Term Index — RLM agent cannot map user terms to doc vocabulary (C3 ablation).
+# w/o Term Index — agent cannot map user terms to doc vocabulary (C3 ablation).
 name: w/o Term Index
 contribution: C3
 pipeline: agentic
 
 experiment:
-  enable_rlm_refinement: true
+  enable_agentic_refinement: true
 
-rlm:
+agent:
   enabled_tools:
     - search
     - decompose

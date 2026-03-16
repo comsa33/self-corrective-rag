@@ -35,11 +35,9 @@ experiment:
   enable_refinement: true
   enable_agent_routing: true
   enable_dspy: true
-  enable_rlm_refinement: false
+  enable_agentic_refinement: false
 
-rlm:
+agent:
   max_iterations: 15
-  max_llm_calls: 30
-  max_output_chars: 50000
   # enabled_tools: null = all tools (search, decompose, structure, terminology, evaluate, inspect)
   enabled_tools: null

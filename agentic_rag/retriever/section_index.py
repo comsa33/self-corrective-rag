@@ -1,7 +1,7 @@
 """Section-level index for document structure browsing.
 
 Provides a lightweight index over document sections/titles, enabling
-RLM tools to browse document structure before committing to full-text search.
+agent tools to browse document structure before committing to full-text search.
 No LLM calls — pure in-memory data structures built from passage metadata.
 """
 
@@ -30,7 +30,7 @@ class SectionIndex:
     """Index mapping document sources to their section titles.
 
     Built from passage titles and sources during indexing.
-    Enables RLM agents to browse document structure and identify
+    Enables agents to browse document structure and identify
     promising sections before performing full-text retrieval.
     """
 

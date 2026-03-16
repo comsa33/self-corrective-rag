@@ -1,12 +1,13 @@
-"""Tests for RLM-based agentic retrieval refinement (C6).
+"""Tests for ReAct-based agentic retrieval refinement.
 
 Covers:
   - SectionIndex build and search
   - TermIndex build and lookup
-  - RLM tool functions (mocked retriever/indexer/evaluator)
-  - RLM signature field validation
-  - Settings and ablation flag
+  - Tool functions (mocked retriever/indexer/evaluator)
+  - Agent signature field validation
+  - Settings and ablation flags
   - DocumentIndexer auxiliary index integration
+  - Trajectory parsing utilities
 """
 
 from __future__ import annotations
@@ -18,10 +19,11 @@ import dspy
 import pytest
 
 from agentic_rag.config.settings import settings
+from agentic_rag.pipeline.agentic import parse_action_history, parse_evaluation_scores
 from agentic_rag.retriever.indexer import DocumentIndexer, Passage
 from agentic_rag.retriever.section_index import SectionIndex
 from agentic_rag.retriever.term_index import TermIndex
-from agentic_rag.signatures.rlm_refinement import RLMRefinementSignature
+from agentic_rag.signatures.agent import AgenticRefinementSignature
 
 
 # ---------------------------------------------------------------------------
@@ -188,11 +190,11 @@ class TestTermIndex:
 
 
 # ---------------------------------------------------------------------------
-# RLM Signature Tests
+# Agent Signature Tests
 # ---------------------------------------------------------------------------
-class TestRLMRefinementSignature:
+class TestAgenticRefinementSignature:
     def test_input_fields(self):
-        fields = RLMRefinementSignature.input_fields
+        fields = AgenticRefinementSignature.input_fields
         expected = {
             "question",
             "initial_query",
@@ -203,26 +205,108 @@ class TestRLMRefinementSignature:
         assert set(fields.keys()) == expected
 
     def test_output_fields(self):
-        fields = RLMRefinementSignature.output_fields
+        fields = AgenticRefinementSignature.output_fields
         expected = {
             "final_passages",
             "final_action",
-            "evaluation_scores",
-            "search_log",
-            "total_search_calls",
         }
         assert set(fields.keys()) == expected
 
-    def test_rlm_module_creation(self):
-        """Verify dspy.RLM can be instantiated with our signature."""
-        rlm = dspy.RLM(RLMRefinementSignature)
-        assert rlm is not None
+    def test_react_module_creation(self):
+        """Verify dspy.ReAct can be instantiated with our signature."""
+
+        def dummy_tool(query: str) -> str:
+            """A dummy tool for testing."""
+            return "result"
+
+        react = dspy.ReAct(AgenticRefinementSignature, tools=[dummy_tool])
+        assert react is not None
 
 
 # ---------------------------------------------------------------------------
-# RLM Tools Tests (mocked)
+# Trajectory Parsing Tests
 # ---------------------------------------------------------------------------
-class TestRLMTools:
+class TestTrajectoryParsing:
+    def test_parse_action_history_basic(self):
+        trajectory = {
+            "thought_0": "I should search first",
+            "tool_name_0": "search_passages",
+            "tool_args_0": {"query": "test"},
+            "observation_0": '[{"id": "p1"}]',
+            "thought_1": "Now evaluate",
+            "tool_name_1": "evaluate_passages",
+            "tool_args_1": {"question": "test", "passage_ids_json": '["p1"]'},
+            "observation_1": '{"total": 70, "action": "output"}',
+            "thought_2": "Quality is good, finish",
+            "tool_name_2": "finish",
+            "tool_args_2": {},
+            "observation_2": "Completed.",
+        }
+        actions = parse_action_history(trajectory)
+        assert actions == ["search_passages", "evaluate_passages"]
+
+    def test_parse_action_history_empty(self):
+        assert parse_action_history({}) == []
+
+    def test_parse_evaluation_scores(self):
+        trajectory = {
+            "thought_0": "Search",
+            "tool_name_0": "search_passages",
+            "tool_args_0": {},
+            "observation_0": "[]",
+            "thought_1": "Evaluate",
+            "tool_name_1": "evaluate_passages",
+            "tool_args_1": {},
+            "observation_1": json.dumps(
+                {
+                    "relevance": 20,
+                    "coverage": 15,
+                    "specificity": 18,
+                    "sufficiency": 12,
+                    "total": 65,
+                    "action": "output",
+                }
+            ),
+        }
+        scores = parse_evaluation_scores(trajectory)
+        assert len(scores) == 1
+        assert scores[0]["total"] == 65
+
+    def test_parse_evaluation_scores_multiple(self):
+        trajectory = {
+            "thought_0": "Evaluate first",
+            "tool_name_0": "evaluate_passages",
+            "tool_args_0": {},
+            "observation_0": json.dumps({"total": 30, "action": "refine"}),
+            "thought_1": "Search more",
+            "tool_name_1": "search_passages",
+            "tool_args_1": {},
+            "observation_1": "[]",
+            "thought_2": "Evaluate again",
+            "tool_name_2": "evaluate_passages",
+            "tool_args_2": {},
+            "observation_2": json.dumps({"total": 70, "action": "output"}),
+        }
+        scores = parse_evaluation_scores(trajectory)
+        assert len(scores) == 2
+        assert scores[0]["total"] == 30
+        assert scores[1]["total"] == 70
+
+    def test_parse_evaluation_scores_malformed_json(self):
+        trajectory = {
+            "thought_0": "Evaluate",
+            "tool_name_0": "evaluate_passages",
+            "tool_args_0": {},
+            "observation_0": "not valid json",
+        }
+        scores = parse_evaluation_scores(trajectory)
+        assert scores == []
+
+
+# ---------------------------------------------------------------------------
+# Tool Tests (mocked)
+# ---------------------------------------------------------------------------
+class TestAgentTools:
     def test_search_passages_tool(self, passages):
         from agentic_rag.tools import create_tools
 
@@ -327,18 +411,15 @@ class TestRLMTools:
 # ---------------------------------------------------------------------------
 # Settings Tests
 # ---------------------------------------------------------------------------
-class TestRLMSettings:
-    def test_rlm_settings_defaults(self):
-        assert settings.rlm.max_iterations == 15
-        assert settings.rlm.max_llm_calls == 30
-        assert settings.rlm.max_output_chars == 50_000
-        assert settings.rlm.verbose is False
+class TestAgentSettings:
+    def test_agent_settings_defaults(self):
+        assert settings.agent.max_iterations == 15
 
-    def test_enable_rlm_refinement_default_false(self):
-        assert settings.experiment.enable_rlm_refinement is False
+    def test_enable_agentic_refinement_default_false(self):
+        assert settings.experiment.enable_agentic_refinement is False
 
     def test_ablation_flags_count(self):
-        """Total of 7 ablation flags: C1-C5 (6 flags) + C6."""
+        """Total of 7 ablation flags: C1-C5 (6 flags) + agentic refinement."""
         exp = settings.experiment
         flags = [
             exp.enable_iteration,
@@ -347,10 +428,10 @@ class TestRLMSettings:
             exp.enable_refinement,
             exp.enable_agent_routing,
             exp.enable_dspy,
-            exp.enable_rlm_refinement,
+            exp.enable_agentic_refinement,
         ]
         assert len(flags) == 7
-        # C1-C5 default True, C6 default False
+        # C1-C5 default True, agentic refinement default False
         assert sum(flags) == 6
 
 

@@ -4,5 +4,5 @@ contribution: C4
 pipeline: agentic
 
 experiment:
-  enable_rlm_refinement: true
+  enable_agentic_refinement: true
   enable_dspy: false

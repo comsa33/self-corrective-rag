@@ -1,5 +1,5 @@
-# Agentic RAG — RLM-based agentic refinement (proposed method).
+# Agentic RAG — ReAct-based agentic refinement (proposed method).
 pipeline: agentic
 
 experiment:
-  enable_rlm_refinement: true
+  enable_agentic_refinement: true

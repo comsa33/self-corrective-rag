@@ -1,12 +1,12 @@
-# w/o Section Index — RLM agent cannot browse document structure (C3 ablation).
+# w/o Section Index — agent cannot browse document structure (C3 ablation).
 name: w/o Section Index
 contribution: C3
 pipeline: agentic
 
 experiment:
-  enable_rlm_refinement: true
+  enable_agentic_refinement: true
 
-rlm:
+agent:
   enabled_tools:
     - search
     - decompose

@@ -4,5 +4,5 @@ contribution: C2
 pipeline: agentic
 
 experiment:
-  enable_rlm_refinement: true
+  enable_agentic_refinement: true
   enable_4d_evaluation: false

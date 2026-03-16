@@ -1,4 +1,4 @@
-"""Search tool for RLM agentic retrieval."""
+"""Search tool for agentic retrieval."""
 
 from __future__ import annotations
 
@@ -45,7 +45,7 @@ def make_search_passages(
                     }
                 )
 
-            logger.debug(f"[RLM:search_passages] query='{query}', results={len(output)}")
+            logger.debug(f"[Agent:search_passages] query='{query}', results={len(output)}")
             return json.dumps(output, ensure_ascii=False)
         except Exception as e:
             return json.dumps({"error": str(e)})

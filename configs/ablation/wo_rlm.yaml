@@ -1,7 +1,7 @@
-# w/o RLM — for-loop fallback (C1 ablation: removes agentic refinement).
-name: w/o RLM (For-Loop)
+# w/o Agent — for-loop fallback (C1 ablation: removes agentic refinement).
+name: w/o Agent (For-Loop)
 contribution: C1
 pipeline: loop
 
 experiment:
-  enable_rlm_refinement: false
+  enable_agentic_refinement: false

@@ -1,4 +1,4 @@
-"""Query decomposition tool for RLM agentic retrieval."""
+"""Query decomposition tool for agentic retrieval."""
 
 from __future__ import annotations
 
@@ -40,7 +40,7 @@ def make_decompose_query():
             }
 
             logger.debug(
-                f"[RLM:decompose_query] multi_hop={output['is_multi_hop']}, "
+                f"[Agent:decompose_query] multi_hop={output['is_multi_hop']}, "
                 f"sub_qs={len(output['sub_questions'])}"
             )
             return json.dumps(output, ensure_ascii=False)

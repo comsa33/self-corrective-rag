@@ -1,4 +1,4 @@
-"""4D quality evaluation tool for RLM agentic retrieval."""
+"""4D quality evaluation tool for agentic retrieval."""
 
 from __future__ import annotations
 
@@ -71,7 +71,7 @@ def make_evaluate_passages(
             }
 
             logger.debug(
-                f"[RLM:evaluate_passages] total={score_dict['total']}, "
+                f"[Agent:evaluate_passages] total={score_dict['total']}, "
                 f"action={score_dict['action']}"
             )
             return json.dumps(score_dict, ensure_ascii=False)

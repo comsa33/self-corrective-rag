@@ -63,7 +63,7 @@ class TestLoadConfig:
         # Should have base defaults merged
         assert cfg["model"]["generate_model"] == "gpt-4o"
         # Should have pipeline-specific override
-        assert cfg["experiment"]["enable_rlm_refinement"] is True
+        assert cfg["experiment"]["enable_agentic_refinement"] is True
 
     def test_overrides_applied(self):
         cfg = load_config(
@@ -87,33 +87,33 @@ class TestLoadExperimentConfig:
         exp = load_experiment_config(CONFIGS_DIR / "experiment" / "rq1.yaml")
         names = [v.name for v in exp.variants]
         assert "Naive RAG" in names
-        assert "Agentic (RLM)" in names
+        assert "Agentic (ReAct)" in names
 
     def test_variant_pipeline_types(self):
         exp = load_experiment_config(CONFIGS_DIR / "experiment" / "rq1.yaml")
         pipelines = {v.name: v.pipeline for v in exp.variants}
         assert pipelines["Naive RAG"] == "naive"
         assert pipelines["CRAG Replica"] == "crag"
-        assert pipelines["Agentic (RLM)"] == "agentic"
+        assert pipelines["Agentic (ReAct)"] == "agentic"
 
     def test_variant_overrides(self):
         exp = load_experiment_config(CONFIGS_DIR / "experiment" / "rq1.yaml")
         single_pass = next(v for v in exp.variants if v.name == "Single-Pass")
         assert single_pass.overrides["experiment"]["enable_iteration"] is False
 
-    def test_rq3_rlm_tool_ablation(self):
+    def test_rq3_agent_tool_ablation(self):
         """RQ3 has a variant with explicit enabled_tools list."""
         exp = load_experiment_config(CONFIGS_DIR / "experiment" / "rq3.yaml")
-        wo_eval = next(v for v in exp.variants if v.name == "RLM w/o Eval Tool")
-        assert "evaluate" not in wo_eval.overrides["rlm"]["enabled_tools"]
-        assert "search" in wo_eval.overrides["rlm"]["enabled_tools"]
+        wo_eval = next(v for v in exp.variants if v.name == "Agent w/o Eval Tool")
+        assert "evaluate" not in wo_eval.overrides["agent"]["enabled_tools"]
+        assert "search" in wo_eval.overrides["agent"]["enabled_tools"]
 
     def test_rq4_structure_aware_tools(self):
         """RQ4 tests structure-aware tool ablation."""
         exp = load_experiment_config(CONFIGS_DIR / "experiment" / "rq4.yaml")
         assert len(exp.variants) == 4
         wo_section = next(v for v in exp.variants if v.name == "w/o Section Index")
-        assert "structure" not in wo_section.overrides["rlm"]["enabled_tools"]
+        assert "structure" not in wo_section.overrides["agent"]["enabled_tools"]
 
     def test_rq5_has_train_size(self):
         exp = load_experiment_config(CONFIGS_DIR / "experiment" / "rq5.yaml")
@@ -163,18 +163,18 @@ class TestLoadAblationConfigs:
     def test_ablation_names(self):
         configs = load_ablation_configs()
         names = [c.name for c in configs]
-        assert "Full (RLM + All Tools)" in names
-        assert "w/o RLM (For-Loop)" in names
+        assert "Full (Agent + All Tools)" in names
+        assert "w/o Agent (For-Loop)" in names
         assert "w/o Evaluate Tool" in names
 
     def test_ablation_tool_level(self):
         """Tool-level ablation configs correctly exclude specific tools."""
         configs = load_ablation_configs()
         wo_eval = next(c for c in configs if c.name == "w/o Evaluate Tool")
-        assert "evaluate" not in wo_eval.overrides["rlm"]["enabled_tools"]
-        assert "search" in wo_eval.overrides["rlm"]["enabled_tools"]
+        assert "evaluate" not in wo_eval.overrides["agent"]["enabled_tools"]
+        assert "search" in wo_eval.overrides["agent"]["enabled_tools"]
 
-    def test_ablation_wo_rlm_uses_loop_pipeline(self):
+    def test_ablation_wo_agent_uses_loop_pipeline(self):
         configs = load_ablation_configs()
-        wo_rlm = next(c for c in configs if c.name == "w/o RLM (For-Loop)")
-        assert wo_rlm.pipeline == "loop"
+        wo_agent = next(c for c in configs if c.name == "w/o Agent (For-Loop)")
+        assert wo_agent.pipeline == "loop"

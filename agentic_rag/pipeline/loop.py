@@ -8,7 +8,7 @@ Fixed for-loop refinement implementing C1-C5:
   C5: DSPy-based declarative pipeline
 
 This serves as the primary ablation baseline against the proposed
-AgenticRAGPipeline (RLM-based). Ablation flags in ExperimentSettings
+AgenticRAGPipeline (ReAct-based). Ablation flags in ExperimentSettings
 allow disabling each contribution independently.
 """
 

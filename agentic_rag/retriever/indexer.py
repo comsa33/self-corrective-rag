@@ -157,7 +157,7 @@ class DocumentIndexer:
         self.passages = self.chunk_passages(all_passages, chunk_size, overlap)
         self.retriever.build_index(self.passages)
 
-        # Build auxiliary indices for RLM tools
+        # Build auxiliary indices for agent tools
         self.section_index.build(self.passages)
         self.term_index.build(self.passages)
         logger.info(

@@ -13,13 +13,13 @@ variants:
   - name: Full Tools
     pipeline: agentic
     experiment:
-      enable_rlm_refinement: true
+      enable_agentic_refinement: true
 
   - name: w/o Section Index
     pipeline: agentic
     experiment:
-      enable_rlm_refinement: true
-    rlm:
+      enable_agentic_refinement: true
+    agent:
       enabled_tools:
         - search
         - decompose
@@ -30,8 +30,8 @@ variants:
   - name: w/o Terminology
     pipeline: agentic
     experiment:
-      enable_rlm_refinement: true
-    rlm:
+      enable_agentic_refinement: true
+    agent:
       enabled_tools:
         - search
         - decompose
@@ -42,8 +42,8 @@ variants:
   - name: w/o Structure Tools
     pipeline: agentic
     experiment:
-      enable_rlm_refinement: true
-    rlm:
+      enable_agentic_refinement: true
+    agent:
       enabled_tools:
         - search
         - decompose
