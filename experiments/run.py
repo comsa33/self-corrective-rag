@@ -65,6 +65,7 @@ def _run_variant(
     dataset: list[dict],
     retriever,
     indexer,
+    request_delay: float = 0.0,
 ) -> list[dict]:
     """Run a single variant: apply settings, create pipeline, execute."""
     # Apply variant-specific settings
@@ -82,7 +83,7 @@ def _run_variant(
     pipeline = pipeline_cls(retriever, indexer)
 
     slug = variant.name.lower().replace(" ", "_").replace("/", "_")
-    return run_pipeline_on_dataset(pipeline, dataset, slug)
+    return run_pipeline_on_dataset(pipeline, dataset, slug, request_delay=request_delay)
 
 
 # ---------------------------------------------------------------------------
@@ -92,6 +93,7 @@ def run_experiment(
     config_path: str,
     dataset_name: str = "popqa",
     sample_size: int | None = None,
+    request_delay: float = 0.0,
 ) -> dict[str, list[dict]]:
     """Run an experiment defined by a YAML config file."""
     exp = load_experiment_config(config_path)
@@ -118,7 +120,7 @@ def run_experiment(
     all_results: dict[str, list[dict]] = {}
     for variant in exp.variants:
         logger.info(f"  Running variant: {variant.name}")
-        results = _run_variant(variant, test_data, retriever, indexer)
+        results = _run_variant(variant, test_data, retriever, indexer, request_delay)
         all_results[variant.name] = results
 
     # Report & save
@@ -141,6 +143,7 @@ def run_ablation(
     dataset_name: str = "popqa",
     sample_size: int | None = None,
     variant_names: list[str] | None = None,
+    request_delay: float = 0.0,
 ) -> dict[str, list[dict]]:
     """Run ablation study from configs/ablation/ directory."""
     variants = load_ablation_configs()
@@ -157,7 +160,7 @@ def run_ablation(
     all_results: dict[str, list[dict]] = {}
     for variant in variants:
         logger.info(f"  Running ablation variant: {variant.name}")
-        results = _run_variant(variant, dataset, retriever, indexer)
+        results = _run_variant(variant, dataset, retriever, indexer, request_delay)
         all_results[variant.name] = results
 
     print_comparison_table(all_results, title=f"Ablation Study ({dataset_name})")
@@ -179,6 +182,7 @@ def run_all(
     dataset_name: str = "popqa",
     sample_size: int | None = None,
     skip: list[str] | None = None,
+    request_delay: float = 0.0,
 ) -> None:
     """Run all experiments + ablation study."""
     skip = skip or []
@@ -189,13 +193,13 @@ def run_all(
             logger.info(f"Skipping {exp_name}")
             continue
         try:
-            run_experiment(config_path, dataset_name, sample_size)
+            run_experiment(config_path, dataset_name, sample_size, request_delay)
         except Exception as e:
             logger.error(f"{exp_name} failed: {e}")
 
     if "ablation" not in skip:
         try:
-            run_ablation(dataset_name, sample_size)
+            run_ablation(dataset_name, sample_size, request_delay=request_delay)
         except Exception as e:
             logger.error(f"Ablation failed: {e}")
 
@@ -246,15 +250,21 @@ def main():
         default=None,
         help="Specific ablation variant names to run",
     )
+    parser.add_argument(
+        "--delay",
+        type=float,
+        default=0.0,
+        help="Seconds to wait between items (for API rate limiting, e.g. 5.0)",
+    )
 
     args = parser.parse_args()
 
     if args.run_all:
-        run_all(args.dataset, args.sample, args.skip)
+        run_all(args.dataset, args.sample, args.skip, args.delay)
     elif args.ablation:
-        run_ablation(args.dataset, args.sample, args.variants)
+        run_ablation(args.dataset, args.sample, args.variants, args.delay)
     elif args.config:
-        run_experiment(args.config, args.dataset, args.sample)
+        run_experiment(args.config, args.dataset, args.sample, args.delay)
     else:
         parser.print_help()
 

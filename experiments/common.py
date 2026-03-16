@@ -93,14 +93,20 @@ def run_pipeline_on_dataset(
     pipeline: BasePipeline,
     dataset: list[dict],
     pipeline_name: str = "pipeline",
+    request_delay: float = 0.0,
 ) -> list[dict]:
     """Run a pipeline on a dataset and collect results.
+
+    Args:
+        request_delay: Seconds to wait between items (for API rate limiting).
 
     Returns list of result dicts with predictions and metadata.
     """
     results = []
 
     for i, item in enumerate(dataset):
+        if i > 0 and request_delay > 0:
+            time.sleep(request_delay)
         question = item["question"]
         reference = item.get("answer", "")
 
