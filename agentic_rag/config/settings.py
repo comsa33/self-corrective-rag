@@ -102,7 +102,7 @@ class ExperimentSettings(BaseSettings):
     log_level: str = Field("INFO", alias="LOG_LEVEL")
 
     # Datasets
-    datasets: list[str] = ["popqa", "hotpotqa", "natural_questions"]
+    datasets: list[str] = ["popqa", "hotpotqa", "natural_questions", "financebench"]
 
     # Ablation flags — toggle individual contributions on/off
     enable_iteration: bool = True  # C1: iterative loop

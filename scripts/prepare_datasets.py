@@ -1,15 +1,22 @@
 """Download and prepare benchmark datasets for experiments.
 
-Datasets:
+Datasets (Open-domain QA — baseline comparison):
   1. PopQA       — Short-form factoid QA (accuracy metric)
   2. HotpotQA    — Multi-hop reasoning QA (F1, EM metrics)
   3. Natural Questions (NQ) — Open-domain QA (accuracy metric)
 
+Datasets (Enterprise/Domain-specific — practical applicability):
+  4. FinanceBench — Financial QA over SEC filings (10-K/10-Q/8-K)
+
 Each dataset is saved as JSONL with a unified schema:
   {"id": str, "question": str, "answer": str, "metadata": {...}}
 
+FinanceBench additionally includes document passages extracted from SEC
+filings to serve as the retrieval corpus, enabling end-to-end RAG
+evaluation on structured enterprise documents.
+
 Usage:
-  uv run python scripts/prepare_datasets.py [--dataset popqa|hotpotqa|nq|all]
+  uv run python scripts/prepare_datasets.py [--dataset popqa|hotpotqa|nq|financebench|all]
   uv run python scripts/prepare_datasets.py --dataset all --sample 500
 """
 
@@ -150,6 +157,65 @@ def prepare_nq(output_dir: Path, sample_size: int | None = None) -> Path:
     return out_path
 
 
+def prepare_financebench(output_dir: Path, sample_size: int | None = None) -> Path:
+    """Prepare FinanceBench dataset.
+
+    FinanceBench: 150 financial QA pairs over SEC filings (10-K, 10-Q, 8-K)
+    from publicly traded companies. Each question includes human-annotated
+    answers with evidence passages extracted from the source documents.
+
+    This dataset tests RAG on enterprise-grade structured documents with
+    domain-specific terminology — validating C3 (section_index, term_index).
+
+    Source: PatronusAI/financebench (CC-BY-NC-4.0, academic use permitted)
+    """
+    from datasets import load_dataset
+
+    logger.info("Loading FinanceBench dataset...")
+    ds = load_dataset("PatronusAI/financebench", split="train")
+
+    items = []
+    for i, row in enumerate(ds):
+        if sample_size and i >= sample_size:
+            break
+
+        # Extract evidence passages from the structured evidence field
+        evidence_passages = []
+        for ev in row.get("evidence", []):
+            evidence_passages.append(
+                {
+                    "title": f"{ev.get('doc_name', row.get('doc_name', ''))} (p.{ev.get('evidence_page_num', '?')})",
+                    "content": ev.get("evidence_text_full_page", ev.get("evidence_text", "")),
+                    "source": ev.get("doc_name", row.get("doc_name", "")),
+                    "page_num": ev.get("evidence_page_num", 0),
+                }
+            )
+
+        items.append(
+            {
+                "id": f"financebench_{row.get('financebench_id', i)}",
+                "question": row["question"],
+                "answer": row["answer"],
+                "all_answers": [row["answer"]],
+                "metadata": {
+                    "company": row.get("company", ""),
+                    "doc_name": row.get("doc_name", ""),
+                    "doc_type": row.get("doc_type", ""),
+                    "doc_period": row.get("doc_period", ""),
+                    "question_type": row.get("question_type", ""),
+                    "question_reasoning": row.get("question_reasoning", ""),
+                    "gics_sector": row.get("gics_sector", ""),
+                    "justification": row.get("justification", ""),
+                },
+                "passages": evidence_passages,
+            }
+        )
+
+    out_path = output_dir / "financebench.jsonl"
+    _save_jsonl(items, out_path)
+    return out_path
+
+
 def _save_jsonl(items: list[dict], path: Path) -> None:
     """Save items as JSONL."""
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -163,7 +229,7 @@ def main():
     parser = argparse.ArgumentParser(description="Prepare benchmark datasets")
     parser.add_argument(
         "--dataset",
-        choices=["popqa", "hotpotqa", "nq", "all"],
+        choices=["popqa", "hotpotqa", "nq", "financebench", "all"],
         default="all",
         help="Which dataset to prepare",
     )
@@ -192,6 +258,9 @@ def main():
 
     if args.dataset in ("nq", "all"):
         prepare_nq(output_dir, args.sample)
+
+    if args.dataset in ("financebench", "all"):
+        prepare_financebench(output_dir, args.sample)
 
     logger.info("Dataset preparation complete!")
 
