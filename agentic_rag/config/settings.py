@@ -42,6 +42,7 @@ class ModelSettings(BaseSettings):
     # LLM parameters
     temperature: float = 0.0
     max_tokens: int = 4096
+    num_retries: int = Field(12, alias="LLM_NUM_RETRIES")
 
 
 class RetrievalSettings(BaseSettings):
@@ -160,3 +161,18 @@ class Settings(BaseSettings):
 # Singleton instance
 # ---------------------------------------------------------------------------
 settings = Settings()
+
+
+def make_lm(model: str, **kwargs):
+    """Create a dspy.LM with default retry/temperature from settings.
+
+    Centralizes LM creation so rate-limit retry settings are consistent.
+    """
+    import dspy
+
+    defaults = {
+        "temperature": settings.model.temperature,
+        "num_retries": settings.model.num_retries,
+    }
+    defaults.update(kwargs)
+    return dspy.LM(model, **defaults)

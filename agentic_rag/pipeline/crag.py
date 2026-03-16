@@ -19,7 +19,7 @@ from __future__ import annotations
 import dspy
 from loguru import logger
 
-from agentic_rag.config.settings import settings
+from agentic_rag.config.settings import make_lm, settings
 from agentic_rag.pipeline.base import BasePipeline, PipelineResult
 from agentic_rag.retriever.hybrid import HybridRetriever
 from agentic_rag.retriever.indexer import DocumentIndexer, Passage
@@ -140,7 +140,7 @@ class CRAGReplicaPipeline(BasePipeline):
         # ==============================================================
         context = self.format_passages(passages)
 
-        with dspy.context(lm=dspy.LM(settings.model.evaluate_model)):
+        with dspy.context(lm=make_lm(settings.model.evaluate_model)):
             eval_result = self.evaluator(
                 question=question,
                 passages=context,
@@ -185,7 +185,7 @@ class CRAGReplicaPipeline(BasePipeline):
         # ==============================================================
         # Step 4: Generation
         # ==============================================================
-        with dspy.context(lm=dspy.LM(settings.model.generate_model)):
+        with dspy.context(lm=make_lm(settings.model.generate_model)):
             gen_result = self.generator(
                 question=question,
                 passages=final_context,
@@ -213,7 +213,7 @@ class CRAGReplicaPipeline(BasePipeline):
         """Decompose passages into strips and keep only relevant ones."""
         refined_parts: list[str] = []
 
-        with dspy.context(lm=dspy.LM(settings.model.evaluate_model)):
+        with dspy.context(lm=make_lm(settings.model.evaluate_model)):
             for p in passages:
                 result = self.refiner(
                     question=question,
@@ -237,7 +237,7 @@ class CRAGReplicaPipeline(BasePipeline):
             return self._real_web_search(question)
 
         # Simulated web search via LLM parametric knowledge
-        with dspy.context(lm=dspy.LM(settings.model.agent_model)):
+        with dspy.context(lm=make_lm(settings.model.agent_model)):
             result = self.web_searcher(question=question)
 
         return f"{result.web_knowledge}\n\nSources: {result.sources}"

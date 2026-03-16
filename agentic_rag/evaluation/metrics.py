@@ -165,7 +165,7 @@ def faithfulness_score(
     """
     import dspy
 
-    from agentic_rag.config.settings import settings
+    from agentic_rag.config.settings import make_lm, settings
 
     class FaithfulnessSignature(dspy.Signature):
         """Evaluate whether the answer is faithfully grounded in passages."""
@@ -186,7 +186,7 @@ def faithfulness_score(
 
     evaluator = dspy.Predict(FaithfulnessSignature)
 
-    with dspy.context(lm=dspy.LM(settings.model.evaluate_model)):
+    with dspy.context(lm=make_lm(settings.model.evaluate_model)):
         result = evaluator(
             question=question,
             answer=answer,

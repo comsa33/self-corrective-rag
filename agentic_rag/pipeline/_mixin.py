@@ -10,7 +10,7 @@ from __future__ import annotations
 import dspy
 from loguru import logger
 
-from agentic_rag.config.settings import settings
+from agentic_rag.config.settings import make_lm, settings
 from agentic_rag.pipeline.base import BasePipeline, PipelineResult
 from agentic_rag.retriever.hybrid import HybridRetriever
 from agentic_rag.retriever.indexer import DocumentIndexer, Passage
@@ -69,7 +69,7 @@ class SelfCorrectiveMixin(BasePipeline):
             hyde_query: Hypothetical answer for dense retrieval (or None).
             topic: Topic category string.
         """
-        with dspy.context(lm=dspy.LM(settings.model.preprocess_model)):
+        with dspy.context(lm=make_lm(settings.model.preprocess_model)):
             prep_result = self.preprocessor(
                 user_question=question,
                 conversation_history=conversation_history,
@@ -100,7 +100,7 @@ class SelfCorrectiveMixin(BasePipeline):
     ) -> tuple[str, str, list[str]]:
         """Run answer generation. Returns (answer, footnotes, rec_questions)."""
         context = self.format_passages(passages)
-        with dspy.context(lm=dspy.LM(settings.model.generate_model)):
+        with dspy.context(lm=make_lm(settings.model.generate_model)):
             gen_result = self.generator(
                 question=question,
                 passages=context,
@@ -122,7 +122,7 @@ class SelfCorrectiveMixin(BasePipeline):
         """
         agent_type = self._classify_agent_type(question)
 
-        with dspy.context(lm=dspy.LM(settings.model.agent_model)):
+        with dspy.context(lm=make_lm(settings.model.agent_model)):
             if agent_type == "clarification":
                 result = self.clarification_agent(question=question, passages=context)
                 return (result.clarification_question, "", [], "clarification")

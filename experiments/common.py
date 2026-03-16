@@ -17,7 +17,7 @@ from loguru import logger
 from rich.console import Console
 from rich.table import Table
 
-from agentic_rag.config.settings import settings
+from agentic_rag.config.settings import make_lm, settings
 from agentic_rag.evaluation.metrics import evaluate_batch
 from agentic_rag.pipeline.base import BasePipeline
 from agentic_rag.retriever.hybrid import HybridRetriever
@@ -37,12 +37,8 @@ def setup_experiment(seed: int | None = None) -> None:
 
     # Configure DSPy LM — API keys are read from environment variables
     # (OPENAI_API_KEY, GEMINI_API_KEY, etc.) by litellm automatically.
-    dspy.configure(
-        lm=dspy.LM(
-            settings.model.generate_model,
-            temperature=settings.model.temperature,
-        )
-    )
+    # make_lm centralizes retry/timeout settings.
+    dspy.configure(lm=make_lm(settings.model.generate_model))
 
     logger.info(f"Experiment initialized: seed={seed}")
 
