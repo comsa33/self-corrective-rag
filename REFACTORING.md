@@ -78,9 +78,17 @@ Paper direction pivot: RLM-centric Agentic RAG. Incremental refactoring from old
 - [x] 4-5. Added `rlm.enabled_tools` to RLMSettings for tool-level ablation
 - [x] 4-6. 91 tests pass (23 config loader tests updated for new RQ structure), ruff clean
 
+## Phase 5: Legacy Cleanup (DONE)
+
+- [x] 5-1. Delete legacy experiment scripts (run_rq1-5.py, run_ablation.py, run_all.py)
+- [x] 5-2. Delete backward compat shims (self_corrective.py, rlm_tools.py)
+- [x] 5-3. Update pipeline/__init__.py — remove shim imports/exports
+- [x] 5-4. Update tests — replace create_rlm_tools → create_tools, remove shim tests
+- [x] 5-5. Update CLAUDE.md — remove legacy references from architecture
+
 ## Current Status
 
-**Last completed**: Phase 4 (2026-03-16)
+**Last completed**: Phase 5 (2026-03-16)
 **Status**: All phases complete — ready for experiments
 
 ## Architecture (Target)

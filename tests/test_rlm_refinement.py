@@ -224,7 +224,7 @@ class TestRLMRefinementSignature:
 # ---------------------------------------------------------------------------
 class TestRLMTools:
     def test_search_passages_tool(self, passages):
-        from agentic_rag.pipeline.rlm_tools import create_rlm_tools
+        from agentic_rag.tools import create_tools
 
         mock_retriever = MagicMock()
         mock_retriever.search.return_value = [("p1", 0.95), ("p3", 0.80)]
@@ -236,7 +236,7 @@ class TestRLMTools:
 
         mock_evaluator = MagicMock()
 
-        tools = create_rlm_tools(mock_retriever, indexer, mock_evaluator)
+        tools = create_tools(mock_retriever, indexer, mock_evaluator)
         search_fn = tools[0]  # search_passages
 
         result = json.loads(search_fn("test query", 5))
@@ -246,7 +246,7 @@ class TestRLMTools:
         assert "content_preview" in result[0]
 
     def test_list_sections_tool(self, passages):
-        from agentic_rag.pipeline.rlm_tools import create_rlm_tools
+        from agentic_rag.tools import create_tools
 
         indexer = DocumentIndexer.__new__(DocumentIndexer)
         indexer.passages = passages
@@ -254,7 +254,7 @@ class TestRLMTools:
         indexer.section_index.build(passages)
         indexer.term_index = TermIndex()
 
-        tools = create_rlm_tools(MagicMock(), indexer, MagicMock())
+        tools = create_tools(MagicMock(), indexer, MagicMock())
         list_sections_fn = tools[1]
 
         result = json.loads(list_sections_fn("Atelier"))
@@ -262,7 +262,7 @@ class TestRLMTools:
         assert len(result) >= 1
 
     def test_get_terminology_tool(self, passages):
-        from agentic_rag.pipeline.rlm_tools import create_rlm_tools
+        from agentic_rag.tools import create_tools
 
         indexer = DocumentIndexer.__new__(DocumentIndexer)
         indexer.passages = passages
@@ -270,21 +270,21 @@ class TestRLMTools:
         indexer.term_index = TermIndex()
         indexer.term_index.build(passages)
 
-        tools = create_rlm_tools(MagicMock(), indexer, MagicMock())
+        tools = create_tools(MagicMock(), indexer, MagicMock())
         get_term_fn = tools[2]
 
         result = json.loads(get_term_fn("API"))
         assert isinstance(result, list)
 
     def test_get_passage_detail_tool(self, passages):
-        from agentic_rag.pipeline.rlm_tools import create_rlm_tools
+        from agentic_rag.tools import create_tools
 
         indexer = DocumentIndexer.__new__(DocumentIndexer)
         indexer.passages = passages
         indexer.section_index = SectionIndex()
         indexer.term_index = TermIndex()
 
-        tools = create_rlm_tools(MagicMock(), indexer, MagicMock())
+        tools = create_tools(MagicMock(), indexer, MagicMock())
         detail_fn = tools[4]
 
         result = json.loads(detail_fn("p1"))
@@ -292,14 +292,14 @@ class TestRLMTools:
         assert "content" in result
 
     def test_get_passage_detail_not_found(self, passages):
-        from agentic_rag.pipeline.rlm_tools import create_rlm_tools
+        from agentic_rag.tools import create_tools
 
         indexer = DocumentIndexer.__new__(DocumentIndexer)
         indexer.passages = passages
         indexer.section_index = SectionIndex()
         indexer.term_index = TermIndex()
 
-        tools = create_rlm_tools(MagicMock(), indexer, MagicMock())
+        tools = create_tools(MagicMock(), indexer, MagicMock())
         detail_fn = tools[4]
 
         result = json.loads(detail_fn("nonexistent"))
@@ -307,7 +307,7 @@ class TestRLMTools:
 
     def test_tool_error_handling(self):
         """Tools should return error JSON, not raise exceptions."""
-        from agentic_rag.pipeline.rlm_tools import create_rlm_tools
+        from agentic_rag.tools import create_tools
 
         mock_retriever = MagicMock()
         mock_retriever.search.side_effect = RuntimeError("Search failed")
@@ -317,7 +317,7 @@ class TestRLMTools:
         indexer.section_index = SectionIndex()
         indexer.term_index = TermIndex()
 
-        tools = create_rlm_tools(mock_retriever, indexer, MagicMock())
+        tools = create_tools(mock_retriever, indexer, MagicMock())
         search_fn = tools[0]
 
         result = json.loads(search_fn("test"))

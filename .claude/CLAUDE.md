@@ -16,18 +16,15 @@ PhD 논문 실험 코드베이스: Agentic Self-Corrective RAG — Autonomous Re
 
 ## Running
 ```bash
-uv run pytest tests/                                     # 88 unit tests
+uv run pytest tests/                                     # unit tests
 uv run ruff check .                                      # lint
 uv run ruff format .                                     # format
 uv run python scripts/prepare_datasets.py --sample 500   # download data
 
-# Config-driven experiments (preferred)
+# Config-driven experiments
 uv run python experiments/run.py --config configs/experiment/rq1.yaml --sample 20
 uv run python experiments/run.py --ablation --sample 20
 uv run python experiments/run.py --all --sample 20
-
-# Legacy experiment scripts (still work)
-uv run python experiments/run_all.py --sample 20
 ```
 
 ## 4 Core Contributions (RLM-centric)
@@ -85,8 +82,6 @@ agentic_rag/
     loop.py                  — LoopRAGPipeline (for-loop, ABLATION BASELINE)
     naive.py                 — NaiveRAGPipeline
     crag.py                  — CRAGReplicaPipeline
-    self_corrective.py       — backward compat shim
-    rlm_tools.py             — backward compat shim
   evaluation/
     metrics.py               — EM, F1, ROUGE-L, BERTScore, Faithfulness
     cost_tracker.py          — API cost/latency tracking
@@ -102,9 +97,6 @@ configs/
   ablation/*.yaml            — 8 tool-level ablation configs
 experiments/
   run.py                     — Unified config-driven runner (--config/--ablation/--all)
-  run_rq1.py ~ run_rq5.py   — Legacy per-RQ scripts
-  run_ablation.py            — Legacy ablation runner
-  run_all.py                 — Legacy master runner
   common.py                  — Shared experiment utilities
   analysis/
     trajectory.py            — RLM trajectory analysis (tool sequences, patterns)
