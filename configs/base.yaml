@@ -1,15 +1,17 @@
 # Base configuration — shared defaults for all experiments.
 # Override per-pipeline or per-experiment via layered YAML configs.
 
-model:
-  preprocess_model: gpt-4o-mini
-  evaluate_model: gpt-4o-mini
-  generate_model: gpt-4o
-  agent_model: gpt-4o
-  embedding_model: text-embedding-3-small
-  embedding_dimension: 1536
-  temperature: 0.0
-  max_tokens: 4096
+# model: section omitted — defaults come from settings.py + .env overrides.
+# For production experiments with OpenAI, set models in .env or uncomment:
+# model:
+#   preprocess_model: gpt-4o-mini
+#   evaluate_model: gpt-4o-mini
+#   generate_model: gpt-4o
+#   agent_model: gpt-4o
+#   embedding_model: text-embedding-3-small
+#   embedding_dimension: 1536
+#   temperature: 0.0
+#   max_tokens: 4096
 
 retrieval:
   top_k: 50
