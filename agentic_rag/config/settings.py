@@ -42,7 +42,7 @@ class ModelSettings(BaseSettings):
     # LLM parameters
     temperature: float = 0.0
     max_tokens: int = 4096
-    num_retries: int = Field(12, alias="LLM_NUM_RETRIES")
+    num_retries: int = Field(3, alias="LLM_NUM_RETRIES")
 
 
 class RetrievalSettings(BaseSettings):
