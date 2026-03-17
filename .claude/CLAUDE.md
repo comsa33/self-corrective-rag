@@ -29,6 +29,76 @@ uv run python experiments/run.py --ablation --sample 20
 uv run python experiments/run.py --all --sample 20
 ```
 
+## Quick Start (E2E Smoke Test)
+
+### 1. 환경 설정
+```bash
+cp .env.example .env   # API key + 모델 설정 편집
+uv sync                # 의존성 설치
+```
+
+### 2. .env 설정 (Gemini 무료 티어)
+```env
+GEMINI_API_KEY=your-key-here
+PREPROCESS_MODEL=gemini/gemini-3.1-flash-lite-preview
+EVALUATE_MODEL=gemini/gemini-3.1-flash-lite-preview
+GENERATE_MODEL=gemini/gemini-3.1-flash-lite-preview
+AGENT_MODEL=gemini/gemini-3.1-flash-lite-preview
+EMBEDDING_MODEL=all-MiniLM-L6-v2
+LLM_NUM_RETRIES=12
+```
+
+### 3. 데이터 준비 + 인덱스 빌드
+```bash
+uv run python scripts/prepare_datasets.py --sample 500   # ~1분
+uv run python scripts/build_index.py --dataset all        # ~2분
+```
+
+### 4. 파이프라인별 스모크 테스트
+```bash
+# 개별 파이프라인 빠른 테스트 (Python inline)
+uv run python -c "
+import sys; sys.path.insert(0, '.')
+from experiments.common import setup_experiment, load_dataset, load_retriever
+setup_experiment()
+dataset = load_dataset('hotpotqa', sample_size=2)
+retriever, indexer = load_retriever(dataset_name='hotpotqa')
+
+from agentic_rag.pipeline.naive import NaiveRAGPipeline
+result = NaiveRAGPipeline(retriever, indexer).run(dataset[0]['question'])
+print(f'Naive: {result.answer[:200]}')
+"
+```
+파이프라인 클래스 교체로 Loop/Agentic도 테스트:
+- `agentic_rag.pipeline.loop.LoopRAGPipeline`
+- `agentic_rag.pipeline.agentic.AgenticRAGPipeline`
+
+### 5. 공식 실험 실행 (결과 자동 저장)
+```bash
+# RQ1: 4 파이프라인 비교 (결과 → data/results/)
+uv run python experiments/run.py \
+  --config configs/experiment/rq1.yaml \
+  --dataset hotpotqa --sample 5 --delay 5
+
+# Ablation study
+uv run python experiments/run.py --ablation --dataset hotpotqa --sample 5 --delay 5
+
+# 전체 RQ (RQ1-5 + ablation)
+uv run python experiments/run.py --all --dataset hotpotqa --sample 5 --delay 5
+```
+
+### 주요 옵션
+- `--sample N`: 데이터셋에서 N개 샘플링 (개발: 5, 본실험: 전체)
+- `--delay S`: 질문 사이 S초 대기 (Gemini 무료 RPM 15 → `--delay 5`)
+- `--dataset`: hotpotqa / financebench / popqa / natural_questions
+- `--skip rq4 rq5`: `--all` 사용 시 특정 RQ 건너뛰기
+
+### 결과 확인
+```bash
+ls data/results/                     # 실험별 디렉토리
+cat data/results/*/summary.json      # 메트릭 요약 (EM, F1, ROUGE-L)
+```
+
 ## 4 Core Contributions (ReAct-centric)
 - **C1**: Tool-Augmented Agentic Refinement — ReAct + 6 tools (core method)
 - **C2**: Multi-dimensional Quality Assessment as Tool — 4D eval as agent tool
