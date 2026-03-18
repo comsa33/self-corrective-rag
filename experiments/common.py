@@ -65,6 +65,14 @@ def load_dataset(name: str, sample_size: int | None = None) -> list[dict]:
     return items
 
 
+DATASET_INDEX_MAP = {
+    "hotpotqa": "hotpotqa",
+    "financebench": "financebench",
+    "popqa": "wikipedia",
+    "natural_questions": "wikipedia",
+}
+
+
 def load_retriever(
     index_dir: Path | None = None, dataset_name: str | None = None
 ) -> tuple[HybridRetriever, DocumentIndexer]:
@@ -73,9 +81,11 @@ def load_retriever(
     Args:
         index_dir: Explicit index directory. Takes precedence.
         dataset_name: Dataset name to look up in data/indices/{name}/.
+            PopQA and NQ are mapped to the shared Wikipedia index.
     """
     if index_dir is None and dataset_name:
-        index_dir = settings.index_dir / dataset_name
+        index_name = DATASET_INDEX_MAP.get(dataset_name, dataset_name)
+        index_dir = settings.index_dir / index_name
     index_dir = index_dir or settings.index_dir
     indexer = DocumentIndexer()
     retriever = indexer.load(index_dir)
