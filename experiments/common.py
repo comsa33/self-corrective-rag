@@ -156,13 +156,17 @@ def save_results(
     results: list[dict],
     experiment_name: str,
     extra_metadata: dict | None = None,
+    *,
+    run_dir: Path | None = None,
 ) -> Path:
-    """Save experiment results to data/results/."""
+    """Save experiment results to data/results/<run_dir>/."""
     timestamp = time.strftime("%Y%m%d_%H%M%S")
-    out_dir = settings.results_dir / experiment_name
-    out_dir.mkdir(parents=True, exist_ok=True)
 
-    out_path = out_dir / f"{experiment_name}_{timestamp}.jsonl"
+    if run_dir is None:
+        run_dir = settings.results_dir / f"{timestamp}_{experiment_name}"
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    out_path = run_dir / f"{experiment_name}.jsonl"
     with open(out_path, "w", encoding="utf-8") as f:
         for r in results:
             f.write(json.dumps(r, ensure_ascii=False, default=str) + "\n")
@@ -192,7 +196,7 @@ def save_results(
     if extra_metadata:
         summary["extra"] = extra_metadata
 
-    summary_path = out_dir / f"{experiment_name}_{timestamp}_summary.json"
+    summary_path = run_dir / f"{experiment_name}_summary.json"
     with open(summary_path, "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2, ensure_ascii=False)
 
