@@ -8,12 +8,15 @@ import dspy
 
 
 class QnAGenerateSignature(dspy.Signature):
-    """Generate a comprehensive answer based on the retrieved passages.
+    """Generate an accurate, concise answer based on the retrieved passages.
 
     The answer must:
     1. Be grounded in the provided passages (no hallucination).
-    2. Include footnote references to source passages used.
-    3. Suggest follow-up questions for deeper exploration.
+    2. For factoid questions (who/what/when/where), give a short direct answer
+       (a name, year, place, or brief phrase — not a lengthy explanation).
+    3. For complex questions, provide a focused 1-2 sentence answer.
+    4. Include footnote references to source passages used.
+    5. Suggest follow-up questions for deeper exploration.
 
     Uses ChainOfThought to produce explicit reasoning before the answer.
     """
@@ -27,7 +30,14 @@ class QnAGenerateSignature(dspy.Signature):
     )
 
     # --- Outputs ---
-    answer: str = dspy.OutputField(desc="The final comprehensive answer grounded in the passages.")
+    answer: str = dspy.OutputField(
+        desc=(
+            "The answer grounded in the passages. "
+            "For factoid questions (who, what, when, where), respond with a concise phrase or "
+            "short sentence containing just the key fact (e.g. '1755', 'Dutch', 'Marie Curie'). "
+            "Avoid unnecessary elaboration for simple factoid questions."
+        )
+    )
     footnotes: str = dspy.OutputField(
         desc="Footnote references listing passage IDs and titles used in the answer."
     )

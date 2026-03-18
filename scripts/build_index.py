@@ -128,10 +128,12 @@ def _iter_wikipedia_passages(tsv_gz_path: Path):
     logger.info(f"Total Wikipedia passages read: {count:,}")
 
 
-def build_wikipedia_index() -> None:
+def build_wikipedia_index(skip_faiss: bool = False, skip_bm25: bool = False) -> None:
     """Build FAISS + BM25 index for DPR Wikipedia (21M passages).
 
     Uses batched embedding to avoid OOM on large corpora.
+    --skip-faiss: resume from Phase 3 when FAISS already built.
+    --skip-bm25: skip BM25 entirely (dense-only retrieval for Wikipedia).
     """
     tsv_gz_path = settings.raw_dir / WIKIPEDIA_TSV_GZ
     if not tsv_gz_path.exists():
@@ -152,15 +154,23 @@ def build_wikipedia_index() -> None:
     logger.info(f"Read {len(passages):,} passages in {time.time() - t0:.0f}s")
 
     # DPR passages are already ~100 words — no chunking needed
-    logger.info("Phase 2/4: Building FAISS index (batched embedding)...")
-    t0 = time.time()
-    _build_faiss_batched(passages, index_dir)
-    logger.info(f"FAISS index built in {time.time() - t0:.0f}s")
+    if skip_faiss:
+        logger.info("Phase 2/4: Skipping FAISS (--skip-faiss flag set, using existing index)")
+    else:
+        logger.info("Phase 2/4: Building FAISS index (batched embedding)...")
+        t0 = time.time()
+        _build_faiss_batched(passages, index_dir)
+        logger.info(f"FAISS index built in {time.time() - t0:.0f}s")
 
-    logger.info("Phase 3/4: Building BM25 index...")
-    t0 = time.time()
-    _build_bm25(passages, index_dir)
-    logger.info(f"BM25 index built in {time.time() - t0:.0f}s")
+    if skip_bm25:
+        logger.info(
+            "Phase 3/4: Skipping BM25 (--skip-bm25 flag set) — Wikipedia uses dense-only retrieval"
+        )
+    else:
+        logger.info("Phase 3/4: Building BM25 index...")
+        t0 = time.time()
+        _build_bm25(passages, index_dir)
+        logger.info(f"BM25 index built in {time.time() - t0:.0f}s")
 
     logger.info("Phase 4/4: Saving passage metadata + auxiliary indices...")
     t0 = time.time()
@@ -261,10 +271,12 @@ DATASET_EXTRACTORS = {
 LARGE_DATASETS = {"wikipedia"}
 
 
-def build_index_for_dataset(dataset_name: str) -> None:
+def build_index_for_dataset(
+    dataset_name: str, skip_faiss: bool = False, skip_bm25: bool = False
+) -> None:
     """Build hybrid retrieval index for a dataset."""
     if dataset_name == "wikipedia":
-        build_wikipedia_index()
+        build_wikipedia_index(skip_faiss=skip_faiss, skip_bm25=skip_bm25)
         return
 
     if dataset_name not in DATASET_EXTRACTORS:
@@ -314,11 +326,21 @@ def main():
         default="all",
         help="Which dataset to build index for",
     )
+    parser.add_argument(
+        "--skip-faiss",
+        action="store_true",
+        help="Skip FAISS phase (use existing index) and resume from BM25 — Wikipedia only",
+    )
+    parser.add_argument(
+        "--skip-bm25",
+        action="store_true",
+        help="Skip BM25 phase entirely — Wikipedia uses dense-only retrieval (avoids OOM on 21M)",
+    )
     args = parser.parse_args()
 
     datasets = all_datasets if args.dataset == "all" else [args.dataset]
     for name in datasets:
-        build_index_for_dataset(name)
+        build_index_for_dataset(name, skip_faiss=args.skip_faiss, skip_bm25=args.skip_bm25)
 
     logger.info("Index building complete!")
 
