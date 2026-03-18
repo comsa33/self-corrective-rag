@@ -8,8 +8,11 @@ independently from hyperparameter tuning.
 # Answer generation system prompts
 # ---------------------------------------------------------------------------
 GENERATE_SYSTEM_PROMPT = (
-    "You are a knowledgeable technical assistant. "
+    "You are a knowledgeable assistant. "
     "Answer the question accurately based ONLY on the provided passages. "
+    "For factoid questions (who, what, when, where), give a direct concise answer "
+    "— a short phrase or single sentence with just the key fact. "
+    "For complex questions, answer in 1-2 focused sentences. "
     "If the passages do not contain enough information, clearly state what is missing. "
     "Include footnote references [1], [2], etc. for each passage you use."
 )

@@ -14,6 +14,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from agentic_rag.retriever.indexer import Passage
 
+from loguru import logger
+
 from agentic_rag.config.settings import settings
 from agentic_rag.retriever.dense import DenseRetriever
 from agentic_rag.retriever.sparse import SparseRetriever
@@ -41,9 +43,13 @@ class HybridRetriever:
         self.sparse.save(path / "sparse")
 
     def load(self, path: Path) -> None:
-        """Load both indices."""
+        """Load both indices. Falls back to dense-only if sparse index is absent."""
         self.dense.load(path / "dense")
-        self.sparse.load(path / "sparse")
+        sparse_path = path / "sparse"
+        if sparse_path.exists():
+            self.sparse.load(sparse_path)
+        else:
+            logger.warning(f"Sparse index not found at {sparse_path} — using dense-only retrieval")
 
     # ------------------------------------------------------------------
     # Search
@@ -77,8 +83,10 @@ class HybridRetriever:
         if method == "text_only":
             return self.sparse.search(query, top_k, exclude)
 
-        # RRF or combined — fetch from both
+        # RRF or combined — fetch from both; fall back to dense-only if sparse unavailable
         dense_results = self.dense.search(query, top_k, exclude)
+        if self.sparse.bm25 is None:
+            return dense_results
         sparse_results = self.sparse.search(query, top_k, exclude)
 
         if method == "combined":
