@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -123,14 +124,19 @@ def run_experiment(
         results = _run_variant(variant, test_data, retriever, indexer, request_delay)
         all_results[variant.name] = results
 
-    # Report & save
+    # Report & save — all variants share one run directory
     print_comparison_table(all_results, title=f"{exp.name} ({dataset_name})")
+    run_timestamp = time.strftime("%Y%m%d_%H%M%S")
+    config_stem = Path(config_path).stem
+    n_label = f"n{len(test_data)}" if test_data else ""
+    run_dir = settings.results_dir / f"{run_timestamp}_{config_stem}_{dataset_name}_{n_label}"
     for name, results in all_results.items():
         slug = name.lower().replace(" ", "_").replace("/", "_")
         save_results(
             results,
-            f"{Path(config_path).stem}_{slug}",
+            f"{config_stem}_{slug}",
             {"experiment": exp.name, "dataset": dataset_name, "variant": name},
+            run_dir=run_dir,
         )
 
     return all_results
@@ -164,12 +170,16 @@ def run_ablation(
         all_results[variant.name] = results
 
     print_comparison_table(all_results, title=f"Ablation Study ({dataset_name})")
+    run_timestamp = time.strftime("%Y%m%d_%H%M%S")
+    n_label = f"n{len(dataset)}" if dataset else ""
+    run_dir = settings.results_dir / f"{run_timestamp}_ablation_{dataset_name}_{n_label}"
     for name, results in all_results.items():
         slug = name.lower().replace(" ", "_").replace("/", "_")
         save_results(
             results,
             f"ablation_{slug}",
             {"experiment": "ablation", "dataset": dataset_name, "variant": name},
+            run_dir=run_dir,
         )
 
     return all_results

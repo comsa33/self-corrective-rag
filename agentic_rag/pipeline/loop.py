@@ -160,13 +160,27 @@ class LoopRAGPipeline(SelfCorrectiveMixin):
                     )
                 llm_calls += 1
 
+                rel = int(eval_result.relevance_score)
+                cov = int(eval_result.coverage_score)
+                spec = int(eval_result.specificity_score)
+                suf = int(eval_result.sufficiency_score)
+                total = int(eval_result.total_score)
+
+                # Guard: if total_score is 0 but sub-scores exist, recompute
+                computed = rel + cov + spec + suf
+                if total == 0 and computed > 0:
+                    logger.warning(
+                        f"[LoopRAG] total_score=0 but sub-scores sum to {computed}, using computed"
+                    )
+                    total = computed
+
                 score_dict = {
                     "retry": retry,
-                    "relevance": int(eval_result.relevance_score),
-                    "coverage": int(eval_result.coverage_score),
-                    "specificity": int(eval_result.specificity_score),
-                    "sufficiency": int(eval_result.sufficiency_score),
-                    "total": int(eval_result.total_score),
+                    "relevance": rel,
+                    "coverage": cov,
+                    "specificity": spec,
+                    "sufficiency": suf,
+                    "total": total,
                     "action": eval_result.action,
                     "reasoning": eval_result.reasoning,
                     "keywords_to_add": eval_result.keywords_to_add,
