@@ -31,6 +31,10 @@ class AgenticRefinementSignature(dspy.Signature):
       on selected passages. Returns {relevance, coverage, specificity,
       sufficiency, total, action, reasoning, suggested_query, keywords_to_add}.
     - get_passage_detail(passage_id): Read the full content of a passage.
+    - calculate(expression): Evaluate a mathematical expression and return the
+      numeric result. Use for financial ratios, growth rates, percentages, or
+      any computation needed to answer the question.
+      Examples: "365 * 480 / 1200", "round((3502 - 3017) / 3017 * 100, 1)"
 
     Strategy guidelines
     ===================
@@ -46,7 +50,10 @@ class AgenticRefinementSignature(dspy.Signature):
        d. Search again with refined queries incorporating discovered terms.
     5. Accumulate promising passages across searches (up to max_passages).
        Drop low-quality passages if you exceed the limit.
-    6. When evaluation passes or you cannot improve further, call finish.
+    6. For questions requiring numerical computation (ratios, growth rates,
+       percentages), extract the relevant figures from passages and use
+       calculate() to compute the final answer before calling finish.
+    7. When evaluation passes or you cannot improve further, call finish.
     """
 
     # --- Inputs ---
