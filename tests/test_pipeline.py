@@ -50,6 +50,7 @@ class TestPipelineImports:
             "evaluate",
             "inspect",
             "decompose",
+            "calculate",
         }
 
 

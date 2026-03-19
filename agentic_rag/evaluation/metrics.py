@@ -201,6 +201,80 @@ def faithfulness_score(
 
 
 # ---------------------------------------------------------------------------
+# LLM-as-Judge correctness
+# ---------------------------------------------------------------------------
+def llm_judge_correctness(
+    prediction: str,
+    reference: str,
+    question: str = "",
+) -> float:
+    """LLM-based correctness evaluation (LLM-as-Judge).
+
+    Uses the evaluate_model to judge whether the prediction is semantically
+    correct compared to the reference answer. Returns 1.0 (correct) or
+    0.0 (incorrect). Handles cases where the prediction is phrased
+    differently but conveys the same answer (e.g., "1572" vs "He died
+    in 1572").
+
+    This is the standard approach used in recent agentic RAG papers
+    (Test-Time Strategies 2026, Search-o1) as a complement to EM/F1.
+    """
+    import dspy
+
+    from agentic_rag.config.settings import make_lm, settings
+
+    class CorrectnessJudge(dspy.Signature):
+        """Judge whether the predicted answer is correct given the reference.
+
+        The predicted answer may be phrased differently from the reference.
+        Focus on whether the core factual content matches, not exact wording.
+        A prediction that contains the reference answer is correct.
+        A prediction that contradicts the reference is incorrect.
+        If the prediction says "I don't know" or fails to answer, it is incorrect.
+        """
+
+        question: str = dspy.InputField(desc="The question that was asked.")
+        reference_answer: str = dspy.InputField(desc="The gold-standard correct answer.")
+        predicted_answer: str = dspy.InputField(desc="The model's predicted answer to judge.")
+
+        is_correct: bool = dspy.OutputField(
+            desc="True if the predicted answer is factually correct and matches the reference."
+        )
+
+    evaluator = dspy.Predict(CorrectnessJudge)
+
+    try:
+        with dspy.context(lm=make_lm(settings.model.evaluate_model)):
+            result = evaluator(
+                question=question,
+                reference_answer=reference,
+                predicted_answer=prediction,
+            )
+        return 1.0 if result.is_correct else 0.0
+    except Exception as e:
+        logger.warning(f"LLM judge failed: {e}")
+        return 0.0
+
+
+def llm_judge_batch(
+    predictions: list[str],
+    references: list[str],
+    questions: list[str] | None = None,
+) -> float:
+    """Compute mean LLM-as-Judge correctness for a batch.
+
+    Returns accuracy (fraction judged correct).
+    """
+    questions = questions or [""] * len(predictions)
+    scores = []
+    for pred, ref, q in zip(predictions, references, questions, strict=False):
+        scores.append(llm_judge_correctness(pred, ref, q))
+    mean_score = float(np.mean(scores)) if scores else 0.0
+    logger.info(f"[LLM-Judge] {sum(scores):.0f}/{len(scores)} correct ({mean_score:.3f})")
+    return mean_score
+
+
+# ---------------------------------------------------------------------------
 # Aggregate evaluation
 # ---------------------------------------------------------------------------
 @dataclass
@@ -213,6 +287,7 @@ class EvaluationResult:
     exact_match: float = 0.0
     f1: float = 0.0
     rouge_l: float = 0.0
+    llm_judge: float = 0.0
     bert_score_f1: float = 0.0
     faithfulness: float = 0.0
     metadata: dict = field(default_factory=dict)
@@ -225,6 +300,7 @@ def evaluate_single(
     passages: str = "",
     compute_bert_score: bool = False,
     compute_faithfulness: bool = False,
+    compute_llm_judge: bool = False,
 ) -> EvaluationResult:
     """Compute all metrics for a single prediction-reference pair."""
     result = EvaluationResult(
@@ -235,6 +311,9 @@ def evaluate_single(
         f1=token_f1(prediction, reference),
         rouge_l=rouge_l(prediction, reference),
     )
+
+    if compute_llm_judge:
+        result.llm_judge = llm_judge_correctness(prediction, reference, question)
 
     if compute_bert_score:
         bs = bert_score([prediction], [reference])
@@ -252,6 +331,7 @@ def evaluate_batch(
     references: list[str],
     questions: list[str] | None = None,
     compute_bert_score: bool = True,
+    compute_llm_judge: bool = False,
 ) -> dict[str, float]:
     """Compute aggregate metrics for a batch of predictions.
 
@@ -271,6 +351,9 @@ def evaluate_batch(
         "n": n,
     }
 
+    if compute_llm_judge and n > 0:
+        results["llm_judge"] = llm_judge_batch(predictions, references, questions)
+
     if compute_bert_score and n > 0:
         bs = bert_score(predictions, references)
         results["bert_score_f1"] = float(np.mean(bs["f1"]))
@@ -284,5 +367,6 @@ def evaluate_batch(
     logger.info(
         f"[Metrics] n={n}, EM={results['exact_match']:.3f}, "
         f"F1={results['f1']:.3f}, ROUGE-L={results['rouge_l']:.3f}"
+        + (f", LLM-Judge={results['llm_judge']:.3f}" if "llm_judge" in results else "")
     )
     return results

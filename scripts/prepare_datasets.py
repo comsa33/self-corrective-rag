@@ -1,9 +1,9 @@
 """Download and prepare benchmark datasets for experiments.
 
-Datasets (Open-domain QA — baseline comparison):
-  1. PopQA       — Short-form factoid QA (accuracy metric)
-  2. HotpotQA    — Multi-hop reasoning QA (F1, EM metrics)
-  3. Natural Questions (NQ) — Open-domain QA (accuracy metric)
+Datasets (Multi-hop QA — agentic RAG evaluation):
+  1. HotpotQA          — Multi-hop reasoning QA (F1, EM metrics)
+  2. 2WikiMultiHopQA    — Multi-hop QA over 2 Wikipedia articles (F1, EM)
+  3. MuSiQue            — Multi-hop QA with 2-4 hop reasoning (F1, EM)
 
 Datasets (Enterprise/Domain-specific — practical applicability):
   4. FinanceBench — Financial QA over SEC filings (10-K/10-Q/8-K)
@@ -11,12 +11,12 @@ Datasets (Enterprise/Domain-specific — practical applicability):
 Each dataset is saved as JSONL with a unified schema:
   {"id": str, "question": str, "answer": str, "metadata": {...}}
 
-FinanceBench additionally includes document passages extracted from SEC
-filings to serve as the retrieval corpus, enabling end-to-end RAG
-evaluation on structured enterprise documents.
+HotpotQA, 2WikiMultiHopQA, and MuSiQue include context paragraphs
+(supporting + distractors) as self-contained retrieval corpora.
+FinanceBench includes evidence passages from SEC filings.
 
 Usage:
-  uv run python scripts/prepare_datasets.py [--dataset popqa|hotpotqa|nq|financebench|all]
+  uv run python scripts/prepare_datasets.py [--dataset hotpotqa|2wikimultihopqa|musique|financebench|all]
   uv run python scripts/prepare_datasets.py --dataset all --sample 500
 """
 
@@ -157,6 +157,134 @@ def prepare_nq(output_dir: Path, sample_size: int | None = None) -> Path:
     return out_path
 
 
+def prepare_2wikimultihopqa(output_dir: Path, sample_size: int | None = None) -> Path:
+    """Prepare 2WikiMultiHopQA dataset.
+
+    2WikiMultiHopQA: Multi-hop questions requiring reasoning over 2 Wikipedia
+    articles. Same format as HotpotQA (context with title+sentences).
+    Used by Search-o1, KiRAG, PRISM, FAIR-RAG (2025-2026 standard).
+    """
+    from datasets import load_dataset
+
+    logger.info("Loading 2WikiMultiHopQA dataset...")
+    ds = load_dataset("framolfese/2WikiMultihopQA", split="validation")
+
+    items = []
+    for i, row in enumerate(ds):
+        if sample_size and i >= sample_size:
+            break
+
+        # Same structure as HotpotQA: supporting_facts + context
+        supporting_facts = []
+        for title, sent_id in zip(
+            row["supporting_facts"]["title"],
+            row["supporting_facts"]["sent_id"],
+            strict=False,
+        ):
+            supporting_facts.append({"title": title, "sent_id": sent_id})
+
+        passages = []
+        for title, sentences in zip(
+            row["context"]["title"], row["context"]["sentences"], strict=False
+        ):
+            passages.append(
+                {
+                    "title": title,
+                    "content": " ".join(sentences),
+                }
+            )
+
+        items.append(
+            {
+                "id": f"2wiki_{row.get('_id', row.get('id', i))}",
+                "question": row["question"],
+                "answer": row["answer"],
+                "all_answers": [row["answer"]],
+                "metadata": {
+                    "type": row.get("type", ""),
+                    "supporting_facts": supporting_facts,
+                },
+                "passages": passages,
+            }
+        )
+
+    out_path = output_dir / "2wikimultihopqa.jsonl"
+    _save_jsonl(items, out_path)
+    return out_path
+
+
+def prepare_musique(output_dir: Path, sample_size: int | None = None) -> Path:
+    """Prepare MuSiQue dataset.
+
+    MuSiQue: Multi-hop questions with 2-4 reasoning hops and
+    explicit question decomposition. Includes supporting + distractor
+    paragraphs per question (self-contained corpus).
+    Used by Search-o1, KiRAG, PRISM, FAIR-RAG (2025-2026 standard).
+    """
+    from datasets import load_dataset
+
+    logger.info("Loading MuSiQue dataset...")
+    ds = load_dataset("bdsaglam/musique", split="validation")
+
+    items = []
+    for row in ds:
+        # Filter to answerable questions only
+        if not row.get("answerable", True):
+            continue
+
+        if sample_size and len(items) >= sample_size:
+            break
+
+        # Extract paragraphs (supporting + distractors)
+        passages = []
+        supporting_indices = []
+        for p in row.get("paragraphs", []):
+            passages.append(
+                {
+                    "title": p.get("title", ""),
+                    "content": p.get("paragraph_text", ""),
+                }
+            )
+            if p.get("is_supporting", False):
+                supporting_indices.append(p.get("idx", 0))
+
+        # Build answer aliases list
+        all_answers = [row["answer"]]
+        for alias in row.get("answer_aliases", []):
+            if alias and alias not in all_answers:
+                all_answers.append(alias)
+
+        # Extract question decomposition for metadata
+        decomposition = []
+        for step in row.get("question_decomposition", []):
+            decomposition.append(
+                {
+                    "question": step.get("question", ""),
+                    "answer": step.get("answer", ""),
+                }
+            )
+
+        items.append(
+            {
+                "id": f"musique_{row['id']}",
+                "question": row["question"],
+                "answer": row["answer"],
+                "all_answers": all_answers,
+                "metadata": {
+                    "answerable": row.get("answerable", True),
+                    "n_hops": len(decomposition),
+                    "decomposition": decomposition,
+                    "supporting_paragraph_indices": supporting_indices,
+                },
+                "passages": passages,
+            }
+        )
+
+    out_path = output_dir / "musique.jsonl"
+    _save_jsonl(items, out_path)
+    return out_path
+
+
 def prepare_financebench(output_dir: Path, sample_size: int | None = None) -> Path:
     """Prepare FinanceBench dataset.
 
@@ -229,7 +357,7 @@ def main():
     parser = argparse.ArgumentParser(description="Prepare benchmark datasets")
     parser.add_argument(
         "--dataset",
-        choices=["popqa", "hotpotqa", "nq", "financebench", "all"],
+        choices=["hotpotqa", "2wikimultihopqa", "musique", "financebench", "all"],
         default="all",
         help="Which dataset to prepare",
     )
@@ -250,14 +378,14 @@ def main():
     output_dir = args.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    if args.dataset in ("popqa", "all"):
-        prepare_popqa(output_dir, args.sample)
-
     if args.dataset in ("hotpotqa", "all"):
         prepare_hotpotqa(output_dir, args.sample)
 
-    if args.dataset in ("nq", "all"):
-        prepare_nq(output_dir, args.sample)
+    if args.dataset in ("2wikimultihopqa", "all"):
+        prepare_2wikimultihopqa(output_dir, args.sample)
+
+    if args.dataset in ("musique", "all"):
+        prepare_musique(output_dir, args.sample)
 
     if args.dataset in ("financebench", "all"):
         prepare_financebench(output_dir, args.sample)

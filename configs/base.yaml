@@ -27,9 +27,9 @@ evaluation:
 experiment:
   seed: 42
   datasets:
-    - popqa
     - hotpotqa
-    - natural_questions
+    - 2wikimultihopqa
+    - musique
     - financebench
   # Ablation flags — all enabled by default
   enable_iteration: true

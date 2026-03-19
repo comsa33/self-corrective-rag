@@ -67,9 +67,9 @@ def load_dataset(name: str, sample_size: int | None = None) -> list[dict]:
 
 DATASET_INDEX_MAP = {
     "hotpotqa": "hotpotqa",
+    "2wikimultihopqa": "2wikimultihopqa",
+    "musique": "musique",
     "financebench": "financebench",
-    "popqa": "wikipedia",
-    "natural_questions": "wikipedia",
 }
 
 
@@ -168,6 +168,7 @@ def save_results(
     extra_metadata: dict | None = None,
     *,
     run_dir: Path | None = None,
+    compute_llm_judge: bool = False,
 ) -> Path:
     """Save experiment results to data/results/<run_dir>/."""
     timestamp = time.strftime("%Y%m%d_%H%M%S")
@@ -182,8 +183,10 @@ def save_results(
             f.write(json.dumps(r, ensure_ascii=False, default=str) + "\n")
 
     # Save summary
-    predictions = [r.get("prediction", "") for r in results if "error" not in r]
-    references = [r.get("reference", "") for r in results if "error" not in r]
+    valid = [r for r in results if "error" not in r]
+    predictions = [r.get("prediction", "") for r in valid]
+    references = [r.get("reference", "") for r in valid]
+    questions = [r.get("question", "") for r in valid]
 
     summary = {
         "experiment": experiment_name,
@@ -200,7 +203,13 @@ def save_results(
     }
 
     if predictions and references:
-        metrics = evaluate_batch(predictions, references, compute_bert_score=False)
+        metrics = evaluate_batch(
+            predictions,
+            references,
+            questions=questions,
+            compute_bert_score=False,
+            compute_llm_judge=compute_llm_judge,
+        )
         summary["metrics"] = metrics
 
     if extra_metadata:
@@ -217,6 +226,7 @@ def save_results(
 def print_comparison_table(
     all_results: dict[str, list[dict]],
     title: str = "Experiment Results",
+    compute_llm_judge: bool = False,
 ) -> None:
     """Print a rich comparison table of pipeline results."""
     table = Table(title=title)
@@ -224,7 +234,7 @@ def print_comparison_table(
     table.add_column("N", justify="right")
     table.add_column("EM", justify="right")
     table.add_column("F1", justify="right")
-    table.add_column("ROUGE-L", justify="right")
+    table.add_column("Judge", justify="right")
     table.add_column("Avg Retries", justify="right")
     table.add_column("Avg Latency (s)", justify="right")
     table.add_column("Errors", justify="right")
@@ -239,17 +249,26 @@ def print_comparison_table(
 
         preds = [r["prediction"] for r in valid]
         refs = [r["reference"] for r in valid]
-        metrics = evaluate_batch(preds, refs, compute_bert_score=False)
+        questions = [r.get("question", "") for r in valid]
+        metrics = evaluate_batch(
+            preds,
+            refs,
+            questions=questions,
+            compute_bert_score=False,
+            compute_llm_judge=compute_llm_judge,
+        )
 
         avg_retries = np.mean([r.get("retry_count", 0) for r in valid])
         avg_latency = np.mean([r.get("latency_seconds", 0) for r in valid])
+
+        judge_str = f"{metrics['llm_judge']:.3f}" if "llm_judge" in metrics else "-"
 
         table.add_row(
             name,
             str(len(valid)),
             f"{metrics['exact_match']:.3f}",
             f"{metrics['f1']:.3f}",
-            f"{metrics['rouge_l']:.3f}",
+            judge_str,
             f"{avg_retries:.1f}",
             f"{avg_latency:.1f}",
             str(errors),

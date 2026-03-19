@@ -95,6 +95,7 @@ def run_experiment(
     dataset_name: str = "popqa",
     sample_size: int | None = None,
     request_delay: float = 0.0,
+    compute_llm_judge: bool = False,
 ) -> dict[str, list[dict]]:
     """Run an experiment defined by a YAML config file."""
     exp = load_experiment_config(config_path)
@@ -125,7 +126,11 @@ def run_experiment(
         all_results[variant.name] = results
 
     # Report & save — all variants share one run directory
-    print_comparison_table(all_results, title=f"{exp.name} ({dataset_name})")
+    print_comparison_table(
+        all_results,
+        title=f"{exp.name} ({dataset_name})",
+        compute_llm_judge=compute_llm_judge,
+    )
     run_timestamp = time.strftime("%Y%m%d_%H%M%S")
     config_stem = Path(config_path).stem
     n_label = f"n{len(test_data)}" if test_data else ""
@@ -137,6 +142,7 @@ def run_experiment(
             f"{config_stem}_{slug}",
             {"experiment": exp.name, "dataset": dataset_name, "variant": name},
             run_dir=run_dir,
+            compute_llm_judge=compute_llm_judge,
         )
 
     return all_results
@@ -150,6 +156,7 @@ def run_ablation(
     sample_size: int | None = None,
     variant_names: list[str] | None = None,
     request_delay: float = 0.0,
+    compute_llm_judge: bool = False,
 ) -> dict[str, list[dict]]:
     """Run ablation study from configs/ablation/ directory."""
     variants = load_ablation_configs()
@@ -169,7 +176,11 @@ def run_ablation(
         results = _run_variant(variant, dataset, retriever, indexer, request_delay)
         all_results[variant.name] = results
 
-    print_comparison_table(all_results, title=f"Ablation Study ({dataset_name})")
+    print_comparison_table(
+        all_results,
+        title=f"Ablation Study ({dataset_name})",
+        compute_llm_judge=compute_llm_judge,
+    )
     run_timestamp = time.strftime("%Y%m%d_%H%M%S")
     n_label = f"n{len(dataset)}" if dataset else ""
     run_dir = settings.results_dir / f"{run_timestamp}_ablation_{dataset_name}_{n_label}"
@@ -180,6 +191,7 @@ def run_ablation(
             f"ablation_{slug}",
             {"experiment": "ablation", "dataset": dataset_name, "variant": name},
             run_dir=run_dir,
+            compute_llm_judge=compute_llm_judge,
         )
 
     return all_results
@@ -193,6 +205,7 @@ def run_all(
     sample_size: int | None = None,
     skip: list[str] | None = None,
     request_delay: float = 0.0,
+    compute_llm_judge: bool = False,
 ) -> None:
     """Run all experiments + ablation study."""
     skip = skip or []
@@ -203,13 +216,18 @@ def run_all(
             logger.info(f"Skipping {exp_name}")
             continue
         try:
-            run_experiment(config_path, dataset_name, sample_size, request_delay)
+            run_experiment(config_path, dataset_name, sample_size, request_delay, compute_llm_judge)
         except Exception as e:
             logger.error(f"{exp_name} failed: {e}")
 
     if "ablation" not in skip:
         try:
-            run_ablation(dataset_name, sample_size, request_delay=request_delay)
+            run_ablation(
+                dataset_name,
+                sample_size,
+                request_delay=request_delay,
+                compute_llm_judge=compute_llm_judge,
+            )
         except Exception as e:
             logger.error(f"Ablation failed: {e}")
 
@@ -266,15 +284,20 @@ def main():
         default=0.0,
         help="Seconds to wait between items (for API rate limiting, e.g. 5.0)",
     )
+    parser.add_argument(
+        "--llm-judge",
+        action="store_true",
+        help="Compute LLM-as-Judge correctness metric (uses evaluate_model)",
+    )
 
     args = parser.parse_args()
 
     if args.run_all:
-        run_all(args.dataset, args.sample, args.skip, args.delay)
+        run_all(args.dataset, args.sample, args.skip, args.delay, args.llm_judge)
     elif args.ablation:
-        run_ablation(args.dataset, args.sample, args.variants, args.delay)
+        run_ablation(args.dataset, args.sample, args.variants, args.delay, args.llm_judge)
     elif args.config:
-        run_experiment(args.config, args.dataset, args.sample, args.delay)
+        run_experiment(args.config, args.dataset, args.sample, args.delay, args.llm_judge)
     else:
         parser.print_help()
 

@@ -1,13 +1,15 @@
 """Build retrieval indices from dataset passages.
 
-Extracts passages from prepared datasets (HotpotQA context paragraphs,
-FinanceBench evidence pages, DPR Wikipedia dump) and builds FAISS + BM25
-hybrid indices along with auxiliary section/term indices for agent tools.
+Extracts passages from prepared datasets (HotpotQA / 2WikiMultiHopQA /
+MuSiQue context paragraphs, FinanceBench evidence pages) and builds
+FAISS + BM25 hybrid indices along with auxiliary section/term indices
+for agent tools.
 
 Usage:
   uv run python scripts/build_index.py --dataset hotpotqa
+  uv run python scripts/build_index.py --dataset 2wikimultihopqa
+  uv run python scripts/build_index.py --dataset musique
   uv run python scripts/build_index.py --dataset financebench
-  uv run python scripts/build_index.py --dataset wikipedia
   uv run python scripts/build_index.py --dataset all
 """
 
@@ -56,6 +58,63 @@ def extract_passages_hotpotqa(raw_path: Path) -> list[Passage]:
                 )
 
     logger.info(f"Extracted {len(passages)} unique passages from HotpotQA")
+    return passages
+
+
+def extract_passages_2wikimultihopqa(raw_path: Path) -> list[Passage]:
+    """Extract context paragraphs from 2WikiMultiHopQA dataset.
+
+    Same format as HotpotQA — context with title + content.
+    """
+    passages = []
+    seen_titles = set()
+
+    with open(raw_path, encoding="utf-8") as f:
+        for line in f:
+            item = json.loads(line.strip())
+            for p in item.get("passages", []):
+                title = p.get("title", "")
+                content = p.get("content", "")
+                if not content or title in seen_titles:
+                    continue
+                seen_titles.add(title)
+                passages.append(
+                    Passage(
+                        id=f"2wiki_{title}",
+                        title=title,
+                        content=content,
+                        source=f"2wikimultihopqa/{title}",
+                    )
+                )
+
+    logger.info(f"Extracted {len(passages)} unique passages from 2WikiMultiHopQA")
+    return passages
+
+
+def extract_passages_musique(raw_path: Path) -> list[Passage]:
+    """Extract paragraphs from MuSiQue dataset."""
+    passages = []
+    seen_titles = set()
+
+    with open(raw_path, encoding="utf-8") as f:
+        for line in f:
+            item = json.loads(line.strip())
+            for p in item.get("passages", []):
+                title = p.get("title", "")
+                content = p.get("content", "")
+                if not content or title in seen_titles:
+                    continue
+                seen_titles.add(title)
+                passages.append(
+                    Passage(
+                        id=f"musique_{title}",
+                        title=title,
+                        content=content,
+                        source=f"musique/{title}",
+                    )
+                )
+
+    logger.info(f"Extracted {len(passages)} unique passages from MuSiQue")
     return passages
 
 
@@ -264,6 +323,8 @@ def _save_passages_and_aux(passages: list[Passage], index_dir: Path) -> None:
 
 DATASET_EXTRACTORS = {
     "hotpotqa": ("hotpotqa.jsonl", extract_passages_hotpotqa),
+    "2wikimultihopqa": ("2wikimultihopqa.jsonl", extract_passages_2wikimultihopqa),
+    "musique": ("musique.jsonl", extract_passages_musique),
     "financebench": ("financebench.jsonl", extract_passages_financebench),
 }
 
