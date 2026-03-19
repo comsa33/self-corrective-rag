@@ -90,7 +90,7 @@ uv run python experiments/run.py --all --dataset hotpotqa --sample 5 --delay 5
 ### 주요 옵션
 - `--sample N`: 데이터셋에서 N개 샘플링 (개발: 5, 본실험: 전체)
 - `--delay S`: 질문 사이 S초 대기 (Gemini 무료 RPM 15 → `--delay 5`)
-- `--dataset`: hotpotqa / financebench / popqa / natural_questions
+- `--dataset`: hotpotqa / 2wikimultihopqa / musique / financebench
 - `--skip rq4 rq5`: `--all` 사용 시 특정 RQ 건너뛰기
 
 ### 결과 확인
@@ -113,7 +113,7 @@ cat data/results/*/summary.json      # 메트릭 요약 (EM, F1, ROUGE-L)
 - **RQ5**: DSPy optimization — Manual/Unopt/Bootstrap/MIPROv2
 
 ## Datasets
-- **Open-domain QA** (baseline comparison): PopQA, HotpotQA, Natural Questions
+- **Multi-hop QA** (agentic RAG evaluation): HotpotQA, 2WikiMultiHopQA, MuSiQue
 - **Enterprise/Domain** (practical applicability): FinanceBench (SEC filings, CC-BY-NC-4.0)
 
 ## Key Parameters
