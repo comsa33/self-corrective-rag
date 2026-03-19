@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 import dspy
 
+from agentic_rag.tools.calculate import make_calculate
 from agentic_rag.tools.decompose import make_decompose_query
 from agentic_rag.tools.evaluate import make_evaluate_passages
 from agentic_rag.tools.inspect import make_get_passage_detail
@@ -31,6 +32,7 @@ TOOL_REGISTRY = {
     "evaluate": make_evaluate_passages,
     "inspect": make_get_passage_detail,
     "decompose": make_decompose_query,
+    "calculate": make_calculate,
 }
 
 
@@ -68,6 +70,8 @@ def create_tools(
             tools.append(make_get_passage_detail(indexer))
         elif name == "decompose":
             tools.append(make_decompose_query())
+        elif name == "calculate":
+            tools.append(make_calculate())
 
     return tools
 
@@ -75,6 +79,7 @@ def create_tools(
 __all__ = [
     "TOOL_REGISTRY",
     "create_tools",
+    "make_calculate",
     "make_decompose_query",
     "make_evaluate_passages",
     "make_get_passage_detail",
