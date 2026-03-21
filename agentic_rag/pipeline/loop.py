@@ -57,8 +57,11 @@ class LoopRAGPipeline(SelfCorrectiveMixin):
         )
         llm_calls += loop_calls
 
+        # Build tool_score_trace from evaluation_scores for mediation analysis
+        tool_score_trace = _build_loop_score_trace(eval_scores)
+
         # STEP 4: Generation or Agent Routing (C4)
-        return self._build_result(
+        result = self._build_result(
             question=question,
             search_query=search_query,
             passages=passages,
@@ -68,6 +71,8 @@ class LoopRAGPipeline(SelfCorrectiveMixin):
             llm_calls=llm_calls,
             system_prompt=system_prompt,
         )
+        result.tool_score_trace = tool_score_trace
+        return result
 
     def _run_loop_refinement(
         self,
@@ -291,3 +296,23 @@ class LoopRAGPipeline(SelfCorrectiveMixin):
             # else: "refine" → continue loop
 
         return accumulated_passages, evaluation_scores, action_history, final_action, llm_calls
+
+
+def _build_loop_score_trace(evaluation_scores: list[dict]) -> list[dict]:
+    """Build tool_score_trace from loop evaluation_scores for mediation analysis."""
+    trace: list[dict] = []
+    prev_score: int | None = None
+    for es in evaluation_scores:
+        total = es.get("total")
+        if total is None:
+            continue
+        entry = {
+            "iteration_idx": es.get("retry", len(trace)),
+            "tool_called": "evaluate_passages",
+            "score_before": prev_score,
+            "score_after": total,
+            "score_delta": (total - prev_score) if prev_score is not None else None,
+        }
+        trace.append(entry)
+        prev_score = total
+    return trace
