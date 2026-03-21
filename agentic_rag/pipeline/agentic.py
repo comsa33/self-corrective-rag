@@ -21,8 +21,8 @@ from agentic_rag.config.settings import make_lm, settings
 from agentic_rag.pipeline._mixin import SelfCorrectiveMixin
 from agentic_rag.pipeline.base import PipelineResult
 from agentic_rag.retriever.indexer import Passage
-from agentic_rag.signatures.agent import AgenticRefinementSignature
-from agentic_rag.tools import create_tools
+from agentic_rag.signatures.agent import make_agent_signature
+from agentic_rag.tools import TOOL_REGISTRY, create_tools
 
 
 class AgenticRAGPipeline(SelfCorrectiveMixin):
@@ -116,8 +116,16 @@ class AgenticRAGPipeline(SelfCorrectiveMixin):
             enabled_tools=agent_cfg.enabled_tools,
         )
 
+        # Build agent signature with protocol matching the evaluation mode
+        enabled = agent_cfg.enabled_tools or list(TOOL_REGISTRY.keys())
+        has_evaluate = "evaluate" in enabled
+        sig_cls = make_agent_signature(
+            enable_4d=settings.experiment.enable_4d_evaluation,
+            has_evaluate=has_evaluate,
+        )
+
         react = dspy.ReAct(
-            AgenticRefinementSignature,
+            sig_cls,
             tools=tools,
             max_iters=agent_cfg.max_iterations,
         )
@@ -216,14 +224,15 @@ def parse_action_history(trajectory: dict) -> list[str]:
 
 
 def parse_evaluation_scores(trajectory: dict) -> list[dict]:
-    """Extract 4D evaluation scores from evaluate_passages observations.
+    """Extract evaluation scores (4D or 1D) from evaluate_passages observations.
 
     Parses the JSON observation from each evaluate_passages tool call
     to capture the structured quality assessment results.
 
     Returns:
-        List of evaluation score dicts with keys:
-        {relevance, coverage, specificity, sufficiency, total, action, ...}
+        List of evaluation score dicts. 4D mode includes per-dimension
+        scores; 1D mode includes only total, action, and reasoning.
+        Both modes include refinement feedback fields.
     """
     scores: list[dict] = []
     idx = 0

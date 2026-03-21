@@ -94,3 +94,53 @@ class EvaluationSignature(dspy.Signature):
     reasoning: str = dspy.OutputField(
         desc="Explanation of the evaluation rationale and action decision."
     )
+
+
+class Evaluation1DSignature(dspy.Signature):
+    """Evaluate retrieved passages with a single overall quality score.
+
+    Score the passages on a 0-100 scale based on how well they can
+    answer the question. Consider relevance, completeness, and specificity
+    holistically — do NOT break into sub-dimensions.
+
+    Decision Rules (Progressive Leniency)
+    ======================================
+    The effective threshold decreases with each retry to avoid over-iteration:
+      effective_threshold = QUALITY_THRESHOLD - (retry_count * 5)
+
+    - total_score >= effective_threshold → action = "output"
+    - total_score < effective_threshold AND retry_count < max_retry → action = "refine"
+    - retry_count >= max_retry → action = "output" (always generate on final retry)
+
+    When action is "refine", provide targeted feedback:
+      - keywords_to_add:    terms that should be included in the next search
+      - keywords_to_remove: noisy terms that hurt retrieval precision
+      - suggested_query:    an improved search query for the next iteration
+    """
+
+    # --- Inputs ---
+    question: str = dspy.InputField(desc="The user's question (rephrased, standalone).")
+    passages: str = dspy.InputField(desc="Retrieved passages formatted as context string.")
+    retry_count: int = dspy.InputField(desc="Current retry iteration (0-based).")
+    max_retry: int = dspy.InputField(desc="Maximum allowed retries (e.g. 3).")
+
+    # --- Outputs ---
+    total_score: int = dspy.OutputField(
+        desc="Overall quality score (0-100): holistic assessment of passage quality."
+    )
+    action: str = dspy.OutputField(desc='Next action: "output" | "refine".')
+
+    # --- Outputs: refinement feedback (same as 4D, enables fair comparison) ---
+    keywords_to_add: list[str] = dspy.OutputField(
+        desc="Keywords to add for the next retrieval attempt."
+    )
+    keywords_to_remove: list[str] = dspy.OutputField(
+        desc="Noisy keywords to remove for the next retrieval attempt."
+    )
+    suggested_query: str = dspy.OutputField(
+        desc="An improved search query for the next retrieval iteration."
+    )
+
+    reasoning: str = dspy.OutputField(
+        desc="Brief explanation of why passages are sufficient or insufficient."
+    )
