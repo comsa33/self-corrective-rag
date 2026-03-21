@@ -65,10 +65,10 @@ class AgenticRAGPipeline(SelfCorrectiveMixin):
         llm_calls += react_calls
 
         # STEP 3.5: Merge agent-refined + initial passages (agent first, deduped)
-        # Use top_k as cap (not max_passages) to match Naive/CRAG passage counts
+        # Use max_passages as cap to match Loop pipeline passage limits
         seen = set()
         merged: list[Passage] = []
-        cap = settings.retrieval.top_k
+        cap = settings.retrieval.max_passages
         for p in [*agent_passages, *initial_passages]:
             if p.id not in seen:
                 seen.add(p.id)
