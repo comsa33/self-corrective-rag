@@ -289,25 +289,43 @@ def _extract_question_difficulty(item: dict) -> dict:
     Extracts hop count, entity count, and question type for use
     as moderating variables in mediation analysis (RQ2 extension).
     """
-    question = item.get("question", "")
-    q_lower = question.lower()
-
-    # Hop count: from dataset metadata or heuristic
-    hop_count = item.get("hop_count", item.get("num_hops", 0))
-    if not hop_count:
-        # Heuristic: count bridging indicators
-        bridge_words = ["who", "where", "when", "which", "whose"]
-        hop_count = max(1, sum(1 for w in bridge_words if w in q_lower))
-
-    # Entity count: named entities (capitalized multi-word spans)
     import re
 
+    question = item.get("question", "")
+    q_lower = question.lower()
+    metadata = item.get("metadata", {})
+
+    # Hop count: prefer dataset gold metadata, fallback to heuristic
+    # MuSiQue: metadata.n_hops (2-4)
+    # HotpotQA: always 2-hop by design
+    # 2WikiMultiHopQA: infer from len(supporting_facts)
+    hop_count = (
+        metadata.get("n_hops")  # MuSiQue gold standard
+        or item.get("hop_count")
+        or item.get("num_hops")
+    )
+    if not hop_count:
+        supporting_facts = metadata.get("supporting_facts", [])
+        if supporting_facts:
+            # Number of distinct supporting docs ≈ hop count
+            titles = {sf.get("title", sf) for sf in supporting_facts if isinstance(sf, dict)}
+            hop_count = max(2, len(titles))  # multi-hop datasets are ≥2
+        else:
+            # Last resort heuristic
+            bridge_words = ["who", "where", "when", "which", "whose"]
+            hop_count = max(1, sum(1 for w in bridge_words if w in q_lower))
+
+    # Entity count: named entities (capitalized multi-word spans)
     entities = re.findall(r"[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*", question)
     entity_count = len(set(entities))
 
-    # Question type classification
-    if any(w in q_lower for w in ["which", "who is older", "who was born", "which one"]):
+    # Question type: prefer dataset metadata, fallback to keyword heuristic
+    # HotpotQA/2Wiki: metadata.type = comparison/bridge/compositional/inference
+    dataset_type = metadata.get("type", "")
+    if dataset_type in ("comparison",):
         question_type = "comparison"
+    elif dataset_type in ("bridge", "compositional", "inference"):
+        question_type = "bridge"
     elif any(w in q_lower for w in ["how many", "how much", "how long"]):
         question_type = "numerical"
     elif any(w in q_lower for w in ["where", "what place", "born in"]):
