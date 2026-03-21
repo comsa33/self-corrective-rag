@@ -28,13 +28,9 @@ from agentic_rag.tools import create_tools
 class AgenticRAGPipeline(SelfCorrectiveMixin):
     """Preprocess → ReAct Agentic Refinement → Generate/Route.
 
-    The ReAct agent has access to 6 tools:
-      - search_passages: hybrid retrieval (FAISS + BM25 + RRF)
-      - decompose_query: multi-hop question decomposition
-      - list_document_sections: browse document structure/TOC
-      - get_terminology: map user terms to document vocabulary
-      - evaluate_passages: 4D quality assessment
-      - get_passage_detail: read full passage content
+    The ReAct agent uses tools configured via settings.agent.enabled_tools
+    (default: all 7 tools — search, decompose, structure, terminology,
+    evaluate, inspect, calculate). For QA benchmarks, a subset is used.
 
     The agent autonomously reasons about which tools to call, observes
     results, and iterates to improve retrieval quality until a quality
