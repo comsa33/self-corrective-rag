@@ -94,7 +94,7 @@ class TestAblationFlags:
         assert settings.experiment.enable_dspy is True
 
     def test_quality_threshold(self):
-        assert settings.evaluation.quality_threshold == 55
+        assert settings.evaluation.quality_threshold == 40
 
     def test_max_retry(self):
         assert settings.evaluation.max_retry_count == 3

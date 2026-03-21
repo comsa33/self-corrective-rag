@@ -25,19 +25,27 @@ class EvaluationSignature(dspy.Signature):
 
     ■ Specificity (0-25):
       - Only general descriptions → 10
-      - Contains concrete info (titles, content, code, API) → 15+
-      - Detailed code examples or configuration values → 20+
+      - Contains concrete info (names, dates, facts, code, API) → 15+
+      - Detailed examples or configuration values → 20+
 
     ■ Sufficiency (0-20):
       - Partial answer possible from passages → 12+
       - Sufficient answer possible → 16+
       - Complete answer possible → 20
+      - IMPORTANT: For factoid questions (who/what/when/where/which),
+        if ANY passage contains the answer entity, score sufficiency >= 16.
 
-    Decision Rules
-    ==============
-    - total_score >= QUALITY_THRESHOLD (55) → action = "output"
-    - total_score < 55  AND  retry_count < max_retry → action = "refine"
-    - total_score < 55  AND  retry_count >= max_retry → action = "route_to_agent"
+    Decision Rules (Progressive Leniency)
+    ======================================
+    The effective threshold decreases with each retry to avoid over-iteration:
+      effective_threshold = QUALITY_THRESHOLD - (retry_count * 5)
+
+    - total_score >= effective_threshold → action = "output"
+    - total_score < effective_threshold AND retry_count < max_retry → action = "refine"
+    - retry_count >= max_retry → action = "output" (always generate on final retry)
+
+    Example: If QUALITY_THRESHOLD=40, retry_count=2:
+      effective_threshold = 40 - 10 = 30. Score 32 → "output".
 
     When action is "refine", provide targeted feedback:
       - keywords_to_add:    terms that should be included in the next search

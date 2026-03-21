@@ -327,7 +327,8 @@ class TestAgentTools:
         assert isinstance(result, list)
         assert len(result) == 2
         assert result[0]["id"] == "p1"
-        assert "content_preview" in result[0]
+        assert "score" in result[0]
+        assert "title" in result[0]
 
     def test_list_sections_tool(self, passages):
         from agentic_rag.tools import create_tools
@@ -413,7 +414,7 @@ class TestAgentTools:
 # ---------------------------------------------------------------------------
 class TestAgentSettings:
     def test_agent_settings_defaults(self):
-        assert settings.agent.max_iterations == 15
+        assert settings.agent.max_iterations == 5
 
     def test_enable_agentic_refinement_default_false(self):
         assert settings.experiment.enable_agentic_refinement is False

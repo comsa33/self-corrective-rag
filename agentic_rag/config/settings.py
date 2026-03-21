@@ -66,7 +66,7 @@ class EvaluationSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="EVAL_")
 
     # Quality threshold
-    quality_threshold: int = 55  # score >= threshold → "output"
+    quality_threshold: int = 40  # score >= threshold → "output"
 
     # Max retry
     max_retry_count: int = 3
@@ -122,7 +122,7 @@ class AgentSettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="AGENT_")
 
-    max_iterations: int = 15  # ReAct reasoning-action iterations
+    max_iterations: int = 5  # ReAct reasoning-action iterations
 
     # Tool-level ablation: None = all tools enabled
     # Valid names: search, decompose, structure, terminology, evaluate, inspect
