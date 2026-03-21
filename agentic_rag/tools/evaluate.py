@@ -59,18 +59,27 @@ def make_evaluate_passages(
                     max_retry=settings.evaluation.max_retry_count,
                 )
 
-            score_dict = {
-                "relevance": int(eval_result.relevance_score),
-                "coverage": int(eval_result.coverage_score),
-                "specificity": int(eval_result.specificity_score),
-                "sufficiency": int(eval_result.sufficiency_score),
-                "total": int(eval_result.total_score),
-                "action": eval_result.action,
-                "reasoning": eval_result.reasoning,
-                "keywords_to_add": eval_result.keywords_to_add,
-                "keywords_to_remove": eval_result.keywords_to_remove,
-                "suggested_query": eval_result.suggested_query,
-            }
+            # Build score dict — 4D or 1D based on settings
+            if settings.experiment.enable_4d_evaluation:
+                score_dict = {
+                    "relevance": int(eval_result.relevance_score),
+                    "coverage": int(eval_result.coverage_score),
+                    "specificity": int(eval_result.specificity_score),
+                    "sufficiency": int(eval_result.sufficiency_score),
+                    "total": int(eval_result.total_score),
+                    "action": eval_result.action,
+                    "reasoning": eval_result.reasoning,
+                    "keywords_to_add": eval_result.keywords_to_add,
+                    "keywords_to_remove": eval_result.keywords_to_remove,
+                    "suggested_query": eval_result.suggested_query,
+                }
+            else:
+                # 1D mode: only report total score, no per-dimension feedback
+                score_dict = {
+                    "total": int(eval_result.total_score),
+                    "action": eval_result.action,
+                    "reasoning": eval_result.reasoning,
+                }
 
             logger.debug(
                 f"[Agent:evaluate_passages] total={score_dict['total']}, "
