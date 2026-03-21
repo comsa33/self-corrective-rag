@@ -52,7 +52,11 @@ class AgenticRefinementSignature(dspy.Signature):
 
     # --- Outputs (extracted by ReAct after finish) ---
     final_passages: list[str] = dspy.OutputField(
-        desc="List of selected passage IDs for answer generation."
+        desc=(
+            "ALL passage IDs found during search that may be relevant. "
+            "Include every passage from search results — do not filter aggressively. "
+            "More passages is better; the generation step will handle selection."
+        )
     )
     final_action: str = dspy.OutputField(
         desc=(
