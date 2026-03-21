@@ -203,18 +203,17 @@ class SelfCorrectiveMixin(BasePipeline):
         if final_action == "route_to_agent" and exp.enable_agent_routing and not passages:
             # Only route to agent if we truly have no passages to work with
             context = self.format_passages(passages)
-            answer, footnotes, rec_questions, agent_type = self._route_to_agent(
-                search_query, context
-            )
+            answer, footnotes, rec_questions, agent_type = self._route_to_agent(question, context)
             llm_calls += 1
         else:
             # Generate from available passages (even if below threshold)
+            # Use original question (not search_query) for concise factoid answers
             if final_action == "route_to_agent" and passages:
                 logger.info(
                     f"[Pipeline] route_to_agent with {len(passages)} passages → "
                     f"falling back to generation"
                 )
-            answer, footnotes, rec_questions = self._generate(search_query, passages, system_prompt)
+            answer, footnotes, rec_questions = self._generate(question, passages, system_prompt)
             llm_calls += 1
 
         return PipelineResult(

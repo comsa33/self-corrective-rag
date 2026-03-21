@@ -8,17 +8,16 @@ import dspy
 
 
 class QnAGenerateSignature(dspy.Signature):
-    """Generate an accurate, concise answer based on the retrieved passages.
+    """Generate a concise answer based on the retrieved passages.
 
-    The answer must:
-    1. Be grounded in the provided passages (no hallucination).
-    2. For factoid questions (who/what/when/where), give a short direct answer
-       (a name, year, place, or brief phrase — not a lengthy explanation).
-    3. For complex questions, provide a focused 1-2 sentence answer.
-    4. Include footnote references to source passages used.
-    5. Suggest follow-up questions for deeper exploration.
-
-    Uses ChainOfThought to produce explicit reasoning before the answer.
+    Answer format rules:
+    - For factoid questions (who/what/when/where/which/how many), answer with
+      ONLY the key fact and its unit if applicable.
+      Good: "1755", "Dutch", "Kevin Spacey", "40 members", "Greyia"
+      Bad: "The answer is 1755", "Greyia has three species while Calibanus..."
+    - For comparison questions ("which X is Y-er"), answer with just the entity name.
+    - Put ALL reasoning in the chain-of-thought, NOT in the answer field.
+    - The answer must be grounded in the passages (no hallucination).
     """
 
     # --- Inputs ---
@@ -32,10 +31,10 @@ class QnAGenerateSignature(dspy.Signature):
     # --- Outputs ---
     answer: str = dspy.OutputField(
         desc=(
-            "The answer grounded in the passages. "
-            "For factoid questions (who, what, when, where), respond with a concise phrase or "
-            "short sentence containing just the key fact (e.g. '1755', 'Dutch', 'Marie Curie'). "
-            "Avoid unnecessary elaboration for simple factoid questions."
+            "ONLY the bare factual answer. "
+            "For factoid questions: just the entity/number/name (e.g. '1755', 'Dutch', "
+            "'Kevin Spacey', 'Greyia'). "
+            "NEVER start with 'The', 'Based on', or any filler. Just the answer itself."
         )
     )
     footnotes: str = dspy.OutputField(

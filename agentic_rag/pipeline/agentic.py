@@ -54,11 +54,28 @@ class AgenticRAGPipeline(SelfCorrectiveMixin):
         )
         llm_calls = 1
 
+        # STEP 1.5: Initial retrieval (baseline context, same as Naive)
+        initial_results = self.retriever.search(query=search_query, top_k=settings.retrieval.top_k)
+        initial_passages = self.indexer.get_passages([pid for pid, _ in initial_results])
+
         # STEP 2-3: ReAct Agentic Refinement
-        passages, eval_scores, action_history, final_action, react_calls = (
+        agent_passages, eval_scores, action_history, final_action, react_calls = (
             self._run_react_refinement(search_query, search_keywords, hyde_query)
         )
         llm_calls += react_calls
+
+        # STEP 3.5: Merge agent-refined + initial passages (agent first, deduped)
+        # Use top_k as cap (not max_passages) to match Naive/CRAG passage counts
+        seen = set()
+        merged: list[Passage] = []
+        cap = settings.retrieval.top_k
+        for p in [*agent_passages, *initial_passages]:
+            if p.id not in seen:
+                seen.add(p.id)
+                merged.append(p)
+            if len(merged) >= cap:
+                break
+        passages = merged
 
         # STEP 4: Generation or Agent Routing
         return self._build_result(
@@ -123,21 +140,26 @@ class AgenticRAGPipeline(SelfCorrectiveMixin):
         evaluation_scores = parse_evaluation_scores(trajectory)
         search_calls = sum(1 for a in action_history if a == "search_passages")
 
-        # Extract final outputs (with fallback to trajectory-mined passages)
-        passage_ids = result.final_passages or []
-        accumulated_passages = self.indexer.get_passages(passage_ids)
+        # Extract final outputs: agent-selected passages + trajectory supplement
+        agent_ids = result.final_passages or []
         final_action = result.final_action or "output"
 
-        # Fallback: if agent returned no passages, mine IDs from search observations
-        if not accumulated_passages and search_calls > 0:
-            fallback_ids = _extract_passage_ids_from_trajectory(trajectory)
-            if fallback_ids:
-                accumulated_passages = self.indexer.get_passages(fallback_ids)
-                final_action = "output"
-                logger.info(
-                    f"[AgenticRAG:ReAct] Fallback: extracted {len(accumulated_passages)} "
-                    f"passages from trajectory search observations"
-                )
+        # Always supplement agent-selected passages with trajectory-mined ones
+        # Agent's picks come first (priority), then fill with search results
+        max_p = settings.retrieval.max_passages
+        trajectory_ids = _extract_passage_ids_from_trajectory(trajectory, max_p)
+        # Merge: agent-selected first, then trajectory (deduped, up to max)
+        seen = set()
+        merged_ids: list[str] = []
+        for pid in [*agent_ids, *trajectory_ids]:
+            if pid not in seen:
+                seen.add(pid)
+                merged_ids.append(pid)
+            if len(merged_ids) >= max_p:
+                break
+        accumulated_passages = self.indexer.get_passages(merged_ids)
+        if not agent_ids and accumulated_passages:
+            final_action = "output"
 
         # LLM calls: one per ReAct iteration + one for final extraction
         llm_calls = (len(trajectory) // 4) + 1
