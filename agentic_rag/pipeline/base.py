@@ -33,6 +33,12 @@ class PipelineResult:
     action_history: list[str] = field(default_factory=list)
     agent_type: str | None = None  # clarification / domain_expert / fallback
 
+    # Mediation analysis data (RQ2 extension)
+    tool_score_trace: list[dict] = field(default_factory=list)
+    # Each entry: {iteration_idx, tool_called, score_before, score_after, score_delta}
+    question_difficulty: dict = field(default_factory=dict)
+    # Keys: hop_count, entity_count, question_type
+
     # Cost tracking
     latency_seconds: float = 0.0
     llm_calls: int = 0

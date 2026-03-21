@@ -29,6 +29,7 @@ dependencies = [
     "tqdm>=4.60",
     # Config
     "pyyaml>=6.0",
+    "statsmodels>=0.14.6",
 ]
 
 [project.optional-dependencies]

@@ -59,7 +59,7 @@ class AgenticRAGPipeline(SelfCorrectiveMixin):
         initial_passages = self.indexer.get_passages([pid for pid, _ in initial_results])
 
         # STEP 2-3: ReAct Agentic Refinement
-        agent_passages, eval_scores, action_history, final_action, react_calls = (
+        agent_passages, eval_scores, action_history, final_action, react_calls, tool_score_trace = (
             self._run_react_refinement(search_query, search_keywords, hyde_query)
         )
         llm_calls += react_calls
@@ -78,7 +78,7 @@ class AgenticRAGPipeline(SelfCorrectiveMixin):
         passages = merged
 
         # STEP 4: Generation or Agent Routing
-        return self._build_result(
+        result = self._build_result(
             question=question,
             search_query=search_query,
             passages=passages,
@@ -88,13 +88,15 @@ class AgenticRAGPipeline(SelfCorrectiveMixin):
             llm_calls=llm_calls,
             system_prompt=system_prompt,
         )
+        result.tool_score_trace = tool_score_trace
+        return result
 
     def _run_react_refinement(
         self,
         search_query: str,
         search_keywords: list[str],
         hyde_query: str | None,
-    ) -> tuple[list[Passage], list[dict], list[str], str, int]:
+    ) -> tuple[list[Passage], list[dict], list[str], str, int, list[dict]]:
         """Execute ReAct-based agentic retrieval refinement.
 
         The ReAct agent autonomously reasons about the situation and selects
@@ -102,7 +104,7 @@ class AgenticRAGPipeline(SelfCorrectiveMixin):
 
         Returns:
             (accumulated_passages, evaluation_scores, action_history,
-             final_action, llm_calls)
+             final_action, llm_calls, tool_score_trace)
         """
         agent_cfg = settings.agent
 
@@ -138,6 +140,7 @@ class AgenticRAGPipeline(SelfCorrectiveMixin):
         trajectory = result.trajectory or {}
         action_history = parse_action_history(trajectory)
         evaluation_scores = parse_evaluation_scores(trajectory)
+        tool_score_trace = _build_tool_score_trace(trajectory)
         search_calls = sum(1 for a in action_history if a == "search_passages")
 
         # Extract final outputs: agent-selected passages + trajectory supplement
@@ -171,7 +174,14 @@ class AgenticRAGPipeline(SelfCorrectiveMixin):
             f"trajectory_steps={len(action_history)}"
         )
 
-        return accumulated_passages, evaluation_scores, action_history, final_action, llm_calls
+        return (
+            accumulated_passages,
+            evaluation_scores,
+            action_history,
+            final_action,
+            llm_calls,
+            tool_score_trace,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -247,6 +257,49 @@ def _extract_passage_ids_from_trajectory(trajectory: dict, max_passages: int = 3
     # Sort by score descending, take top max_passages
     sorted_ids = sorted(seen, key=lambda pid: seen[pid], reverse=True)
     return sorted_ids[:max_passages]
+
+
+def _build_tool_score_trace(trajectory: dict) -> list[dict]:
+    """Build per-step tool score trace from trajectory for mediation analysis.
+
+    Tracks score_before/score_after for each tool call by looking at
+    evaluate_passages observations that follow search/decompose calls.
+
+    Returns:
+        List of {iteration_idx, tool_called, score_before, score_after, score_delta}.
+    """
+    trace: list[dict] = []
+    last_score: int | None = None
+    idx = 0
+    while f"tool_name_{idx}" in trajectory:
+        tool_name = trajectory[f"tool_name_{idx}"]
+        if tool_name == "finish":
+            idx += 1
+            continue
+
+        entry: dict = {"iteration_idx": idx, "tool_called": tool_name}
+
+        if tool_name == "evaluate_passages":
+            observation = trajectory.get(f"observation_{idx}", "")
+            parsed = _try_parse_json(observation)
+            score_after = parsed.get("total", 0) if parsed else None
+            entry["score_before"] = last_score
+            entry["score_after"] = score_after
+            entry["score_delta"] = (
+                (score_after - last_score)
+                if score_after is not None and last_score is not None
+                else None
+            )
+            if score_after is not None:
+                last_score = score_after
+        else:
+            entry["score_before"] = last_score
+            entry["score_after"] = None
+            entry["score_delta"] = None
+
+        trace.append(entry)
+        idx += 1
+    return trace
 
 
 def _try_parse_json(text: str) -> dict | None:

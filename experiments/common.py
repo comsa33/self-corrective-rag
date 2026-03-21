@@ -138,6 +138,9 @@ def run_pipeline_on_dataset(
                     "llm_calls": result.llm_calls,
                     "latency_seconds": latency,
                     "pipeline": pipeline_name,
+                    # Mediation analysis fields
+                    "tool_score_trace": result.tool_score_trace,
+                    "question_difficulty": _extract_question_difficulty(item),
                 }
             )
         except Exception as e:
@@ -275,3 +278,47 @@ def print_comparison_table(
         )
 
     console.print(table)
+
+
+# ---------------------------------------------------------------------------
+# Question difficulty extraction (for mediation analysis)
+# ---------------------------------------------------------------------------
+def _extract_question_difficulty(item: dict) -> dict:
+    """Extract question difficulty metadata from a dataset item.
+
+    Extracts hop count, entity count, and question type for use
+    as moderating variables in mediation analysis (RQ2 extension).
+    """
+    question = item.get("question", "")
+    q_lower = question.lower()
+
+    # Hop count: from dataset metadata or heuristic
+    hop_count = item.get("hop_count", item.get("num_hops", 0))
+    if not hop_count:
+        # Heuristic: count bridging indicators
+        bridge_words = ["who", "where", "when", "which", "whose"]
+        hop_count = max(1, sum(1 for w in bridge_words if w in q_lower))
+
+    # Entity count: named entities (capitalized multi-word spans)
+    import re
+
+    entities = re.findall(r"[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*", question)
+    entity_count = len(set(entities))
+
+    # Question type classification
+    if any(w in q_lower for w in ["which", "who is older", "who was born", "which one"]):
+        question_type = "comparison"
+    elif any(w in q_lower for w in ["how many", "how much", "how long"]):
+        question_type = "numerical"
+    elif any(w in q_lower for w in ["where", "what place", "born in"]):
+        question_type = "location"
+    elif any(w in q_lower for w in ["when", "what year", "what date"]):
+        question_type = "temporal"
+    else:
+        question_type = "factoid"
+
+    return {
+        "hop_count": hop_count,
+        "entity_count": entity_count,
+        "question_type": question_type,
+    }
