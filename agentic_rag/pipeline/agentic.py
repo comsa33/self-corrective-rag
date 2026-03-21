@@ -123,10 +123,21 @@ class AgenticRAGPipeline(SelfCorrectiveMixin):
         evaluation_scores = parse_evaluation_scores(trajectory)
         search_calls = sum(1 for a in action_history if a == "search_passages")
 
-        # Extract final outputs
+        # Extract final outputs (with fallback to trajectory-mined passages)
         passage_ids = result.final_passages or []
         accumulated_passages = self.indexer.get_passages(passage_ids)
         final_action = result.final_action or "output"
+
+        # Fallback: if agent returned no passages, mine IDs from search observations
+        if not accumulated_passages and search_calls > 0:
+            fallback_ids = _extract_passage_ids_from_trajectory(trajectory)
+            if fallback_ids:
+                accumulated_passages = self.indexer.get_passages(fallback_ids)
+                final_action = "output"
+                logger.info(
+                    f"[AgenticRAG:ReAct] Fallback: extracted {len(accumulated_passages)} "
+                    f"passages from trajectory search observations"
+                )
 
         # LLM calls: one per ReAct iteration + one for final extraction
         llm_calls = (len(trajectory) // 4) + 1
@@ -186,6 +197,34 @@ def parse_evaluation_scores(trajectory: dict) -> list[dict]:
                 scores.append(parsed)
         idx += 1
     return scores
+
+
+def _extract_passage_ids_from_trajectory(trajectory: dict, max_passages: int = 30) -> list[str]:
+    """Extract unique passage IDs from search_passages observations in trajectory.
+
+    When the agent fails to populate final_passages, this fallback mines
+    passage IDs from all search tool observations, ordered by retrieval score.
+    """
+    seen: dict[str, float] = {}  # id → best score
+    idx = 0
+    while f"tool_name_{idx}" in trajectory:
+        if trajectory[f"tool_name_{idx}"] == "search_passages":
+            observation = trajectory.get(f"observation_{idx}", "")
+            try:
+                results = json.loads(observation)
+                if isinstance(results, list):
+                    for item in results:
+                        pid = item.get("id", "")
+                        score = item.get("score", 0.0)
+                        if pid and (pid not in seen or score > seen[pid]):
+                            seen[pid] = score
+            except (json.JSONDecodeError, TypeError):
+                pass
+        idx += 1
+
+    # Sort by score descending, take top max_passages
+    sorted_ids = sorted(seen, key=lambda pid: seen[pid], reverse=True)
+    return sorted_ids[:max_passages]
 
 
 def _try_parse_json(text: str) -> dict | None:
