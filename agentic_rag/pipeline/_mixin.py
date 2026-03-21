@@ -19,7 +19,7 @@ from agentic_rag.signatures.agents import (
     DomainExpertSignature,
     FallbackSignature,
 )
-from agentic_rag.signatures.evaluate import EvaluationSignature
+from agentic_rag.signatures.evaluate import Evaluation1DSignature, EvaluationSignature
 from agentic_rag.signatures.generate import QnAGenerateSignature
 from agentic_rag.signatures.preprocess import (
     HyDEPreprocessSignature,
@@ -45,7 +45,10 @@ class SelfCorrectiveMixin(BasePipeline):
         else:
             self.preprocessor = dspy.ChainOfThought(PreprocessSignature)
 
-        self.evaluator = dspy.Predict(EvaluationSignature)
+        if settings.experiment.enable_4d_evaluation:
+            self.evaluator = dspy.Predict(EvaluationSignature)
+        else:
+            self.evaluator = dspy.Predict(Evaluation1DSignature)
         self.generator = dspy.ChainOfThought(QnAGenerateSignature)
 
         # Agents

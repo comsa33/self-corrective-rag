@@ -1,4 +1,4 @@
-"""4D quality evaluation tool for agentic retrieval."""
+"""Quality evaluation tool for agentic retrieval (4D or 1D mode)."""
 
 from __future__ import annotations
 
@@ -15,27 +15,53 @@ if TYPE_CHECKING:
     from agentic_rag.retriever.indexer import DocumentIndexer
 
 
+_DOCSTRING_4D = """Run multi-dimensional quality evaluation on selected passages.
+
+Evaluates passages across 4 quality dimensions: relevance, coverage,
+specificity, and sufficiency.  Returns per-dimension scores plus
+targeted refinement feedback when quality is insufficient.
+
+Args:
+    question: The user's question.
+    passage_ids_json: JSON array of passage IDs to evaluate,
+                      e.g. '["id1", "id2", "id3"]'
+    retry_count: Current retry iteration (0-based). Higher values
+                 apply progressive leniency to the quality threshold.
+
+Returns:
+    JSON string: {relevance, coverage, specificity, sufficiency,
+                  total, action, reasoning, keywords_to_add,
+                  keywords_to_remove, suggested_query}
+"""
+
+_DOCSTRING_1D = """Run quality evaluation on selected passages.
+
+Returns a single overall quality score (0-100) and a next-action
+decision ("output" or "refine") without per-dimension breakdown,
+plus targeted refinement feedback when quality is insufficient.
+
+Args:
+    question: The user's question.
+    passage_ids_json: JSON array of passage IDs to evaluate,
+                      e.g. '["id1", "id2", "id3"]'
+    retry_count: Current retry iteration (0-based). Higher values
+                 apply progressive leniency to the quality threshold.
+
+Returns:
+    JSON string: {total, action, reasoning, keywords_to_add,
+                  keywords_to_remove, suggested_query}
+"""
+
+
 def make_evaluate_passages(
     indexer: DocumentIndexer,
     evaluator: dspy.Predict,
 ):
     """Create an evaluate_passages tool closure."""
 
+    is_4d = settings.experiment.enable_4d_evaluation
+
     def evaluate_passages(question: str, passage_ids_json: str, retry_count: int = 0) -> str:
-        """Run 4D quality evaluation on selected passages.
-
-        Args:
-            question: The user's question.
-            passage_ids_json: JSON array of passage IDs to evaluate,
-                              e.g. '["id1", "id2", "id3"]'
-            retry_count: Current retry iteration (0-based). Higher values
-                         apply progressive leniency to the quality threshold.
-
-        Returns:
-            JSON string: {relevance, coverage, specificity, sufficiency,
-                          total, action, reasoning, keywords_to_add,
-                          keywords_to_remove, suggested_query}
-        """
         try:
             passage_ids = json.loads(passage_ids_json)
             passages = indexer.get_passages(passage_ids)
@@ -59,8 +85,8 @@ def make_evaluate_passages(
                     max_retry=settings.evaluation.max_retry_count,
                 )
 
-            # Build score dict — 4D or 1D based on settings
-            if settings.experiment.enable_4d_evaluation:
+            # Build score dict — 4D or 1D based on which signature was used
+            if is_4d:
                 score_dict = {
                     "relevance": int(eval_result.relevance_score),
                     "coverage": int(eval_result.coverage_score),
@@ -74,11 +100,14 @@ def make_evaluate_passages(
                     "suggested_query": eval_result.suggested_query,
                 }
             else:
-                # 1D mode: only report total score, no per-dimension feedback
+                # 1D mode: single holistic score + same refinement feedback as 4D
                 score_dict = {
                     "total": int(eval_result.total_score),
                     "action": eval_result.action,
                     "reasoning": eval_result.reasoning,
+                    "keywords_to_add": eval_result.keywords_to_add,
+                    "keywords_to_remove": eval_result.keywords_to_remove,
+                    "suggested_query": eval_result.suggested_query,
                 }
 
             logger.debug(
@@ -88,5 +117,8 @@ def make_evaluate_passages(
             return json.dumps(score_dict, ensure_ascii=False)
         except Exception as e:
             return json.dumps({"error": str(e), "total": 0, "action": "refine"})
+
+    # Set docstring based on evaluation mode so ReAct agent sees accurate tool description
+    evaluate_passages.__doc__ = _DOCSTRING_4D if is_4d else _DOCSTRING_1D
 
     return evaluate_passages
