@@ -164,8 +164,14 @@ class AgenticRAGPipeline(SelfCorrectiveMixin):
         if not agent_ids and accumulated_passages:
             final_action = "output"
 
-        # LLM calls: one per ReAct iteration + one for final extraction
-        llm_calls = (len(trajectory) // 4) + 1
+        # LLM calls: ReAct reasoning steps + tool-internal LLM calls
+        # Each ReAct iteration = 1 LLM call (thought → action), plus final output = +1
+        react_steps = (len(trajectory) // 4) + 1
+        # Tools with internal LLM calls: decompose_query (1), evaluate_passages (1)
+        tool_llm_calls = sum(
+            1 for a in action_history if a in ("decompose_query", "evaluate_passages")
+        )
+        llm_calls = react_steps + tool_llm_calls
 
         logger.info(
             f"[AgenticRAG:ReAct] Completed: action={final_action}, "

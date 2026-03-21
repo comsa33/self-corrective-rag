@@ -49,7 +49,7 @@ class MediationAnalyzer:
 
     def _build_dataframe(self) -> pd.DataFrame:
         """Convert results to a DataFrame with mediation variables."""
-        from agentic_rag.evaluation.metrics import exact_match_score, token_f1_score
+        from agentic_rag.evaluation.metrics import exact_match, token_f1
 
         rows = []
         for r in self.results:
@@ -61,8 +61,11 @@ class MediationAnalyzer:
             difficulty = r.get("question_difficulty", {})
             pipeline = r.get("pipeline", "unknown")
 
-            # --- Independent Variable: Pipeline type (ordinal encoding) ---
+            # --- Independent Variable: Pipeline type ---
+            # Binary encoding (agentic=1, others=0) avoids equal-interval
+            # assumption problems with ordinal encoding in OLS regression.
             pipeline_code = _encode_pipeline(pipeline)
+            is_agentic = 1 if "agentic" in pipeline.lower() else 0
 
             # --- Mediator 1: Tool diversity (Shannon entropy) ---
             tool_diversity = _shannon_entropy(action_history)
@@ -74,8 +77,8 @@ class MediationAnalyzer:
             iteration_depth = len(action_history)
 
             # --- Dependent Variables ---
-            em = exact_match_score(pred, ref)
-            f1 = token_f1_score(pred, ref)
+            em = exact_match(pred, ref)
+            f1 = token_f1(pred, ref)
 
             # --- Moderating Variables (question difficulty) ---
             hop_count = difficulty.get("hop_count", 1)
@@ -87,6 +90,7 @@ class MediationAnalyzer:
                     "id": r.get("id", ""),
                     "pipeline": pipeline,
                     "pipeline_code": pipeline_code,
+                    "is_agentic": is_agentic,
                     "tool_diversity": tool_diversity,
                     "score_improvement": score_improvement,
                     "iteration_depth": iteration_depth,
@@ -108,7 +112,7 @@ class MediationAnalyzer:
     # ------------------------------------------------------------------
     def run_baron_kenny(
         self,
-        iv: str = "pipeline_code",
+        iv: str = "is_agentic",
         mediators: list[str] | None = None,
         dv: str = "f1",
     ) -> dict[str, dict]:
@@ -201,7 +205,7 @@ class MediationAnalyzer:
     # ------------------------------------------------------------------
     def run_bootstrap_mediation(
         self,
-        iv: str = "pipeline_code",
+        iv: str = "is_agentic",
         mediators: list[str] | None = None,
         dv: str = "f1",
         n_boot: int = 5000,
@@ -376,13 +380,11 @@ def _compute_score_improvement(evaluation_scores: list[dict]) -> float:
     """Compute total quality score improvement across iterations.
 
     Returns the delta between first and last evaluation total score.
-    Returns 0 if fewer than 1 evaluation exists.
+    Returns 0 if fewer than 2 evaluations exist (no iteration = no improvement).
     """
     totals = [s.get("total", 0) for s in evaluation_scores if "total" in s]
-    if len(totals) < 1:
+    if len(totals) < 2:
         return 0.0
-    if len(totals) == 1:
-        return float(totals[0])
     return float(totals[-1] - totals[0])
 
 
