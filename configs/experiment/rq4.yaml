@@ -3,6 +3,12 @@
 #
 # Compares: Full tools / w/o section_index / w/o term_index / w/o both
 # Tests C3's contribution for structured document navigation.
+#
+# NOTE: Run with --dataset financebench only.
+# Multi-hop QA datasets (HotpotQA, 2Wiki, MuSiQue) have flat structure
+# (1 section per source), making structure tools ineffective.
+# FinanceBench SEC filings have multi-page/section structure where
+# section_index and term_index provide meaningful navigation.
 
 name: "RQ4: Structure-Aware Tools"
 description: >
@@ -26,6 +32,7 @@ variants:
         - terminology
         - evaluate
         - inspect
+        - calculate
 
   - name: w/o Terminology
     pipeline: agentic
@@ -38,6 +45,7 @@ variants:
         - structure
         - evaluate
         - inspect
+        - calculate
 
   - name: w/o Structure Tools
     pipeline: agentic
@@ -49,3 +57,4 @@ variants:
         - decompose
         - evaluate
         - inspect
+        - calculate
