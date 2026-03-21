@@ -55,5 +55,8 @@ class AgenticRefinementSignature(dspy.Signature):
         desc="List of selected passage IDs for answer generation."
     )
     final_action: str = dspy.OutputField(
-        desc='"output" if quality is sufficient, "route_to_agent" if unable to find adequate passages.'
+        desc=(
+            '"output" — always output the best available passages, even if quality '
+            "is below threshold. Never leave final_passages empty."
+        )
     )
