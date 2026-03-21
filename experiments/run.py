@@ -67,8 +67,14 @@ def _run_variant(
     retriever,
     indexer,
     request_delay: float = 0.0,
+    train_data: list[dict] | None = None,
+    val_data: list[dict] | None = None,
 ) -> list[dict]:
-    """Run a single variant: apply settings, create pipeline, execute."""
+    """Run a single variant: apply settings, create pipeline, execute.
+
+    If variant.optimization is set ('bootstrap' or 'mipro'), runs the
+    optimizer on train_data before evaluating on dataset (test split).
+    """
     # Apply variant-specific settings
     base_cfg = load_config("configs/base.yaml")
     merged = base_cfg.copy()
@@ -83,8 +89,125 @@ def _run_variant(
     pipeline_cls = variant.import_pipeline_class()
     pipeline = pipeline_cls(retriever, indexer)
 
+    # --- DSPy optimization (RQ5) ---
+    if variant.optimization and train_data:
+        _apply_optimization(variant.optimization, pipeline, train_data, val_data)
+
     slug = variant.name.lower().replace(" ", "_").replace("/", "_")
     return run_pipeline_on_dataset(pipeline, dataset, slug, request_delay=request_delay)
+
+
+def _apply_optimization(
+    optimization: str,
+    pipeline,
+    train_data: list[dict],
+    val_data: list[dict] | None = None,
+) -> None:
+    """Run DSPy optimization (bootstrap/mipro) on the pipeline's modules.
+
+    Collects training examples by running the pipeline on train_data,
+    then optimizes DSPy modules using the specified strategy.
+    """
+    from agentic_rag.evaluation.metrics import token_f1
+    from agentic_rag.optimization.collector import TrainingCollector
+
+    logger.info(f"[Optimization] Running {optimization} on {len(train_data)} training examples")
+
+    # Step 1: Collect training examples by running pipeline on train_data
+    collector = TrainingCollector()
+    for item in train_data:
+        try:
+            result = pipeline.run(item["question"])
+            # Collect generate signature examples (primary optimization target)
+            collector.add(
+                "GenerateSignature",
+                inputs={"question": item["question"], "context": result.answer[:500]},
+                outputs={"answer": item.get("answer", "")},
+            )
+        except Exception as e:
+            logger.warning(f"[Optimization] Training example failed: {e}")
+
+    if collector.total_count < 3:
+        logger.warning(
+            f"[Optimization] Only {collector.total_count} examples collected, "
+            f"skipping optimization (need >= 3)"
+        )
+        return
+
+    trainset = collector.to_dspy_examples("GenerateSignature")
+
+    # Step 2: Build validation metric
+    def optimization_metric(example, prediction, trace=None) -> float:
+        pred = getattr(prediction, "answer", "")
+        ref = getattr(example, "answer", "")
+        return token_f1(pred, ref)
+
+    # Step 3: Apply optimization to pipeline's generate module
+    # DSPy pipelines expose their modules; optimize the main generate module
+    target_module = _find_dspy_module(pipeline)
+    if target_module is None:
+        logger.warning("[Optimization] No optimizable DSPy module found in pipeline")
+        return
+
+    if optimization == "bootstrap":
+        from agentic_rag.optimization.bootstrap import optimize_bootstrap
+
+        optimized = optimize_bootstrap(
+            target_module, trainset, metric_fn=optimization_metric, max_demos=4
+        )
+        _replace_dspy_module(pipeline, optimized)
+        logger.info("[Optimization] BootstrapFewShot optimization applied")
+
+    elif optimization == "mipro":
+        from agentic_rag.optimization.mipro import optimize_mipro
+
+        optimized = optimize_mipro(
+            target_module, trainset, metric_fn=optimization_metric, num_candidates=7
+        )
+        _replace_dspy_module(pipeline, optimized)
+        logger.info("[Optimization] MIPROv2 optimization applied")
+
+    else:
+        logger.warning(f"[Optimization] Unknown optimization strategy: {optimization}")
+
+
+def _find_dspy_module(pipeline):
+    """Find the primary optimizable DSPy module in a pipeline."""
+    import dspy
+
+    # Check common attribute names for the generate module
+    for attr_name in ("generator", "generate", "generate_module"):
+        mod = getattr(pipeline, attr_name, None)
+        if mod is not None and isinstance(mod, dspy.Module):
+            return mod
+
+    # Search all attributes for DSPy modules
+    for attr_name in dir(pipeline):
+        if attr_name.startswith("_"):
+            continue
+        mod = getattr(pipeline, attr_name, None)
+        if isinstance(mod, dspy.Module):
+            return mod
+
+    return None
+
+
+def _replace_dspy_module(pipeline, optimized_module):
+    """Replace the pipeline's DSPy module with the optimized version."""
+    import dspy
+
+    for attr_name in ("generator", "generate", "generate_module"):
+        if hasattr(pipeline, attr_name) and isinstance(getattr(pipeline, attr_name), dspy.Module):
+            setattr(pipeline, attr_name, optimized_module)
+            return
+
+    # Fallback: replace first DSPy module found
+    for attr_name in dir(pipeline):
+        if attr_name.startswith("_"):
+            continue
+        if isinstance(getattr(pipeline, attr_name, None), dspy.Module):
+            setattr(pipeline, attr_name, optimized_module)
+            return
 
 
 # ---------------------------------------------------------------------------
@@ -114,15 +237,35 @@ def run_experiment(
         val_end = train_end + (exp.val_size or 0)
         test_data = dataset[val_end:]
         if not test_data:
-            test_data = dataset[train_end:val_end] or dataset
+            raise ValueError(
+                f"No test data remaining after train/val split "
+                f"(dataset={len(dataset)}, train={train_end}, val={exp.val_size or 0}). "
+                f"Increase --sample or reduce train_size/val_size in config."
+            )
         logger.info(
             f"  Data split: train={train_end}, val={exp.val_size or 0}, test={len(test_data)}"
         )
 
+    # Prepare train/val splits for optimization variants
+    train_data = dataset[: exp.train_size] if exp.train_size is not None else None
+    val_data = (
+        dataset[exp.train_size : exp.train_size + (exp.val_size or 0)]
+        if exp.train_size is not None and exp.val_size
+        else None
+    )
+
     all_results: dict[str, list[dict]] = {}
     for variant in exp.variants:
         logger.info(f"  Running variant: {variant.name}")
-        results = _run_variant(variant, test_data, retriever, indexer, request_delay)
+        results = _run_variant(
+            variant,
+            test_data,
+            retriever,
+            indexer,
+            request_delay,
+            train_data=train_data,
+            val_data=val_data,
+        )
         all_results[variant.name] = results
 
     # Report & save — all variants share one run directory
