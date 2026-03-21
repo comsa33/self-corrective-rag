@@ -20,11 +20,23 @@ variants:
     pipeline: loop
     experiment:
       enable_iteration: false
+      enable_agent_routing: false
 
   - name: Loop Refinement
     pipeline: loop
+    experiment:
+      enable_agent_routing: false
 
   - name: Agentic (ReAct)
     pipeline: agentic
     experiment:
       enable_agentic_refinement: true
+      enable_agent_routing: false
+    agent:
+      # For multi-hop QA: only core tools (structure/terminology useless on Wikipedia)
+      # For FinanceBench: override with enabled_tools: null (all tools)
+      enabled_tools:
+        - search
+        - decompose
+        - evaluate
+        - calculate

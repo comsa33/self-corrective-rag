@@ -21,13 +21,15 @@ def make_evaluate_passages(
 ):
     """Create an evaluate_passages tool closure."""
 
-    def evaluate_passages(question: str, passage_ids_json: str) -> str:
+    def evaluate_passages(question: str, passage_ids_json: str, retry_count: int = 0) -> str:
         """Run 4D quality evaluation on selected passages.
 
         Args:
             question: The user's question.
             passage_ids_json: JSON array of passage IDs to evaluate,
                               e.g. '["id1", "id2", "id3"]'
+            retry_count: Current retry iteration (0-based). Higher values
+                         apply progressive leniency to the quality threshold.
 
         Returns:
             JSON string: {relevance, coverage, specificity, sufficiency,
@@ -53,7 +55,7 @@ def make_evaluate_passages(
                 eval_result = evaluator(
                     question=question,
                     passages=context,
-                    retry_count=0,
+                    retry_count=retry_count,
                     max_retry=settings.evaluation.max_retry_count,
                 )
 

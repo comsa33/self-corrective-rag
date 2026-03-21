@@ -69,24 +69,20 @@ class KnowledgeRefinementSignature(dspy.Signature):
     )
 
 
-class WebSearchSimulatorSignature(dspy.Signature):
-    """Simulate web search fallback for CRAG.
+class QueryRewriteSignature(dspy.Signature):
+    """Rewrite a query for improved retrieval when initial passages are insufficient.
 
-    In the original CRAG, web search provides supplementary knowledge
-    when retrieved passages are insufficient. For controlled experiments,
-    we simulate this by generating plausible web search results from LLM
-    parametric knowledge, ensuring reproducibility.
-
-    For real web search experiments, this can be replaced with actual
-    search API calls (e.g., Tavily, Serper).
+    Given a question and reasoning about why initial passages were irrelevant,
+    produce a rewritten query that targets different aspects or uses alternative
+    terms to find relevant passages in the same corpus.
     """
 
     question: str = dspy.InputField(desc="The user's question.")
+    reasoning: str = dspy.InputField(desc="Why the initial retrieval was insufficient.")
 
-    web_knowledge: str = dspy.OutputField(
-        desc="Simulated web search results — factual knowledge about the topic."
+    rewritten_query: str = dspy.OutputField(
+        desc="An improved search query targeting different aspects or alternative terms."
     )
-    sources: str = dspy.OutputField(desc="Hypothetical source descriptions for the web results.")
 
 
 class CRAGReplicaPipeline(BasePipeline):
@@ -110,7 +106,7 @@ class CRAGReplicaPipeline(BasePipeline):
         # DSPy modules
         self.evaluator = dspy.Predict(CRAGEvaluationSignature)
         self.refiner = dspy.Predict(KnowledgeRefinementSignature)
-        self.web_searcher = dspy.Predict(WebSearchSimulatorSignature)
+        self.query_rewriter = dspy.Predict(QueryRewriteSignature)
         self.generator = dspy.ChainOfThought(QnAGenerateSignature)
 
     def run(
@@ -169,18 +165,25 @@ class CRAGReplicaPipeline(BasePipeline):
             llm_calls += len(passages)
 
         elif judgment == "incorrect":
-            # Web search fallback (discard retrieved passages)
-            web_context = self._web_search(question)
+            # Re-retrieval with rewritten query (same corpus, no LLM memory)
+            re_passages = self._rewrite_and_retrieve(
+                question, eval_result.reasoning, exclude_ids=set(passage_ids)
+            )
             llm_calls += 1
-            final_context = web_context
+            if re_passages:
+                passages = re_passages  # replace with new passages
+            final_context = self.format_passages(passages)
 
         else:  # ambiguous
-            # Combine refined passages + web search
+            # Combine refined passages + re-retrieved passages
             refined = self._refine_passages(question, passages)
             llm_calls += len(passages)
-            web_context = self._web_search(question)
+            re_passages = self._rewrite_and_retrieve(
+                question, eval_result.reasoning, exclude_ids=set(passage_ids)
+            )
             llm_calls += 1
-            final_context = f"{refined}\n\n--- Web Search Results ---\n{web_context}"
+            re_context = self.format_passages(re_passages) if re_passages else ""
+            final_context = f"{refined}\n\n{re_context}".strip()
 
         # ==============================================================
         # Step 4: Generation
@@ -229,28 +232,31 @@ class CRAGReplicaPipeline(BasePipeline):
         return "\n\n".join(refined_parts)
 
     # ------------------------------------------------------------------
-    # Web Search Fallback
+    # Re-retrieval with Query Rewrite
     # ------------------------------------------------------------------
-    def _web_search(self, question: str) -> str:
-        """Simulate or perform web search for supplementary knowledge."""
-        if self.use_real_web_search:
-            return self._real_web_search(question)
+    def _rewrite_and_retrieve(
+        self,
+        question: str,
+        reasoning: str,
+        exclude_ids: set[str] | None = None,
+    ) -> list[Passage]:
+        """Rewrite the query and re-retrieve from the same corpus.
 
-        # Simulated web search via LLM parametric knowledge
-        with dspy.context(lm=make_lm(settings.model.agent_model)):
-            result = self.web_searcher(question=question)
-
-        return f"{result.web_knowledge}\n\nSources: {result.sources}"
-
-    @staticmethod
-    def _real_web_search(question: str) -> str:
-        """Placeholder for real web search API integration.
-
-        To use, install and configure a search provider:
-          - Tavily: pip install tavily-python
-          - Serper: pip install google-serper
+        Instead of web search (which uses LLM parametric knowledge and creates
+        an unfair advantage), this rewrites the query based on the evaluator's
+        reasoning and retrieves again from the same corpus.
         """
-        raise NotImplementedError(
-            "Real web search not configured. "
-            "Set use_real_web_search=False or implement a search provider."
+        with dspy.context(lm=make_lm(settings.model.evaluate_model)):
+            rewrite_result = self.query_rewriter(
+                question=question,
+                reasoning=reasoning,
+            )
+
+        new_query = rewrite_result.rewritten_query
+        logger.info(f"[CRAG] Re-retrieval with rewritten query: '{new_query}'")
+
+        search_results = self.retriever.search(
+            query=new_query,
+            exclude_ids=exclude_ids or set(),
         )
+        return self.indexer.get_passages([pid for pid, _ in search_results])

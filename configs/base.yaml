@@ -21,7 +21,7 @@ retrieval:
   max_passages: 30
 
 evaluation:
-  quality_threshold: 55
+  quality_threshold: 40
   max_retry_count: 3
 
 experiment:
@@ -41,6 +41,6 @@ experiment:
   enable_agentic_refinement: false
 
 agent:
-  max_iterations: 15
+  max_iterations: 5
   # enabled_tools: null = all tools (search, decompose, structure, terminology, evaluate, inspect)
   enabled_tools: null

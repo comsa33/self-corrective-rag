@@ -55,13 +55,13 @@ class TestLoadConfig:
     def test_load_base_yaml(self):
         cfg = load_config(CONFIGS_DIR / "base.yaml")
         # model section is omitted from base.yaml (comes from settings.py + .env)
-        assert cfg["evaluation"]["quality_threshold"] == 55
+        assert cfg["evaluation"]["quality_threshold"] == 40
         assert cfg["experiment"]["seed"] == 42
 
     def test_load_pipeline_config_merges_base(self):
         cfg = load_config(CONFIGS_DIR / "pipeline" / "agentic.yaml")
         # Should have base defaults merged
-        assert cfg["evaluation"]["quality_threshold"] == 55
+        assert cfg["evaluation"]["quality_threshold"] == 40
         # Should have pipeline-specific override
         assert cfg["experiment"]["enable_agentic_refinement"] is True
 
