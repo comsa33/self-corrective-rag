@@ -24,8 +24,16 @@ from loguru import logger
 # ---------------------------------------------------------------------------
 # Normalization helpers
 # ---------------------------------------------------------------------------
+def _strip_footnotes(text: str) -> str:
+    """Remove footnote markers like [1], [1, 2], [hotpotqa_Florida Senate]."""
+    # Remove bracketed references: [1], [1, 2], [hotpotqa_xxx], [source_id]
+    text = re.sub(r"\s*\[[^\]]*\]", "", text)
+    return text.strip()
+
+
 def _normalize_text(text: str) -> str:
-    """Lowercase, strip punctuation/articles/whitespace for matching."""
+    """Lowercase, strip footnotes/punctuation/articles/whitespace for matching."""
+    text = _strip_footnotes(text)
     text = text.lower()
     # Remove articles
     text = re.sub(r"\b(a|an|the)\b", " ", text)
