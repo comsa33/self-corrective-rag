@@ -91,6 +91,66 @@ class AgenticRAGPipeline(SelfCorrectiveMixin):
         result.tool_score_trace = tool_score_trace
         return result
 
+    def _run_mandatory_evaluate(
+        self,
+        search_query: str,
+        trajectory: dict,
+    ) -> tuple[list[dict], list[dict]]:
+        """Run mandatory evaluation when agent skipped evaluate_passages.
+
+        Extracts passage IDs from trajectory, evaluates them, and returns
+        evaluation scores and score trace entries.
+        """
+        max_p = settings.retrieval.max_passages
+        passage_ids = _extract_passage_ids_from_trajectory(trajectory, max_p)
+        if not passage_ids:
+            return [], []
+
+        passages = self.indexer.get_passages(passage_ids)
+        if not passages:
+            return [], []
+
+        context = self.format_passages(passages)
+        with dspy.context(lm=make_lm(settings.model.evaluate_model)):
+            eval_result = self.evaluator(
+                question=search_query,
+                passages=context,
+                retry_count=0,
+                max_retry=settings.evaluation.max_retry_count,
+            )
+
+        if settings.experiment.enable_4d_evaluation:
+            score_dict = {
+                "relevance": int(eval_result.relevance_score),
+                "coverage": int(eval_result.coverage_score),
+                "specificity": int(eval_result.specificity_score),
+                "sufficiency": int(eval_result.sufficiency_score),
+                "total": int(eval_result.total_score),
+                "action": eval_result.action,
+                "reasoning": eval_result.reasoning,
+                "mandatory": True,
+            }
+        else:
+            score_dict = {
+                "total": int(eval_result.total_score),
+                "action": eval_result.action,
+                "reasoning": eval_result.reasoning,
+                "mandatory": True,
+            }
+
+        logger.info(f"[AgenticRAG:ReAct] Mandatory evaluate: total={score_dict['total']}")
+
+        trace_entry = {
+            "iteration_idx": -1,
+            "tool_called": "evaluate_passages",
+            "score_before": None,
+            "score_after": score_dict["total"],
+            "score_delta": None,
+            "mandatory": True,
+        }
+
+        return [score_dict], [trace_entry]
+
     def _run_react_refinement(
         self,
         search_query: str,
@@ -150,6 +210,16 @@ class AgenticRAGPipeline(SelfCorrectiveMixin):
         evaluation_scores = parse_evaluation_scores(trajectory)
         tool_score_trace = _build_tool_score_trace(trajectory)
         search_calls = sum(1 for a in action_history if a == "search_passages")
+
+        # --- Mandatory evaluate: if agent skipped evaluate, run it now ---
+        if has_evaluate and "evaluate_passages" not in action_history:
+            logger.info("[AgenticRAG:ReAct] Agent skipped evaluate — running mandatory evaluation")
+            eval_scores_post, eval_trace_post = self._run_mandatory_evaluate(
+                search_query, trajectory
+            )
+            evaluation_scores.extend(eval_scores_post)
+            tool_score_trace.extend(eval_trace_post)
+            action_history.append("evaluate_passages")
 
         # Extract final outputs: agent-selected passages + trajectory supplement
         agent_ids = result.final_passages or []

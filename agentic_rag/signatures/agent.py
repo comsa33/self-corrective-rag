@@ -41,12 +41,14 @@ STEP 2b: Call get_passage_detail on the most relevant passages from \
 search results to read their full content before deciding next steps."""
 
 _EVAL_STEPS = """
-STEP 3: Call evaluate_passages ONCE on the combined passage set \
-(retry_count=0).
+STEP 3: MANDATORY — Call evaluate_passages on the combined passage set \
+(retry_count=0). You MUST evaluate before finishing.
 STEP 4: If total < quality_threshold:
         a. Use evaluation feedback (suggested_query, keywords_to_add).
         b. Call search_passages ONE more time with the refined query.
-        c. Call evaluate_passages again with retry_count=1."""
+        c. Call evaluate_passages again with retry_count=1.
+IMPORTANT: You MUST call evaluate_passages at least once before finishing. \
+Never skip evaluation — it ensures answer quality."""
 
 _NO_EVAL_STEPS = """
 STEP 3: Review the search results. If the passages seem insufficient \
@@ -61,7 +63,8 @@ STEP {finish_step}: Call finish. Do NOT continue searching if:
         - You are retrieving the same or similar passages
         - Evaluation score >= quality_threshold
 
-IMPORTANT: Limit yourself to at most 2 evaluate_passages calls and \
+IMPORTANT: You MUST call evaluate_passages at least once before calling \
+finish. Limit yourself to at most 2 evaluate_passages calls and \
 3 search_passages calls. Finish promptly with the best available passages."""
 
 _FOOTER_NO_EVAL = """
