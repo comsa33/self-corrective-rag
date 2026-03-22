@@ -33,3 +33,4 @@ variants:
         - structure
         - terminology
         - inspect
+        - calculate

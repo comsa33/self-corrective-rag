@@ -67,13 +67,12 @@ def _run_variant(
     retriever,
     indexer,
     request_delay: float = 0.0,
-    train_data: list[dict] | None = None,
-    val_data: list[dict] | None = None,
+    trainset: list | None = None,
 ) -> list[dict]:
     """Run a single variant: apply settings, create pipeline, execute.
 
-    If variant.optimization is set ('bootstrap' or 'mipro'), runs the
-    optimizer on train_data before evaluating on dataset (test split).
+    If variant.optimization is set ('bootstrap' or 'mipro'), applies the
+    optimizer using pre-collected trainset before evaluating on dataset.
     """
     # Apply variant-specific settings
     base_cfg = load_config("configs/base.yaml")
@@ -90,35 +89,31 @@ def _run_variant(
     pipeline = pipeline_cls(retriever, indexer)
 
     # --- DSPy optimization (RQ5) ---
-    if variant.optimization and train_data:
-        _apply_optimization(variant.optimization, pipeline, train_data, val_data)
+    if variant.optimization and trainset:
+        _apply_optimization(variant.optimization, pipeline, trainset)
 
     slug = variant.name.lower().replace(" ", "_").replace("/", "_")
     return run_pipeline_on_dataset(pipeline, dataset, slug, request_delay=request_delay)
 
 
-def _apply_optimization(
-    optimization: str,
+def _collect_training_data(
     pipeline,
     train_data: list[dict],
-    val_data: list[dict] | None = None,
-) -> None:
-    """Run DSPy optimization (bootstrap/mipro) on the pipeline's modules.
+) -> list:
+    """Collect training examples by running pipeline on train_data.
 
-    Collects training examples by running the pipeline on train_data,
-    then optimizes DSPy modules using the specified strategy.
+    Returns a list of dspy.Example objects for optimization.
+    This is separated from _apply_optimization so the collection
+    can be done once and shared across multiple optimization variants.
     """
-    from agentic_rag.evaluation.metrics import token_f1
     from agentic_rag.optimization.collector import TrainingCollector
 
-    logger.info(f"[Optimization] Running {optimization} on {len(train_data)} training examples")
+    logger.info(f"[Optimization] Collecting training data: {len(train_data)} examples")
 
-    # Step 1: Collect training examples by running pipeline on train_data
     collector = TrainingCollector()
     for item in train_data:
         try:
             result = pipeline.run(item["question"])
-            # Collect generate signature examples (primary optimization target)
             collector.add(
                 "GenerateSignature",
                 inputs={"question": item["question"], "context": result.answer[:500]},
@@ -130,20 +125,36 @@ def _apply_optimization(
     if collector.total_count < 3:
         logger.warning(
             f"[Optimization] Only {collector.total_count} examples collected, "
-            f"skipping optimization (need >= 3)"
+            f"need >= 3 for optimization"
         )
+        return []
+
+    return collector.to_dspy_examples("GenerateSignature")
+
+
+def _apply_optimization(
+    optimization: str,
+    pipeline,
+    trainset: list,
+) -> None:
+    """Apply DSPy optimization (bootstrap/mipro) using pre-collected trainset.
+
+    Trainset should be collected once via _collect_training_data() and
+    shared across optimization variants to avoid redundant pipeline runs.
+    """
+    from agentic_rag.evaluation.metrics import token_f1
+
+    if not trainset:
+        logger.warning("[Optimization] Empty trainset, skipping optimization")
         return
 
-    trainset = collector.to_dspy_examples("GenerateSignature")
+    logger.info(f"[Optimization] Applying {optimization} with {len(trainset)} examples")
 
-    # Step 2: Build validation metric
     def optimization_metric(example, prediction, trace=None) -> float:
         pred = getattr(prediction, "answer", "")
         ref = getattr(example, "answer", "")
         return token_f1(pred, ref)
 
-    # Step 3: Apply optimization to pipeline's generate module
-    # DSPy pipelines expose their modules; optimize the main generate module
     target_module = _find_dspy_module(pipeline)
     if target_module is None:
         logger.warning("[Optimization] No optimizable DSPy module found in pipeline")
@@ -161,9 +172,7 @@ def _apply_optimization(
     elif optimization == "mipro":
         from agentic_rag.optimization.mipro import optimize_mipro
 
-        optimized = optimize_mipro(
-            target_module, trainset, metric_fn=optimization_metric, num_candidates=7
-        )
+        optimized = optimize_mipro(target_module, trainset, metric_fn=optimization_metric)
         _replace_dspy_module(pipeline, optimized)
         logger.info("[Optimization] MIPROv2 optimization applied")
 
@@ -246,13 +255,22 @@ def run_experiment(
             f"  Data split: train={train_end}, val={exp.val_size or 0}, test={len(test_data)}"
         )
 
-    # Prepare train/val splits for optimization variants
-    train_data = dataset[: exp.train_size] if exp.train_size is not None else None
-    val_data = (
-        dataset[exp.train_size : exp.train_size + (exp.val_size or 0)]
-        if exp.train_size is not None and exp.val_size
-        else None
-    )
+    # Prepare train split and collect training data once for optimization variants
+    trainset = None
+    has_optimization = any(v.optimization for v in exp.variants)
+    if exp.train_size is not None and has_optimization:
+        train_data = dataset[: exp.train_size]
+        # Collect training data once using DSPy Unoptimized pipeline (baseline)
+        # This avoids redundant pipeline runs for Bootstrap + MIPROv2
+        base_cfg = load_config("configs/base.yaml")
+        apply_settings(base_cfg)
+        from agentic_rag.pipeline.agentic import AgenticRAGPipeline
+
+        collector_pipeline = AgenticRAGPipeline(retriever, indexer)
+        trainset = _collect_training_data(collector_pipeline, train_data)
+        logger.info(
+            f"  Training data collected: {len(trainset)} examples (shared across optimizers)"
+        )
 
     all_results: dict[str, list[dict]] = {}
     for variant in exp.variants:
@@ -263,8 +281,7 @@ def run_experiment(
             retriever,
             indexer,
             request_delay,
-            train_data=train_data,
-            val_data=val_data,
+            trainset=trainset if variant.optimization else None,
         )
         all_results[variant.name] = results
 

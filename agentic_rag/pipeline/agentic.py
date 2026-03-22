@@ -111,30 +111,49 @@ class AgenticRAGPipeline(SelfCorrectiveMixin):
             return [], []
 
         context = self.format_passages(passages)
-        with dspy.context(lm=make_lm(settings.model.evaluate_model)):
+        if settings.experiment.enable_dspy:
+            with dspy.context(lm=make_lm(settings.model.evaluate_model)):
+                eval_result = self.evaluator(
+                    question=search_query,
+                    passages=context,
+                    retry_count=0,
+                    max_retry=settings.evaluation.max_retry_count,
+                )
+        else:
             eval_result = self.evaluator(
                 question=search_query,
                 passages=context,
-                retry_count=0,
-                max_retry=settings.evaluation.max_retry_count,
             )
 
-        if settings.experiment.enable_4d_evaluation:
-            score_dict = {
-                "relevance": int(eval_result.relevance_score),
-                "coverage": int(eval_result.coverage_score),
-                "specificity": int(eval_result.specificity_score),
-                "sufficiency": int(eval_result.sufficiency_score),
-                "total": int(eval_result.total_score),
-                "action": eval_result.action,
-                "reasoning": eval_result.reasoning,
-                "mandatory": True,
-            }
+        if settings.experiment.enable_dspy:
+            # DSPy Predict result — attributes from EvaluationSignature
+            if settings.experiment.enable_4d_evaluation:
+                score_dict = {
+                    "relevance": int(eval_result.relevance_score),
+                    "coverage": int(eval_result.coverage_score),
+                    "specificity": int(eval_result.specificity_score),
+                    "sufficiency": int(eval_result.sufficiency_score),
+                    "total": int(eval_result.total_score),
+                    "action": eval_result.action,
+                    "reasoning": eval_result.reasoning,
+                    "mandatory": True,
+                }
+            else:
+                score_dict = {
+                    "total": int(eval_result.total_score),
+                    "action": eval_result.action,
+                    "reasoning": eval_result.reasoning,
+                    "mandatory": True,
+                }
         else:
+            # ManualEvaluator result — dataclass attributes
             score_dict = {
-                "total": int(eval_result.total_score),
+                "relevance": eval_result.relevance,
+                "coverage": eval_result.coverage,
+                "specificity": eval_result.specificity,
+                "sufficiency": eval_result.sufficiency,
+                "total": eval_result.total,
                 "action": eval_result.action,
-                "reasoning": eval_result.reasoning,
                 "mandatory": True,
             }
 

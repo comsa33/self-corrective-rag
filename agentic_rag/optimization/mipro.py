@@ -40,16 +40,10 @@ def optimize_mipro(
 
     optimizer = dspy.MIPROv2(
         metric=metric_fn,
-        num_candidates=num_candidates,
-        max_bootstrapped_demos=max_demos,
-        auto="light",  # light | medium | heavy
+        auto="light",  # light | medium | heavy — sets num_candidates/trials automatically
     )
 
-    logger.info(
-        f"Running MIPROv2: "
-        f"trainset={len(trainset)}, candidates={num_candidates}, "
-        f"max_demos={max_demos}"
-    )
+    logger.info(f"Running MIPROv2: trainset={len(trainset)}, auto=light, max_demos={max_demos}")
 
     eval_kwargs = eval_kwargs or {}
     optimized = optimizer.compile(
