@@ -40,6 +40,6 @@ experiment:
   enable_agentic_refinement: false
 
 agent:
-  max_iterations: 5
+  max_iterations: 10
   # enabled_tools: null = all tools (search, decompose, structure, terminology, evaluate, inspect)
   enabled_tools: null
