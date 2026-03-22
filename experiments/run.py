@@ -99,15 +99,33 @@ def _run_variant(
 def _collect_training_data(
     pipeline,
     train_data: list[dict],
+    dataset_name: str = "",
 ) -> list:
     """Collect training examples by running pipeline on train_data.
 
     Returns a list of dspy.Example objects for optimization.
     This is separated from _apply_optimization so the collection
     can be done once and shared across multiple optimization variants.
+
+    Training data is cached to disk so subsequent runs skip collection.
+    Cache path: data/optimization/{dataset_name}_trainset.json
     """
     from agentic_rag.optimization.collector import TrainingCollector
 
+    # Check for cached trainset
+    cache_dir = settings.data_dir / "optimization"
+    cache_path = cache_dir / f"{dataset_name}_trainset.json" if dataset_name else None
+
+    if cache_path and cache_path.exists():
+        collector = TrainingCollector()
+        collector.load(cache_path)
+        trainset = collector.to_dspy_examples("GenerateSignature")
+        logger.info(
+            f"[Optimization] Loaded cached trainset: {len(trainset)} examples from {cache_path}"
+        )
+        return trainset
+
+    # Collect by running pipeline
     logger.info(f"[Optimization] Collecting training data: {len(train_data)} examples")
 
     collector = TrainingCollector()
@@ -128,6 +146,11 @@ def _collect_training_data(
             f"need >= 3 for optimization"
         )
         return []
+
+    # Save to disk for reuse
+    if cache_path:
+        collector.save(cache_path)
+        logger.info(f"[Optimization] Trainset cached to {cache_path}")
 
     return collector.to_dspy_examples("GenerateSignature")
 
@@ -267,7 +290,7 @@ def run_experiment(
         from agentic_rag.pipeline.agentic import AgenticRAGPipeline
 
         collector_pipeline = AgenticRAGPipeline(retriever, indexer)
-        trainset = _collect_training_data(collector_pipeline, train_data)
+        trainset = _collect_training_data(collector_pipeline, train_data, dataset_name)
         logger.info(
             f"  Training data collected: {len(trainset)} examples (shared across optimizers)"
         )
