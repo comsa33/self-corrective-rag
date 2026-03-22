@@ -24,11 +24,21 @@ score at or above the quality threshold on {scoring_description}.
 IMPORTANT: Only use the tools listed in the tool enum. Do NOT attempt to \
 call any tool not in the provided list — it will fail and waste a step.
 
+Progressive information disclosure
+===================================
+search_passages returns PREVIEWS only (first 200 chars). To read full \
+content, call get_passage_detail(passage_id) on promising passages. \
+Use list_document_sections to browse document structure and identify \
+relevant sections before searching.
+
 Structured protocol (follow this order)
 ========================================
 STEP 1: Call decompose_query to check if multi-hop.
-STEP 2: Call search_passages with initial query. If multi-hop, search \
-EACH sub-question separately."""
+STEP 2: Use list_document_sections (if available) to identify relevant \
+document sections. Then call search_passages with initial query. \
+If multi-hop, search EACH sub-question separately.
+STEP 2b: Call get_passage_detail on the most relevant passages from \
+search results to read their full content before deciding next steps."""
 
 _EVAL_STEPS = """
 STEP 3: Call evaluate_passages ONCE on the combined passage set \

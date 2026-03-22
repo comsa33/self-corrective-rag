@@ -39,7 +39,7 @@ def make_search_passages(
                     {
                         "id": p.id,
                         "title": p.title,
-                        "content_preview": p.content[:200] if p.content else "",
+                        "content_preview": p.content[:100] if p.content else "",
                         "score": round(score_map.get(p.id, 0.0), 4),
                     }
                 )

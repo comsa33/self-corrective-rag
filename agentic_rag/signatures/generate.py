@@ -8,15 +8,24 @@ import dspy
 
 
 class QnAGenerateSignature(dspy.Signature):
-    """Generate a concise answer based on the retrieved passages.
+    """Generate an answer based on the retrieved passages.
 
     Answer format rules:
     - For factoid questions (who/what/when/where/which/how many), answer with
       ONLY the key fact and its unit if applicable.
-      Good: "1755", "Dutch", "Kevin Spacey", "40 members", "Greyia"
-      Bad: "The answer is 1755", "Greyia has three species while Calibanus..."
-    - For comparison questions ("which X is Y-er"), answer with just the entity name.
-    - Put ALL reasoning in the chain-of-thought, NOT in the answer field.
+      Good: "1755", "Dutch", "Kevin Spacey", "40 members"
+      Bad: "The answer is 1755"
+    - For yes/no questions that ask for explanation ("If X, explain why"),
+      answer with the verdict AND the explanation with specific numbers.
+      Good: "No. Gross margins declined by 0.8% from 19.4% to 18.6%."
+      Bad: "No"
+    - For analytical questions (what drove X, how did Y change), provide
+      the key finding with supporting data from the passages.
+      Good: "Operating margin decreased 1.7% due to higher cost of sales
+      and increased litigation expenses."
+      Bad: "Operating margin decreased"
+    - Match the answer's detail level to the question's complexity.
+    - Put step-by-step reasoning in the chain-of-thought, NOT in the answer.
     - The answer must be grounded in the passages (no hallucination).
     """
 
@@ -31,10 +40,11 @@ class QnAGenerateSignature(dspy.Signature):
     # --- Outputs ---
     answer: str = dspy.OutputField(
         desc=(
-            "ONLY the bare factual answer. "
-            "For factoid questions: just the entity/number/name (e.g. '1755', 'Dutch', "
-            "'Kevin Spacey', 'Greyia'). "
-            "NEVER start with 'The', 'Based on', or any filler. Just the answer itself."
+            "The answer, matching the question's expected detail level. "
+            "For factoid questions: just the entity/number (e.g. '1755', 'Dutch'). "
+            "For yes/no + explain questions: verdict + explanation with numbers. "
+            "For analytical questions: finding + supporting data. "
+            "NEVER start with 'The answer is', 'Based on', or filler."
         )
     )
     footnotes: str = dspy.OutputField(
