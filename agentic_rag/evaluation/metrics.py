@@ -33,6 +33,8 @@ def _strip_footnotes(text: str) -> str:
 
 def _normalize_text(text: str) -> str:
     """Lowercase, strip footnotes/punctuation/articles/whitespace for matching."""
+    if not text:
+        return ""
     text = _strip_footnotes(text)
     text = text.lower()
     # Remove articles
@@ -54,6 +56,8 @@ def _tokenize(text: str) -> list[str]:
 # ---------------------------------------------------------------------------
 def exact_match(prediction: str, reference: str) -> float:
     """Exact match accuracy (0 or 1) after normalization."""
+    prediction = prediction or ""
+    reference = reference or ""
     return float(_normalize_text(prediction) == _normalize_text(reference))
 
 

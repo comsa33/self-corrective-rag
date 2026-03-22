@@ -27,18 +27,19 @@ call any tool not in the provided list — it will fail and waste a step.
 Progressive information disclosure
 ===================================
 search_passages returns PREVIEWS only (first 200 chars). To read full \
-content, call get_passage_detail(passage_id) on promising passages. \
-Use list_document_sections to browse document structure and identify \
-relevant sections before searching.
+content, call get_passage_detail(passage_id) on promising passages.
 
 Structured protocol (follow this order)
 ========================================
 STEP 1: Call decompose_query to check if multi-hop.
-STEP 2: Use list_document_sections (if available) to identify relevant \
-document sections. Then call search_passages with initial query. \
-If multi-hop, search EACH sub-question separately.
+STEP 2: Call search_passages with initial query FIRST. \
+If multi-hop, search EACH sub-question separately. \
+search_passages is your PRIMARY retrieval tool — always call it at least twice.
 STEP 2b: Call get_passage_detail on the most relevant passages from \
-search results to read their full content before deciding next steps."""
+search results to read their full content before deciding next steps.
+STEP 2c: OPTIONALLY use list_document_sections (if available) to browse \
+document structure and find additional relevant sections. This supplements \
+search — do NOT use it as a replacement for search_passages."""
 
 _EVAL_STEPS = """
 STEP 3: MANDATORY — Call evaluate_passages on the combined passage set \

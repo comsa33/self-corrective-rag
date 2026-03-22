@@ -39,17 +39,28 @@ class SelfCorrectiveMixin(BasePipeline):
         super().__init__(retriever, indexer)
         self.use_hyde = use_hyde
 
-        # --- DSPy modules ---
-        if use_hyde:
-            self.preprocessor = dspy.ChainOfThought(HyDEPreprocessSignature)
-        else:
-            self.preprocessor = dspy.ChainOfThought(PreprocessSignature)
+        # --- DSPy modules (or manual prompt replacements when enable_dspy=False) ---
+        if settings.experiment.enable_dspy:
+            if use_hyde:
+                self.preprocessor = dspy.ChainOfThought(HyDEPreprocessSignature)
+            else:
+                self.preprocessor = dspy.ChainOfThought(PreprocessSignature)
 
-        if settings.experiment.enable_4d_evaluation:
-            self.evaluator = dspy.Predict(EvaluationSignature)
+            if settings.experiment.enable_4d_evaluation:
+                self.evaluator = dspy.Predict(EvaluationSignature)
+            else:
+                self.evaluator = dspy.Predict(Evaluation1DSignature)
+            self.generator = dspy.ChainOfThought(QnAGenerateSignature)
         else:
-            self.evaluator = dspy.Predict(Evaluation1DSignature)
-        self.generator = dspy.ChainOfThought(QnAGenerateSignature)
+            from agentic_rag.pipeline.manual import (
+                ManualEvaluator,
+                ManualGenerator,
+                ManualPreprocessor,
+            )
+
+            self.preprocessor = ManualPreprocessor()
+            self.evaluator = ManualEvaluator()
+            self.generator = ManualGenerator()
 
         # Agents
         self.clarification_agent = dspy.Predict(ClarificationSignature)
@@ -72,7 +83,13 @@ class SelfCorrectiveMixin(BasePipeline):
             hyde_query: Hypothetical answer for dense retrieval (or None).
             topic: Topic category string.
         """
-        with dspy.context(lm=make_lm(settings.model.preprocess_model)):
+        if settings.experiment.enable_dspy:
+            with dspy.context(lm=make_lm(settings.model.preprocess_model)):
+                prep_result = self.preprocessor(
+                    user_question=question,
+                    conversation_history=conversation_history,
+                )
+        else:
             prep_result = self.preprocessor(
                 user_question=question,
                 conversation_history=conversation_history,
@@ -103,7 +120,14 @@ class SelfCorrectiveMixin(BasePipeline):
     ) -> tuple[str, str, list[str]]:
         """Run answer generation. Returns (answer, footnotes, rec_questions)."""
         context = self.format_passages(passages)
-        with dspy.context(lm=make_lm(settings.model.generate_model)):
+        if settings.experiment.enable_dspy:
+            with dspy.context(lm=make_lm(settings.model.generate_model)):
+                gen_result = self.generator(
+                    question=question,
+                    passages=context,
+                    system_prompt=system_prompt,
+                )
+        else:
             gen_result = self.generator(
                 question=question,
                 passages=context,
