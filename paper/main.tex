@@ -1,0 +1,128 @@
+\documentclass[preprint,review,number]{elsarticle}
+
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{subcaption}
+
+\bibliographystyle{elsarticle-num}
+
+% Custom commands
+\newcommand{\ours}{\textsc{AgenticRAG}}
+\newcommand{\ie}{\textit{i.e.}}
+\newcommand{\eg}{\textit{e.g.}}
+\newcommand{\cf}{\textit{cf.}}
+\newcommand{\etal}{\textit{et al.}}
+
+\journal{Knowledge-Based Systems}
+
+\begin{document}
+
+\begin{frontmatter}
+
+\title{Agentic Self-Corrective RAG: Autonomous Retrieval Refinement via Tool-Augmented Language Models}
+
+%% Authors - to be filled
+\author[1]{Author Name\corref{cor1}}
+\cortext[cor1]{Corresponding author}
+\ead{email@university.ac.kr}
+\affiliation[1]{organization={Department}, city={City}, country={South Korea}}
+
+\begin{abstract}
+Retrieval-Augmented Generation (RAG) has emerged as a practical approach to ground large language model (LLM) outputs in external knowledge.
+However, existing self-corrective RAG methods rely on fixed iterative loops with predetermined refinement strategies, limiting their ability to adapt to varying question complexity.
+We propose \ours{}, a framework that replaces fixed-loop refinement with a ReAct-based agent equipped with six specialized tools---passage search, query decomposition, quality evaluation, passage inspection, document structure browsing, and terminology mapping.
+The agent autonomously reasons about retrieval quality and selects appropriate tools in a Thought--Action--Observation loop, enabling adaptive refinement depth proportional to question complexity.
+The entire pipeline is implemented as a DSPy declarative program, enabling automatic prompt optimization through BootstrapFewShot and MIPROv2.
+Experiments on four datasets (HotpotQA, 2WikiMultiHopQA, MuSiQue, and FinanceBench) demonstrate that \ours{} consistently outperforms fixed-loop and single-pass baselines on complex multi-hop questions, achieving F1 improvements of +0.069 on 2WikiMultiHopQA and +0.051 on MuSiQue.
+Furthermore, DSPy's typed signatures alone improve F1 by 0.1--0.2 over manual prompt engineering, with additional gains from automatic optimization.
+Comprehensive ablation studies reveal that the evaluation tool functions as a quality gate mechanism and that the agent spontaneously develops structured retrieval protocols.
+\end{abstract}
+
+\begin{highlights}
+\item ReAct agent with six tools autonomously refines retrieval for multi-hop QA
+\item Agentic approach improves F1 by 0.051--0.069 on complex multi-hop datasets
+\item DSPy typed signatures boost F1 by 0.1--0.2 over manual prompt engineering
+\item Comprehensive ablation reveals evaluation tool as quality gate mechanism
+\item Evaluated on four datasets including enterprise financial documents
+\end{highlights}
+
+\begin{keyword}
+retrieval-augmented generation \sep
+agentic refinement \sep
+tool-augmented language model \sep
+DSPy \sep
+multi-hop question answering \sep
+self-corrective retrieval
+\end{keyword}
+
+\end{frontmatter}
+
+%% ====================================================================
+\section{Introduction}
+\label{sec:introduction}
+%% ====================================================================
+
+\input{sections/introduction}
+
+%% ====================================================================
+\section{Related Work}
+\label{sec:related}
+%% ====================================================================
+
+\input{sections/related_work}
+
+%% ====================================================================
+\section{Method}
+\label{sec:method}
+%% ====================================================================
+
+\input{sections/method}
+
+%% ====================================================================
+\section{Experimental Setup}
+\label{sec:setup}
+%% ====================================================================
+
+\input{sections/setup}
+
+%% ====================================================================
+\section{Results and Analysis}
+\label{sec:results}
+%% ====================================================================
+
+\input{sections/results}
+
+%% ====================================================================
+\section{Ablation Studies}
+\label{sec:ablation}
+%% ====================================================================
+
+\input{sections/ablation}
+
+%% ====================================================================
+\section{Discussion}
+\label{sec:discussion}
+%% ====================================================================
+
+\input{sections/discussion}
+
+%% ====================================================================
+\section{Conclusion}
+\label{sec:conclusion}
+%% ====================================================================
+
+\input{sections/conclusion}
+
+%% ====================================================================
+%% References
+%% ====================================================================
+
+\bibliography{references}
+
+\end{document}

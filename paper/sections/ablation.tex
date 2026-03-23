@@ -1,0 +1,104 @@
+% ===========================================================================
+% Section 6: Ablation Studies
+% ===========================================================================
+
+We conduct two ablation studies to analyze the contribution of individual components within \ours{}: the evaluation tool configuration (RQ3) and the structure-aware retrieval tools (RQ4).
+
+% ---------------------------------------------------------------------------
+\subsection{RQ3: Evaluation Tool Variants}
+\label{subsec:rq3}
+% ---------------------------------------------------------------------------
+
+\textbf{Does 4-dimensional quality assessment as an agent tool improve decision-making compared to 1-dimensional or no evaluation?}
+
+We compare three variants of the evaluation tool within the \ours{} pipeline:
+\begin{itemize}
+    \item \textbf{Agent + 4D}: Full 4-dimensional evaluation (Relevance, Coverage, Specificity, Sufficiency), with per-dimension scores and refinement feedback.
+    \item \textbf{Agent + 1D}: Single holistic quality score (0--100) with refinement feedback but no dimensional breakdown.
+    \item \textbf{Agent w/o Eval}: Evaluation tool removed entirely; the agent relies solely on its own reasoning about passage quality.
+\end{itemize}
+
+\begin{table}[t]
+\centering
+\caption{Evaluation tool ablation (RQ3). Differences between variants are small (max $\Delta = 0.036$ F1), with no consistent winner across datasets.}
+\label{tab:rq3}
+\begin{tabular}{l cc cc cc cc}
+\toprule
+& \multicolumn{2}{c}{\textbf{HotpotQA}} & \multicolumn{2}{c}{\textbf{2Wiki}} & \multicolumn{2}{c}{\textbf{MuSiQue}} & \multicolumn{2}{c}{\textbf{Finance}} \\
+\cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7} \cmidrule(lr){8-9}
+\textbf{Variant} & EM & F1 & EM & F1 & EM & F1 & EM & F1 \\
+\midrule
+Agent + 4D     & \textbf{.580} & .747 & .480 & .584 & \textbf{.360} & \textbf{.431} & .240 & .434 \\
+Agent + 1D     & \textbf{.580} & \textbf{.750} & .480 & .587 & .320 & .410 & .220 & .422 \\
+Agent w/o Eval & .540 & .722 & \textbf{.540} & \textbf{.620} & .300 & .410 & \textbf{.240} & \textbf{.444} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Results.}
+Table~\ref{tab:rq3} shows that the differences between evaluation variants are small, with a maximum F1 delta of 0.036 across all datasets.
+No single variant consistently outperforms the others:
+\begin{itemize}
+    \item On HotpotQA and MuSiQue, evaluation (4D or 1D) provides modest benefits ($+0.021$--$0.028$ F1 over w/o Eval).
+    \item On 2WikiMultiHopQA, removing evaluation actually yields the best F1 (0.620 vs.\ 0.584), suggesting that evaluation overhead may trigger unnecessary refinement cycles on this dataset.
+    \item 4D and 1D perform nearly identically, with 4D edging ahead on MuSiQue ($+0.021$) and 1D on HotpotQA ($+0.003$).
+\end{itemize}
+
+\paragraph{Interpretation.}
+The evaluation tool does not function as a direct accuracy booster.
+Instead, it serves as a \emph{quality gate mechanism}:
+\begin{itemize}
+    \item It ensures consistent quality coverage---the mandatory fallback guarantees that every question receives at least one quality assessment (Table~\ref{tab:eval_coverage}).
+    \item It provides structured diagnostic feedback (which dimension is weak, suggested refinement queries) that guides the agent's search strategy.
+    \item The 4D variant offers additional interpretability by identifying specific quality dimensions that need improvement, even when aggregate scores are similar to 1D.
+\end{itemize}
+
+The small performance differences indicate that the ReAct agent is capable of assessing passage quality through its own reasoning even without a dedicated evaluation tool, but the evaluation tool provides a standardized quality checkpoint that prevents the agent from terminating prematurely.
+
+% ---------------------------------------------------------------------------
+\subsection{RQ4: Structure-Aware Retrieval Tools}
+\label{subsec:rq4}
+% ---------------------------------------------------------------------------
+
+\textbf{Do structure-aware retrieval tools (section index, terminology mapping) improve agent performance on enterprise documents?}
+
+We evaluate four configurations on FinanceBench, the only dataset with hierarchically structured source documents (SEC filings):
+\begin{itemize}
+    \item \textbf{Full Tools}: All tools including \texttt{list\_document\_sections} and \texttt{get\_terminology}.
+    \item \textbf{w/o Section}: Section browsing tool removed.
+    \item \textbf{w/o Terminology}: Terminology mapping tool removed.
+    \item \textbf{w/o Both}: Both structure-aware tools removed (search-only retrieval).
+\end{itemize}
+
+\begin{table}[t]
+\centering
+\caption{Structure-aware tool ablation on FinanceBench (RQ4). Removing structure tools slightly \emph{improves} performance, an honest negative result.}
+\label{tab:rq4}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Variant} & \textbf{EM} & \textbf{F1} & \textbf{ROUGE-L} & \textbf{Latency (s)} \\
+\midrule
+Full Tools     & .220 & .396 & .373 & 14.9 \\
+w/o Section    & .220 & .403 & .382 & 14.2 \\
+w/o Terminology & .220 & .401 & .377 & 14.4 \\
+\textbf{w/o Both} & .220 & \textbf{.412} & \textbf{.385} & \textbf{13.8} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Honest negative result.}
+Table~\ref{tab:rq4} shows that removing structure-aware tools slightly \emph{improves} F1 (0.412 vs.\ 0.396, $\Delta = +0.016$) and reduces latency (13.8s vs.\ 14.9s).
+EM remains identical (0.220) across all variants.
+This is an honest negative result: the structure-aware tools do not provide measurable benefit on FinanceBench.
+
+\paragraph{Analysis.}
+We attribute this negative result to two factors:
+\begin{enumerate}
+    \item \textbf{Pre-chunked corpus.} FinanceBench documents are already segmented into well-defined passages during index construction. Section browsing provides little additional value when the corpus is already appropriately chunked for retrieval.
+
+    \item \textbf{Marginal tool overhead.} Each additional tool increases the agent's action space and requires LLM reasoning to decide whether to invoke it. On this benchmark, the cognitive overhead of considering structure tools outweighs any retrieval benefit.
+\end{enumerate}
+
+We note that the performance gap is small ($<0.02$ F1), indicating that structure tools do not cause catastrophic harm.
+These tools may prove more valuable on documents with richer hierarchical structure (\eg, legal contracts, technical manuals, multi-chapter reports) where section-aware navigation could surface relevant passages that keyword search misses.
+We leave this investigation to future work.

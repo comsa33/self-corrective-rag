@@ -1,0 +1,33 @@
+% ===========================================================================
+% Section 1: Introduction
+% ===========================================================================
+
+Large language models (LLMs) have demonstrated remarkable capabilities in natural language understanding and generation, yet they remain prone to hallucination and factual inaccuracy when responding from parametric knowledge alone~\cite{lewis2020rag}.
+Retrieval-Augmented Generation (RAG) addresses this limitation by grounding LLM outputs in externally retrieved evidence, establishing itself as a standard approach for knowledge-intensive tasks~\cite{lewis2020rag}.
+
+However, standard RAG assumes that a single retrieval pass produces sufficient evidence---an assumption that frequently fails for multi-hop questions requiring reasoning across multiple documents.
+When the initial retrieval misses a critical piece of evidence (\eg, one of the two bridging facts in a 2-hop question), the generated answer is inevitably incomplete or incorrect.
+Self-corrective RAG methods~\cite{yan2024crag,asai2024selfrag} address this by introducing iterative retrieval refinement: evaluating retrieved passages and re-retrieving when quality is insufficient.
+
+Existing self-corrective approaches suffer from two fundamental limitations.
+First, they rely on \emph{fixed iterative loops} with predetermined refinement strategies---retrieve, evaluate, refine query, repeat---that cannot adapt their strategy based on intermediate findings.
+A complex 4-hop question receives the same number of refinement iterations as a simple 2-hop question, regardless of whether the evidence gap has been resolved.
+Second, they employ \emph{manual prompt engineering} for each pipeline stage, requiring careful hand-tuning of prompt templates that are fragile and difficult to optimize systematically.
+
+We propose \ours{}, a framework that addresses both limitations through two key design decisions.
+First, we replace the fixed refinement loop with a \textbf{ReAct-based agent}~\cite{yao2023react} equipped with six specialized tools---passage search, query decomposition, quality evaluation, passage inspection, document structure browsing, and terminology mapping.
+The agent autonomously reasons about retrieval quality and selects appropriate tools in a Thought--Action--Observation loop, enabling adaptive refinement depth proportional to question complexity.
+Second, we implement the entire pipeline as a \textbf{DSPy declarative program}~\cite{khattab2024dspy}, replacing hand-crafted prompts with typed Signatures that enable both structured prompting and automatic optimization through BootstrapFewShot and MIPROv2~\cite{opsahl2024miprov2}.
+
+We evaluate \ours{} on four datasets: three multi-hop QA benchmarks (HotpotQA~\cite{yang2018hotpotqa}, 2WikiMultiHopQA~\cite{ho2020wiki2multi}, MuSiQue~\cite{trivedi2022musique}) and an enterprise financial QA benchmark (FinanceBench~\cite{financebench2023}).
+Results demonstrate that the agentic approach consistently outperforms fixed-loop and single-pass baselines on complex multi-hop questions, with F1 improvements of $+0.069$ on 2WikiMultiHopQA and $+0.051$ on MuSiQue.
+DSPy's typed Signatures alone improve F1 by 0.1--0.2 over manual prompts, with additional gains from automatic optimization.
+
+The main contributions of this paper are:
+\begin{enumerate}
+    \item We propose \ours{}, a framework that replaces fixed-loop refinement with a ReAct-based agent equipped with six specialized tools, enabling autonomous, complexity-adaptive retrieval refinement for multi-hop question answering.
+
+    \item We implement the entire pipeline as a DSPy declarative program and demonstrate that typed Signatures alone provide the single largest improvement in our experiments (F1 $+0.1$--$0.2$), with automatic optimization yielding further dataset-dependent gains.
+
+    \item We provide comprehensive empirical evaluation across four datasets and five pipeline variants, including ablation studies on tool configurations with honest reporting of negative results, analysis of emergent agent behavior patterns, and quantification of the latency--quality trade-off.
+\end{enumerate}

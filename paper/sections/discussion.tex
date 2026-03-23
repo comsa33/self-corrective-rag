@@ -1,0 +1,83 @@
+% ===========================================================================
+% Section 7: Discussion
+% ===========================================================================
+
+% ---------------------------------------------------------------------------
+\subsection{Complexity-Dependent Improvement}
+\label{subsec:complexity}
+% ---------------------------------------------------------------------------
+
+The most consistent finding across our experiments is that the agentic advantage is \emph{proportional to question complexity}.
+On simple 2-hop questions (HotpotQA), \ours{} performs comparably to single-pass baselines.
+On complex 2--4 hop questions (2WikiMultiHopQA, MuSiQue), the improvement is substantial and consistent across all metrics.
+
+This pattern has a natural explanation: complex multi-hop questions benefit from the agent's ability to \emph{adaptively compose retrieval strategies}---decomposing questions, searching sub-questions independently, and evaluating the combined evidence.
+Simple questions that can be answered from a single well-retrieved passage set do not require this adaptive strategy, and the additional reasoning overhead provides no benefit.
+
+This suggests a practical deployment guideline: \ours{} should be selectively applied to questions identified as complex or multi-hop, while simpler questions can be routed to faster single-pass pipelines.
+This is consistent with the Adaptive-RAG~\cite{jeong2024adaptiverag} approach of routing by question complexity, though our system handles the complex-question case more effectively through tool-augmented reasoning rather than simple retrieval augmentation.
+
+% ---------------------------------------------------------------------------
+\subsection{Latency--Quality Trade-off}
+\label{subsec:tradeoff}
+% ---------------------------------------------------------------------------
+
+\ours{} incurs 4--5$\times$ latency overhead compared to Loop Refinement (14--17s vs.\ 2--4s per question).
+This trade-off must be evaluated in context:
+
+\begin{itemize}
+    \item \textbf{Absolute latency.} 15 seconds per question is acceptable for many enterprise knowledge management scenarios where answer quality takes precedence over response time (\eg, compliance checking, due diligence, research assistance).
+
+    \item \textbf{Cost attribution.} The latency is dominated by LLM API calls (5--6 tool invocations per question, each requiring LLM inference). With faster or locally deployed models, the absolute latency would decrease proportionally.
+
+    \item \textbf{Quality payoff.} The F1 improvement of $+0.051$--$0.069$ on complex questions represents a meaningful quality gain that may justify the latency cost in accuracy-critical applications.
+
+    \item \textbf{DSPy optimization mitigation.} As shown in Table~\ref{tab:rq5_latency}, optimized DSPy variants reduce the per-module latency from 19--24s to 2--3s through pre-computed demonstrations, suggesting that optimization of the agent module itself could substantially reduce the overall pipeline latency.
+\end{itemize}
+
+% ---------------------------------------------------------------------------
+\subsection{DSPy: Structure vs.\ Optimization}
+\label{subsec:dspy_discussion}
+% ---------------------------------------------------------------------------
+
+The RQ5 results reveal an important decomposition of DSPy's contribution:
+
+The \emph{structural benefit}---replacing manual JSON prompts with typed Signatures---accounts for the majority of the improvement (F1 $+0.1$--$0.2$).
+This benefit is essentially ``free'': it requires no training data, no optimization compute, and no hyperparameter tuning.
+The typed field descriptions act as structured prompts that are more informative than hand-crafted templates, guiding the LLM to produce well-formatted, task-aligned outputs.
+
+The \emph{optimization benefit}---BootstrapFewShot and MIPROv2---provides additional dataset-dependent gains but requires a training set and optimization compute.
+The observation that different optimizers excel on different datasets (Bootstrap on structured multi-hop, MIPROv2 on complex reasoning) suggests that optimizer selection should be treated as a hyperparameter tuned per deployment scenario.
+
+This two-level decomposition has practical implications: teams adopting DSPy can expect immediate gains from Signatures alone, with further improvements available through targeted optimization when training data is available.
+
+% ---------------------------------------------------------------------------
+\subsection{Emergent Agent Behavior}
+\label{subsec:emergent}
+% ---------------------------------------------------------------------------
+
+A noteworthy observation is that the ReAct agent \emph{spontaneously develops} structured retrieval protocols.
+Despite having access to six tools with no enforced execution order, the agent consistently converges on a decompose--search--evaluate pattern (RQ2).
+
+This emergent behavior suggests that the combination of typed Signatures (providing a recommended protocol), evaluation feedback (providing quality signals), and ReAct reasoning (enabling reflective planning) creates sufficient inductive bias for structured behavior without requiring hard-coded orchestration logic.
+
+The mandatory evaluate fallback (triggered in 6--12\% of cases) serves as a safety net for the minority of cases where the agent deviates from this protocol, ensuring consistent quality coverage without constraining agent autonomy.
+
+% ---------------------------------------------------------------------------
+\subsection{Limitations}
+\label{subsec:limitations}
+% ---------------------------------------------------------------------------
+
+We acknowledge several limitations of this work:
+
+\begin{enumerate}
+    \item \textbf{Sample size.} Our experiments use $n = 50$ samples per dataset for pilot evaluation. While the observed patterns are consistent across datasets and metrics, larger-scale experiments ($n \geq 500$) with statistical significance testing are needed to confirm these findings. We plan to scale up experiments with bootstrap confidence intervals in future work.
+
+    \item \textbf{Model generalizability.} All experiments use a single model (Gemini Flash Lite). The effectiveness of agentic refinement may vary with model capability---stronger models may benefit less from iterative refinement, while weaker models may struggle with multi-step ReAct reasoning. Cross-model validation is needed.
+
+    \item \textbf{Retrieval corpus.} We use each dataset's provided context paragraphs rather than a large-scale corpus (\eg, DPR Wikipedia). This limits direct comparison with prior work that retrieves from open-domain corpora, though it ensures controlled evaluation of the refinement mechanism itself.
+
+    \item \textbf{Structure-aware tools.} The negative result for structure-aware tools (RQ4) is limited to FinanceBench, which uses well-chunked documents. These tools may prove valuable on documents with richer hierarchical structure, which we leave to future investigation.
+
+    \item \textbf{Latency.} The 4--5$\times$ latency overhead limits applicability to latency-sensitive scenarios. Techniques such as agent module optimization, speculative decoding, or parallel tool execution could mitigate this but are not explored here.
+\end{enumerate}

@@ -1,0 +1,203 @@
+% ===========================================================================
+% Section 3: Method
+% ===========================================================================
+
+This section presents \ours{}, our agentic self-corrective RAG framework.
+We first formalize the problem (\S\ref{subsec:formulation}), then describe the overall architecture (\S\ref{subsec:architecture}), the ReAct agent and its tools (\S\ref{subsec:agent}), the self-corrective refinement mechanism (\S\ref{subsec:refinement}), the DSPy declarative pipeline (\S\ref{subsec:dspy}), and the hybrid retrieval system (\S\ref{subsec:retrieval}).
+
+% ---------------------------------------------------------------------------
+\subsection{Problem Formulation}
+\label{subsec:formulation}
+% ---------------------------------------------------------------------------
+
+Given a question $q$ and a document corpus $\mathcal{C} = \{d_1, d_2, \ldots, d_N\}$, the goal of retrieval-augmented generation is to produce an answer $a$ by first retrieving a set of relevant passages $\mathcal{P} \subset \mathcal{C}$ and then generating $a$ conditioned on both $q$ and $\mathcal{P}$:
+\begin{equation}
+    a = \text{Generate}(q, \mathcal{P}), \quad \mathcal{P} = \text{Retrieve}(q, \mathcal{C}).
+    \label{eq:rag}
+\end{equation}
+
+In self-corrective RAG, the retrieval step is iteratively refined based on a quality assessment function $\text{Eval}(q, \mathcal{P}) \rightarrow s \in [0, 100]$ that scores the retrieved passages.
+Existing approaches~\cite{yan2024crag} implement this as a fixed loop:
+\begin{equation}
+    \mathcal{P}^{(t+1)} = \text{Retrieve}(q^{(t+1)}, \mathcal{C}), \quad q^{(t+1)} = \text{Refine}(q^{(t)}, s^{(t)}),
+    \label{eq:loop}
+\end{equation}
+iterating until $s^{(t)} \geq \tau$ (quality threshold) or $t \geq T$ (maximum iterations).
+
+We replace this fixed loop with an \emph{agentic} formulation.
+Let $\mathcal{T} = \{t_1, t_2, \ldots, t_K\}$ be a set of tools available to a ReAct agent~\cite{yao2023react}.
+At each step $i$, the agent produces a thought $h_i$, selects a tool $t_{k_i} \in \mathcal{T}$, observes the result $o_i$, and updates its internal state:
+\begin{equation}
+    (h_i, t_{k_i}, o_i) = \text{ReAct}(q, \mathcal{H}_{<i}), \quad \mathcal{H}_{<i} = \{(h_j, t_{k_j}, o_j)\}_{j<i}.
+    \label{eq:react}
+\end{equation}
+
+The agent terminates when it determines that the accumulated passages are sufficient, producing the final passage set $\mathcal{P}^*$ and answer $a = \text{Generate}(q, \mathcal{P}^*)$.
+
+% ---------------------------------------------------------------------------
+\subsection{Overall Architecture}
+\label{subsec:architecture}
+% ---------------------------------------------------------------------------
+
+% TODO: \begin{figure}[t]
+% \centering
+% \includegraphics[width=\textwidth]{figures/architecture.pdf}
+% \caption{Overall architecture of \ours{}. The pipeline consists of four stages: (1) query preprocessing, (2) ReAct agentic refinement with six tools, (3) passage merging, and (4) answer generation. The agent autonomously selects tools based on reasoning about retrieval quality.}
+% \label{fig:architecture}
+% \end{figure}
+
+Figure~\ref{fig:architecture} illustrates the \ours{} pipeline, which consists of four stages:
+
+\begin{enumerate}
+    \item \textbf{Query Preprocessing.} The input question $q$ is rephrased into a standalone search query $q'$ and a set of search keywords $\mathcal{K}$ using a ChainOfThought module (DSPy \texttt{PreprocessSignature}). Optionally, a Hypothetical Document Embedding (HyDE)~\cite{gao2023hyde} query is generated for improved dense retrieval.
+
+    \item \textbf{ReAct Agentic Refinement.} The preprocessed query is passed to a ReAct agent equipped with six tools (\S\ref{subsec:agent}). The agent iteratively searches, decomposes, evaluates, and inspects passages through autonomous reasoning. This stage replaces the fixed for-loop in prior work.
+
+    \item \textbf{Passage Merging.} Agent-selected passages are merged with initial retrieval results (from Stage 1) using priority-based deduplication: agent-refined passages take precedence, followed by initial results, capped at $M = 30$ passages.
+
+    \item \textbf{Answer Generation.} A ChainOfThought generator (DSPy \texttt{QnAGenerateSignature}) produces the final answer conditioned on the merged passages, with adaptive response formatting based on question type (factoid, analytical, yes/no).
+\end{enumerate}
+
+% ---------------------------------------------------------------------------
+\subsection{ReAct Agent and Tool Design}
+\label{subsec:agent}
+% ---------------------------------------------------------------------------
+
+The core of \ours{} is a ReAct agent~\cite{yao2023react} that interleaves reasoning (Thought) with tool execution (Action) and result observation (Observation).
+Unlike fixed-loop refinement, the agent dynamically decides \emph{which} tools to call, \emph{how many} times, and \emph{when} to stop based on its assessment of the current retrieval state.
+
+The agent operates through a DSPy \texttt{Signature} (\texttt{AgenticRefinementSignature}) that specifies typed inputs and outputs.
+The signature's docstring serves as a structured protocol, guiding the agent through a recommended sequence of steps while allowing deviations based on the agent's reasoning.
+
+\subsubsection{Tool Set}
+\label{subsubsec:tools}
+
+The agent has access to six tools, each implemented as a closure over shared pipeline components (retriever, indexer, evaluator):
+
+\begin{enumerate}
+    \item \textbf{\texttt{search\_passages}$(q, \mathcal{K})$}: Executes hybrid retrieval (FAISS + BM25 with RRF fusion) and returns passage previews (first 200 characters) to conserve context. This is the primary retrieval tool, called 3--4 times per question on average.
+
+    \item \textbf{\texttt{decompose\_query}$(q)$}: Decomposes a complex multi-hop question into 2--4 independent sub-questions using a DSPy \texttt{DecomposeQuerySignature}. Returns a boolean \texttt{is\_multi\_hop} flag and the sub-question list.
+
+    \item \textbf{\texttt{evaluate\_passages}$(q, \mathcal{P})$}: Assesses passage quality on four dimensions---Relevance (0--30), Coverage (0--25), Specificity (0--25), and Sufficiency (0--20)---producing a total score $s \in [0, 100]$ with an action decision (\texttt{output}/\texttt{refine}) and refinement feedback (suggested query, keywords to add/remove). A mandatory fallback ensures this tool is called at least once per question, even if the agent omits it.
+
+    \item \textbf{\texttt{get\_passage\_detail}$(id)$}: Retrieves the full text of a passage by ID, enabling the agent to read complete content after identifying promising passages from search previews. This implements a progressive information disclosure strategy.
+
+    \item \textbf{\texttt{list\_document\_sections}$(id)$}: Browses the hierarchical structure (sections, table of contents) of a source document, enabling structure-aware navigation for documents with rich organizational hierarchy.
+
+    \item \textbf{\texttt{get\_terminology}$(term)$}: Maps user-facing terms to document-internal terminology, bridging vocabulary gaps between questions and corpus language.
+\end{enumerate}
+
+Additionally, a \texttt{calculate} tool handles numerical computations for domain-specific questions (\eg, financial calculations).
+
+\subsubsection{Agent Protocol}
+\label{subsubsec:protocol}
+
+The agent's signature includes a structured protocol embedded in the docstring:
+
+\begin{enumerate}
+    \item Call \texttt{decompose\_query} to determine multi-hop structure.
+    \item Call \texttt{search\_passages} with the initial query; if multi-hop, search each sub-question separately.
+    \item Optionally call \texttt{get\_passage\_detail} on promising results.
+    \item \textbf{Mandatory}: Call \texttt{evaluate\_passages} on the accumulated passage set.
+    \item If score $< \tau$: use evaluation feedback to refine the query and search again.
+    \item Call \texttt{finish} when quality is sufficient or further search is unlikely to improve results.
+\end{enumerate}
+
+The protocol is a recommendation, not a constraint---the agent may deviate based on its reasoning.
+However, a mandatory evaluate fallback ensures that quality assessment is never entirely skipped: if the agent reaches \texttt{finish} without calling \texttt{evaluate\_passages}, the pipeline automatically runs the evaluation tool on the accumulated passages.
+
+% ---------------------------------------------------------------------------
+\subsection{Self-Corrective Refinement Mechanism}
+\label{subsec:refinement}
+% ---------------------------------------------------------------------------
+
+The self-corrective loop in \ours{} differs from prior work in three key aspects:
+
+\paragraph{Adaptive Depth.}
+Rather than iterating a fixed number of times, the agent decides when to stop based on quality signals.
+Simple questions may require only one search--evaluate cycle, while complex multi-hop questions trigger multiple decompose--search--evaluate iterations.
+The maximum number of ReAct iterations is set to $I = 5$ to prevent unbounded execution.
+
+\paragraph{Progressive Leniency.}
+The quality threshold decreases with each evaluation attempt to prevent over-iteration:
+\begin{equation}
+    \tau_{\text{eff}}^{(t)} = \tau - t \cdot \delta, \quad \delta = 5,
+    \label{eq:progressive}
+\end{equation}
+where $\tau = 40$ is the base threshold.
+This ensures the agent eventually terminates with the best available passages rather than endlessly searching for marginally better results.
+
+\paragraph{Structured Feedback.}
+When the evaluation score falls below the threshold, the evaluation tool provides targeted feedback---suggested queries, keywords to add/remove---that directly informs the agent's next search action.
+This feedback loop replaces generic retry logic with informed refinement.
+
+% ---------------------------------------------------------------------------
+\subsection{DSPy Declarative Pipeline}
+\label{subsec:dspy}
+% ---------------------------------------------------------------------------
+
+The entire \ours{} pipeline is implemented using DSPy~\cite{khattab2024dspy}, a framework for programming LM-based systems through declarative \emph{Signatures} and composable \emph{Modules}.
+
+\subsubsection{Signature Design}
+\label{subsubsec:signatures}
+
+Each pipeline stage is defined as a DSPy Signature with typed input and output fields:
+
+\begin{itemize}
+    \item \textbf{PreprocessSignature}: $(\texttt{question}, \texttt{history}) \rightarrow (\texttt{rephrased\_question}, \texttt{keywords}, \texttt{topic})$
+    \item \textbf{EvaluationSignature}: $(\texttt{question}, \texttt{passages}, \texttt{retry\_count}) \rightarrow (\texttt{scores}_{4D}, \texttt{action}, \texttt{feedback})$
+    \item \textbf{QnAGenerateSignature}: $(\texttt{question}, \texttt{passages}) \rightarrow (\texttt{answer}, \texttt{footnotes})$
+    \item \textbf{DecomposeQuerySignature}: $(\texttt{question}) \rightarrow (\texttt{is\_multi\_hop}, \texttt{sub\_questions})$
+    \item \textbf{AgenticRefinementSignature}: $(\texttt{question}, \texttt{query}, \texttt{keywords}, \tau) \rightarrow (\texttt{passages}, \texttt{action})$
+\end{itemize}
+
+The typed field descriptions serve as structured prompts, replacing hand-crafted JSON templates.
+Each Signature's docstring provides task-specific instructions and scoring guidelines.
+
+\subsubsection{Module Composition}
+\label{subsubsec:modules}
+
+Signatures are composed with DSPy modules:
+\begin{itemize}
+    \item \texttt{ChainOfThought}: Wraps PreprocessSignature and QnAGenerateSignature to elicit step-by-step reasoning before outputs.
+    \item \texttt{Predict}: Wraps EvaluationSignature for direct structured output.
+    \item \texttt{ReAct}: Wraps AgenticRefinementSignature with tool integration, implementing the Thought--Action--Observation loop.
+\end{itemize}
+
+\subsubsection{Automatic Optimization}
+\label{subsubsec:optimization}
+
+DSPy enables automatic prompt optimization without modifying the pipeline code:
+
+\begin{itemize}
+    \item \textbf{BootstrapFewShot}~\cite{khattab2024dspy}: Collects successful execution traces as few-shot demonstrations. Each trace includes the full input--output chain, providing in-context examples that improve LM performance.
+
+    \item \textbf{MIPROv2}~\cite{opsahl2024miprov2}: Generates and optimizes natural language instructions for each Signature using Bayesian surrogate models. It jointly optimizes instructions and few-shot examples across all pipeline modules.
+\end{itemize}
+
+Both optimizers use a training set of 50 examples with F1 score as the optimization metric.
+The optimization cost is amortized: training is performed once, and the optimized prompts (few-shot demonstrations and/or instructions) are reused for all subsequent queries.
+
+% ---------------------------------------------------------------------------
+\subsection{Hybrid Retrieval}
+\label{subsec:retrieval}
+% ---------------------------------------------------------------------------
+
+\ours{} uses a hybrid retrieval system combining dense and sparse search with Reciprocal Rank Fusion (RRF)~\cite{cormack2009rrf}:
+
+\paragraph{Dense Retrieval.}
+Documents are embedded using a sentence transformer model and indexed with FAISS~\cite{johnson2019faiss} for approximate nearest neighbor search.
+Given a query $q$, the dense retriever returns the top-$k$ passages by cosine similarity.
+
+\paragraph{Sparse Retrieval.}
+BM25~\cite{robertson2009bm25} provides lexical matching for keyword-heavy queries, particularly effective for entity names and technical terms that may not be well-captured by dense embeddings.
+
+\paragraph{Reciprocal Rank Fusion.}
+The results from both retrievers are combined using RRF:
+\begin{equation}
+    \text{RRF}(d) = \sum_{r \in \{dense, sparse\}} \frac{1}{k + \text{rank}_r(d)},
+    \label{eq:rrf}
+\end{equation}
+where $k = 60$ is a constant and $\text{rank}_r(d)$ is the rank of document $d$ in retriever $r$'s result list.
+The fused ranking is used as the final retrieval output, with $k_{\text{top}} = 50$ results returned per query.

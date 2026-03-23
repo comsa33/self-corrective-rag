@@ -1,0 +1,80 @@
+% ===========================================================================
+% Section 2: Related Work
+% ===========================================================================
+
+% ---------------------------------------------------------------------------
+\subsection{Retrieval-Augmented Generation}
+\label{subsec:rw_rag}
+% ---------------------------------------------------------------------------
+
+Retrieval-Augmented Generation~\cite{lewis2020rag} grounds LLM outputs in externally retrieved evidence, combining a retriever with a generator.
+Early approaches use a single retrieval pass with dense~\cite{johnson2019faiss} or sparse~\cite{robertson2009bm25} retrievers.
+Recent work improves retrieval quality through query rewriting, hypothetical document embeddings (HyDE)~\cite{gao2023hyde}, and hybrid retrieval combining dense and sparse methods via Reciprocal Rank Fusion (RRF)~\cite{cormack2009rrf}.
+
+Our work builds on this foundation by employing hybrid FAISS + BM25 retrieval with RRF fusion as the base retrieval mechanism, enhanced by agentic refinement that iteratively improves retrieval quality through tool-augmented reasoning.
+
+% ---------------------------------------------------------------------------
+\subsection{Self-Corrective RAG}
+\label{subsec:rw_corrective}
+% ---------------------------------------------------------------------------
+
+Self-corrective approaches introduce feedback loops that evaluate and refine retrieved passages.
+
+\textbf{Self-RAG}~\cite{asai2024selfrag} trains a single LM to generate special reflection tokens that trigger on-demand retrieval and self-assess output quality.
+While effective, it requires fine-tuning a custom model with reflection tokens, limiting flexibility.
+
+\textbf{CRAG}~\cite{yan2024crag} introduces a lightweight retrieval evaluator that classifies documents as correct, incorrect, or ambiguous, triggering corrective actions including web search fallback and knowledge refinement through strip decomposition.
+However, CRAG's single-pass correction with binary evaluation provides limited refinement granularity.
+
+\textbf{Adaptive-RAG}~\cite{jeong2024adaptiverag} routes questions to different retrieval strategies based on estimated complexity, using a classifier trained to distinguish simple, moderate, and complex questions.
+This complexity-aware approach is complementary to our work; our findings similarly show complexity-dependent improvement patterns.
+
+Our approach differs from these methods in three aspects: (1)~we use an autonomous \emph{agent} rather than fixed correction rules; (2)~the agent has access to \emph{multiple specialized tools} beyond simple re-retrieval; and (3)~the entire pipeline is implemented as a \emph{declarative program} amenable to automatic optimization.
+
+Table~\ref{tab:related_comparison} summarizes the key differences.
+
+\begin{table*}[t]
+\centering
+\caption{Comparison of self-corrective RAG approaches. \ours{} uniquely combines multi-tool agentic refinement with declarative pipeline optimization.}
+\label{tab:related_comparison}
+\begin{tabular}{lccccc}
+\toprule
+\textbf{Method} & \textbf{Iterative} & \textbf{Tool Use} & \textbf{Declarative} & \textbf{Multi-hop} & \textbf{Agent} \\
+\midrule
+Naive RAG         & --          & --               & --       & --       & --        \\
+Self-RAG~\cite{asai2024selfrag} & Selective   & --               & --       & \checkmark & Reflection \\
+CRAG~\cite{yan2024crag}         & Single-pass & Web search       & --       & --       & Rules     \\
+Adaptive-RAG~\cite{jeong2024adaptiverag} & Selective & --          & --       & \checkmark & Router    \\
+\textbf{\ours{}}  & \textbf{Adaptive} & \textbf{6 tools} & \textbf{DSPy}  & \checkmark & \textbf{ReAct}    \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+% ---------------------------------------------------------------------------
+\subsection{Tool-Augmented Language Model Agents}
+\label{subsec:rw_agents}
+% ---------------------------------------------------------------------------
+
+Tool-augmented LLMs extend language model capabilities through external tool invocation.
+Toolformer~\cite{schick2023toolformer} trains models to autonomously decide when and how to call tools via self-supervised learning.
+ReAct~\cite{yao2023react} interleaves reasoning traces with actions in a Thought--Action--Observation loop, enabling models to plan, execute, and refine their approach dynamically.
+
+In the RAG context, agentic approaches have emerged that use LLM agents to orchestrate retrieval.
+Recent work explores multi-step retrieval agents that decompose complex queries, perform iterative search, and synthesize evidence from multiple sources.
+However, most existing agentic RAG systems focus on a single tool (search) with fixed orchestration logic, rather than providing a diverse tool set with autonomous tool selection.
+
+\ours{} equips the ReAct agent with six specialized tools, enabling richer retrieval strategies that go beyond simple re-querying: query decomposition for multi-hop questions, quality evaluation for informed refinement, progressive passage inspection, and domain-specific tools for enterprise documents.
+
+% ---------------------------------------------------------------------------
+\subsection{Declarative Language Model Programming}
+\label{subsec:rw_dspy}
+% ---------------------------------------------------------------------------
+
+DSPy~\cite{khattab2024dspy} introduces a programming model for LM-based systems based on declarative \emph{Signatures} (typed input/output specifications) and composable \emph{Modules} (\eg, ChainOfThought, ReAct).
+This separates the program logic from the prompt implementation, enabling automatic optimization through compilers like BootstrapFewShot and MIPROv2~\cite{opsahl2024miprov2}.
+
+BootstrapFewShot collects successful execution traces and uses them as few-shot demonstrations, automatically generating in-context examples.
+MIPROv2 extends this by jointly optimizing natural language instructions and demonstrations using Bayesian surrogate models.
+
+While DSPy has been applied to various NLP tasks, its application to self-corrective RAG pipelines---particularly in combination with ReAct agents and multi-tool orchestration---has not been systematically studied.
+Our work demonstrates that DSPy's structured prompting provides substantial benefits even without optimization ($+0.1$--$0.2$ F1), with additional gains from automatic optimization that are dataset-dependent.

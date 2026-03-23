@@ -1,0 +1,121 @@
+% ===========================================================================
+% Section 4: Experimental Setup
+% ===========================================================================
+
+% ---------------------------------------------------------------------------
+\subsection{Datasets}
+\label{subsec:datasets}
+% ---------------------------------------------------------------------------
+
+We evaluate \ours{} on four datasets spanning multi-hop reasoning and enterprise document QA, summarized in Table~\ref{tab:datasets}.
+
+\begin{table}[t]
+\centering
+\caption{Dataset statistics. Multi-hop QA datasets include context paragraphs as self-contained retrieval corpora. FinanceBench provides evidence passages from SEC filings.}
+\label{tab:datasets}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Dataset} & \textbf{Domain} & \textbf{Hops} & \textbf{Answer Type} & \textbf{Source} \\
+\midrule
+HotpotQA & Wikipedia & 2 & Extractive & \cite{yang2018hotpotqa} \\
+2WikiMultiHopQA & Wikipedia & 2--4 & Extractive & \cite{ho2020wiki2multi} \\
+MuSiQue & Wikipedia & 2--4 & Extractive & \cite{trivedi2022musique} \\
+FinanceBench & SEC filings & 1--3 & Analytical & \cite{financebench2023} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{HotpotQA}~\cite{yang2018hotpotqa} is a 2-hop multi-hop QA dataset over Wikipedia, where each question requires reasoning over two supporting paragraphs mixed with distractor paragraphs.
+We use the \texttt{distractor} setting from the validation split.
+
+\textbf{2WikiMultiHopQA}~\cite{ho2020wiki2multi} extends multi-hop reasoning to 2--4 hops, with questions constructed through systematic composition of single-hop questions from two Wikipedia articles.
+This dataset tests deeper reasoning chains than HotpotQA.
+
+\textbf{MuSiQue}~\cite{trivedi2022musique} (\textbf{Mu}lti-hop \textbf{Si}ngle-hop \textbf{Que}stion composition) provides 2--4 hop questions with controlled compositionality, designed to resist shortcut reasoning.
+It is generally considered the most challenging of the three multi-hop datasets.
+
+\textbf{FinanceBench}~\cite{financebench2023} provides questions over real SEC filings (10-K, 10-Q, 8-K reports), requiring numerical reasoning and domain-specific terminology understanding.
+This dataset evaluates practical applicability in enterprise settings where external web search is unavailable.
+
+Each dataset provides its own context paragraphs (supporting documents plus distractors), which we use as the retrieval corpus.
+We build separate FAISS and BM25 indices per dataset.
+
+% ---------------------------------------------------------------------------
+\subsection{Baselines}
+\label{subsec:baselines}
+% ---------------------------------------------------------------------------
+
+We compare \ours{} against four baselines of increasing complexity, all sharing the same retrieval infrastructure and generation model for fair comparison:
+
+\begin{enumerate}
+    \item \textbf{Naive RAG}: Single-pass retrieve-and-generate with no evaluation or correction. Uses the same hybrid retriever and ChainOfThought generator.
+
+    \item \textbf{CRAG Replica}~\cite{yan2024crag}: Reproduces the core CRAG mechanism with binary relevance evaluation (correct/incorrect/ambiguous), knowledge refinement via strip decomposition, and internal search fallback (replacing CRAG's web search, which is unavailable in our enterprise-constrained setting). Note: the original CRAG uses a fine-tuned T5-large evaluator; we use LLM-based evaluation for same-compute-class comparison.
+
+    \item \textbf{Single-Pass}: Preprocessing (query rephrasing + keyword extraction) followed by hybrid retrieval and generation. Includes one evaluation step but no iterative refinement.
+
+    \item \textbf{Loop Refinement}: Fixed for-loop self-corrective pipeline implementing iterative retrieval, 4D quality evaluation, and targeted query refinement. Iterates up to $T = 3$ times based on evaluation scores. This represents the non-agentic version of our refinement approach.
+\end{enumerate}
+
+The key difference between Loop Refinement and \ours{} is the refinement strategy: Loop follows a predetermined retrieve--evaluate--refine sequence, while \ours{} autonomously selects tools and decides when to stop through ReAct reasoning.
+
+% ---------------------------------------------------------------------------
+\subsection{Evaluation Metrics}
+\label{subsec:metrics}
+% ---------------------------------------------------------------------------
+
+We use three primary metrics and one secondary metric:
+
+\paragraph{Primary Metrics.}
+
+\begin{itemize}
+    \item \textbf{Exact Match (EM)}: Binary indicator of whether the normalized prediction exactly matches the reference answer, after lowercasing, removing articles/punctuation/whitespace, and stripping footnote markers.
+
+    \item \textbf{Token-level F1}: Harmonic mean of token-level precision and recall between the normalized prediction and reference, following the standard SQuAD evaluation protocol. This captures partial credit for partially correct answers.
+
+    \item \textbf{LLM-as-Judge}: A DSPy-based correctness judge that evaluates whether the prediction is semantically equivalent to the reference answer, using the same evaluation model. This captures cases where the answer is correct but lexically different from the reference (\eg, ``Dutch'' vs.\ ``the Netherlands'').
+\end{itemize}
+
+\paragraph{Secondary Metric.}
+
+\begin{itemize}
+    \item \textbf{ROUGE-L}: Longest common subsequence-based overlap score, providing an alternative view of answer quality. Reported in supplementary material.
+\end{itemize}
+
+We also report \textbf{average latency} per question to quantify the computational cost--quality trade-off.
+
+% ---------------------------------------------------------------------------
+\subsection{Implementation Details}
+\label{subsec:implementation}
+% ---------------------------------------------------------------------------
+
+\paragraph{Models.}
+All experiments use Gemini Flash Lite\footnote{Model identifier: \texttt{gemini/gemini-3.1-flash-lite-preview}} for all four LLM slots (preprocessing, evaluation, generation, agent) via LiteLLM.
+Embeddings use \texttt{all-MiniLM-L6-v2} (384 dimensions) via sentence-transformers.
+Temperature is set to 0.0 for reproducibility.
+
+% TODO: Add cross-model results (GPT-4o-mini) after scale-up experiments
+
+\paragraph{Retrieval.}
+FAISS indices use inner product search with L2-normalized embeddings (equivalent to cosine similarity).
+BM25 uses the rank-bm25 library with default parameters.
+RRF fusion uses $k = 60$.
+The retriever returns top-$k = 50$ results per query, with a maximum of $M = 30$ accumulated passages.
+
+\paragraph{Agent.}
+The ReAct agent operates with a maximum of $I = 5$ reasoning--action iterations.
+The quality threshold is $\tau = 40$ with progressive leniency decrement $\delta = 5$ per evaluation attempt.
+The maximum retry count for the evaluation tool is $T = 3$.
+
+\paragraph{DSPy Optimization.}
+BootstrapFewShot and MIPROv2 optimizers use a training set of 50 examples per dataset, with token-level F1 as the optimization metric.
+Optimized prompts include up to 4 few-shot demonstrations.
+
+\paragraph{Infrastructure.}
+Experiments run on a single machine with Python 3.11, DSPy 3.1+, and FAISS-CPU.
+All code, configurations, and experiment scripts are available at \url{[anonymized]}.
+
+\paragraph{Reproducibility.}
+All experiments use a fixed random seed (42) for dataset sampling.
+Configuration is managed through YAML files with per-experiment overrides.
+The entire pipeline---from dataset preparation through index building to experiment execution---is automated via CLI scripts.

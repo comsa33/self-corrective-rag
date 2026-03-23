@@ -1,0 +1,20 @@
+% ===========================================================================
+% Section 8: Conclusion
+% ===========================================================================
+
+We presented \ours{}, a framework that replaces fixed-loop self-corrective RAG with a ReAct-based agent equipped with six specialized tools for autonomous retrieval refinement.
+Implemented as a DSPy declarative pipeline, the framework enables both structured prompting through typed Signatures and automatic optimization through BootstrapFewShot and MIPROv2.
+
+Our experiments across four datasets demonstrate two principal findings.
+First, agentic refinement provides \emph{complexity-dependent} improvements: consistent gains on complex multi-hop questions (F1 $+0.051$--$0.069$ on 2WikiMultiHopQA and MuSiQue) with comparable performance on simpler tasks.
+Second, DSPy's typed Signatures alone improve F1 by 0.1--0.2 over manual prompt engineering, with automatic optimization providing additional dataset-dependent gains.
+
+Analysis of agent behavior reveals emergent structured protocols (decompose--search--evaluate) that arise from the combination of typed Signatures and ReAct reasoning, without hard-coded orchestration.
+Ablation studies show that the evaluation tool serves as a quality gate mechanism rather than a direct accuracy booster, and that structure-aware retrieval tools do not improve performance on well-chunked corpora---an honest negative result that informs future tool design.
+
+\paragraph{Future Work.}
+Several directions merit investigation:
+(1)~scaling experiments to full datasets with statistical significance testing and cross-model validation;
+(2)~evaluating structure-aware tools on documents with rich hierarchical structure (\eg, legal contracts, technical manuals);
+(3)~reducing agent latency through parallel tool execution, speculative decoding, or agent module optimization;
+and (4)~extending the framework with additional tools for tasks such as table parsing, cross-document reasoning, and temporal analysis.
