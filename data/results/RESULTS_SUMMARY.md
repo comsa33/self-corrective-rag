@@ -1,10 +1,17 @@
-# v1.4 Experiment Results Summary
+# v1.5 Experiment Results Summary (Pilot, n=50)
 
-**Code version**: v1.4 (mandatory evaluate fallback + progressive disclosure + adaptive generation)
+**Code version**: v1.5
 **Model**: Gemini Flash Lite (all 4 slots)
 **Embedding**: all-MiniLM-L6-v2
 **Date**: 2026-03-22
 **Sample size**: n=50 per dataset
+
+> **Note (2026-03-23)**: 이 결과는 n=50 pilot 데이터입니다.
+> 최종 논문 제출 시 n=500+ 및 cross-model(GPT-4o-mini 등)로 스케일업 예정.
+> Contribution 구조가 4개 독립 → 1개 통합 프레임워크로 재구성되었습니다.
+> - 구 C1(Agentic) + 구 C4(DSPy) = **Main Contribution**
+> - 구 C2(RQ3) + 구 C3(RQ4) = **Ablation Studies**
+> - 상세: `docs/PAPER_PLAN.md`, `docs/Q1_READINESS_ASSESSMENT.md`
 
 ---
 
