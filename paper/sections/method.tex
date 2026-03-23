@@ -160,7 +160,7 @@ Each Signature's docstring provides task-specific instructions and scoring guide
 
 Signatures are composed with DSPy modules:
 \begin{itemize}
-    \item \texttt{ChainOfThought}: Wraps PreprocessSignature and QnAGenerateSignature to elicit step-by-step reasoning before outputs.
+    \item \texttt{ChainOfThought}~\cite{wei2022chain}: Wraps PreprocessSignature and QnAGenerateSignature to elicit step-by-step reasoning before outputs.
     \item \texttt{Predict}: Wraps EvaluationSignature for direct structured output.
     \item \texttt{ReAct}: Wraps AgenticRefinementSignature with tool integration, implementing the Thought--Action--Observation loop.
 \end{itemize}

@@ -8,10 +8,12 @@
 % ---------------------------------------------------------------------------
 
 Retrieval-Augmented Generation~\cite{lewis2020rag} grounds LLM outputs in externally retrieved evidence, combining a retriever with a generator.
-Early approaches use a single retrieval pass with dense~\cite{johnson2019faiss} or sparse~\cite{robertson2009bm25} retrievers.
-Recent work improves retrieval quality through query rewriting, hypothetical document embeddings (HyDE)~\cite{gao2023hyde}, and hybrid retrieval combining dense and sparse methods via Reciprocal Rank Fusion (RRF)~\cite{cormack2009rrf}.
+Early approaches use a single retrieval pass with dense retrievers such as DPR~\cite{karpukhin2020dense} and ColBERT~\cite{khattab2020colbert}, or sparse methods like BM25~\cite{robertson2009bm25}.
+Pre-training with retrieval objectives (REALM~\cite{guu2020realm}) and retrieval-augmented generation architectures (Fusion-in-Decoder~\cite{izacard2021leveraging}, Atlas~\cite{izacard2023atlas}) further improve knowledge grounding.
+Recent work improves retrieval quality through query rewriting~\cite{ma2023query}, hypothetical document embeddings (HyDE)~\cite{gao2023hyde}, and hybrid retrieval combining dense and sparse methods via Reciprocal Rank Fusion (RRF)~\cite{cormack2009rrf}.
+For a comprehensive survey of RAG methods, we refer readers to Gao et al.~\cite{gao2024ragsurvey}.
 
-Our work builds on this foundation by employing hybrid FAISS + BM25 retrieval with RRF fusion as the base retrieval mechanism, enhanced by agentic refinement that iteratively improves retrieval quality through tool-augmented reasoning.
+Our work builds on this foundation by employing hybrid FAISS~\cite{johnson2019faiss} + BM25 retrieval with RRF fusion as the base retrieval mechanism, enhanced by agentic refinement that iteratively improves retrieval quality through tool-augmented reasoning.
 
 % ---------------------------------------------------------------------------
 \subsection{Self-Corrective RAG}
@@ -29,6 +31,11 @@ However, CRAG's single-pass correction with binary evaluation provides limited r
 \textbf{Adaptive-RAG}~\cite{jeong2024adaptiverag} routes questions to different retrieval strategies based on estimated complexity, using a classifier trained to distinguish simple, moderate, and complex questions.
 This complexity-aware approach is complementary to our work; our findings similarly show complexity-dependent improvement patterns.
 
+Other iterative retrieval approaches include \textbf{FLARE}~\cite{jiang2023flare}, which triggers retrieval when the model's generation confidence drops below a threshold;
+\textbf{IRCoT}~\cite{trivedi2023ircot}, which interleaves retrieval with chain-of-thought reasoning steps for multi-hop questions;
+and \textbf{Self-Ask}~\cite{press2023selfask}, which decomposes questions into sub-questions answered sequentially.
+Verify-and-Edit~\cite{zhao2023verify} post-hoc verifies chain-of-thought reasoning by retrieving evidence for each reasoning step, while REPLUG~\cite{shi2024replug} treats the LM as a black box and prepends retrieved documents to the input.
+
 Our approach differs from these methods in three aspects: (1)~we use an autonomous \emph{agent} rather than fixed correction rules; (2)~the agent has access to \emph{multiple specialized tools} beyond simple re-retrieval; and (3)~the entire pipeline is implemented as a \emph{declarative program} amenable to automatic optimization.
 
 Table~\ref{tab:related_comparison} summarizes the key differences.
@@ -44,6 +51,8 @@ Table~\ref{tab:related_comparison} summarizes the key differences.
 Naive RAG         & --          & --               & --       & --       & --        \\
 Self-RAG~\cite{asai2024selfrag} & Selective   & --               & --       & \checkmark & Reflection \\
 CRAG~\cite{yan2024crag}         & Single-pass & Web search       & --       & --       & Rules     \\
+FLARE~\cite{jiang2023flare}     & Adaptive    & --               & --       & --       & Confidence \\
+IRCoT~\cite{trivedi2023ircot}   & Interleaved & --               & --       & \checkmark & CoT       \\
 Adaptive-RAG~\cite{jeong2024adaptiverag} & Selective & --          & --       & \checkmark & Router    \\
 \textbf{\ours{}}  & \textbf{Adaptive} & \textbf{6 tools} & \textbf{DSPy}  & \checkmark & \textbf{ReAct}    \\
 \bottomrule
@@ -56,11 +65,16 @@ Adaptive-RAG~\cite{jeong2024adaptiverag} & Selective & --          & --       & 
 % ---------------------------------------------------------------------------
 
 Tool-augmented LLMs extend language model capabilities through external tool invocation.
+MRKL~\cite{karpas2022mrkl} proposes a modular neuro-symbolic architecture combining LLMs with external knowledge sources and discrete reasoning modules.
 Toolformer~\cite{schick2023toolformer} trains models to autonomously decide when and how to call tools via self-supervised learning.
+ART~\cite{paranjape2023art} automatically generates multi-step reasoning programs that interleave reasoning with tool calls.
 ReAct~\cite{yao2023react} interleaves reasoning traces with actions in a Thought--Action--Observation loop, enabling models to plan, execute, and refine their approach dynamically.
+Reflexion~\cite{shinn2023reflexion} extends this with verbal reinforcement learning, where agents reflect on failures to improve subsequent attempts.
+
+Broader agent frameworks have also emerged: HuggingGPT~\cite{shen2023hugginggpt} orchestrates specialized AI models as tools, and AgentBench~\cite{liu2024agentbench} provides a benchmark for evaluating LLMs as autonomous agents across diverse environments.
 
 In the RAG context, agentic approaches have emerged that use LLM agents to orchestrate retrieval.
-Recent work explores multi-step retrieval agents that decompose complex queries, perform iterative search, and synthesize evidence from multiple sources.
+Recent work explores multi-step retrieval agents that decompose complex queries~\cite{khot2023decomposed}, perform iterative search, and synthesize evidence from multiple sources.
 However, most existing agentic RAG systems focus on a single tool (search) with fixed orchestration logic, rather than providing a diverse tool set with autonomous tool selection.
 
 \ours{} equips the ReAct agent with six specialized tools, enabling richer retrieval strategies that go beyond simple re-querying: query decomposition for multi-hop questions, quality evaluation for informed refinement, progressive passage inspection, and domain-specific tools for enterprise documents.
@@ -70,7 +84,11 @@ However, most existing agentic RAG systems focus on a single tool (search) with 
 \label{subsec:rw_dspy}
 % ---------------------------------------------------------------------------
 
-DSPy~\cite{khattab2024dspy} introduces a programming model for LM-based systems based on declarative \emph{Signatures} (typed input/output specifications) and composable \emph{Modules} (\eg, ChainOfThought, ReAct).
+The broader field of prompt optimization has explored various approaches to automatically improve LM prompts.
+AutoPrompt~\cite{shin2020autoprompt} uses gradient-guided search over discrete tokens, APE~\cite{zhou2023ape} treats prompt generation as a natural language synthesis problem, and OPRO~\cite{yang2024opro} uses LLMs themselves as optimizers.
+More recently, TextGrad~\cite{yuksekgonul2025textgrad} backpropagates natural language feedback through computational graphs for end-to-end optimization.
+
+DSPy~\cite{khattab2024dspy}, building on the Demonstrate-Search-Predict framework~\cite{khattab2023dsp}, introduces a programming model for LM-based systems based on declarative \emph{Signatures} (typed input/output specifications) and composable \emph{Modules} (\eg, ChainOfThought, ReAct).
 This separates the program logic from the prompt implementation, enabling automatic optimization through compilers like BootstrapFewShot and MIPROv2~\cite{opsahl2024miprov2}.
 
 BootstrapFewShot collects successful execution traces and uses them as few-shot demonstrations, automatically generating in-context examples.

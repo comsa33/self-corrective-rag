@@ -2,8 +2,8 @@
 % Section 1: Introduction
 % ===========================================================================
 
-Large language models (LLMs) have demonstrated remarkable capabilities in natural language understanding and generation, yet they remain prone to hallucination and factual inaccuracy when responding from parametric knowledge alone~\cite{lewis2020rag}.
-Retrieval-Augmented Generation (RAG) addresses this limitation by grounding LLM outputs in externally retrieved evidence, establishing itself as a standard approach for knowledge-intensive tasks~\cite{lewis2020rag}.
+Large language models (LLMs) have demonstrated remarkable capabilities in natural language understanding and generation, yet they remain prone to hallucination and factual inaccuracy when responding from parametric knowledge alone~\cite{huang2025hallucination,openai2023gpt4}.
+Retrieval-Augmented Generation (RAG) addresses this limitation by grounding LLM outputs in externally retrieved evidence, establishing itself as a standard approach for knowledge-intensive tasks~\cite{lewis2020rag,gao2024ragsurvey}.
 
 However, standard RAG assumes that a single retrieval pass produces sufficient evidence---an assumption that frequently fails for multi-hop questions requiring reasoning across multiple documents.
 When the initial retrieval misses a critical piece of evidence (\eg, one of the two bridging facts in a 2-hop question), the generated answer is inevitably incomplete or incorrect.
