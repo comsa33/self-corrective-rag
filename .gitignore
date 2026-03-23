@@ -38,3 +38,15 @@ htmlcov/
 .idea/
 .vscode/
 *.swp
+
+# LaTeX build artifacts
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.spl
+*.synctex.gz
+*.pdf
