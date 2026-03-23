@@ -1,0 +1,84 @@
+% Figure 2: Pipeline Comparison — Naive vs CRAG vs Loop vs Agentic
+\begin{figure*}[t]
+\centering
+\resizebox{0.95\textwidth}{!}{%
+\begin{tikzpicture}[
+    node distance=0.6cm and 0.5cm,
+    >={Stealth[length=2mm]},
+    box/.style={rectangle, draw=black!50, rounded corners=2pt,
+                minimum width=1.6cm, minimum height=0.55cm, align=center,
+                font=\scriptsize},
+    pbox/.style={box, fill=blue!8},
+    ebox/.style={box, fill=orange!8},
+    gbox/.style={box, fill=green!8},
+    abox/.style={box, fill=red!8},
+    arrow/.style={->, thick, black!60},
+    darrow/.style={->, dashed, thick, black!35},
+    plabel/.style={font=\small\bfseries, text=black!80},
+]
+
+% === (a) Naive RAG ===
+\node[plabel] (la) at (0, 0) {(a) Naive RAG};
+\node[pbox, below=0.2cm of la] (a1) {Retrieve};
+\node[gbox, right=0.4cm of a1] (a2) {Generate};
+\draw[arrow] (a1) -- (a2);
+
+% === (b) CRAG ===
+\node[plabel] (lb) at (6, 0) {(b) CRAG};
+\node[pbox, below=0.2cm of lb] (b1) {Retrieve};
+\node[ebox, right=0.4cm of b1] (b2) {Evaluate\\[-1pt]{\tiny(binary)}};
+\node[abox, right=0.4cm of b2] (b3) {Correct /\\[-1pt]Refine};
+\node[gbox, right=0.4cm of b3] (b4) {Generate};
+\draw[arrow] (b1) -- (b2);
+\draw[arrow] (b2) -- (b3);
+\draw[arrow] (b3) -- (b4);
+
+% === (c) Loop Refinement ===
+\node[plabel] (lc) at (0, -2.5) {(c) Loop Refinement};
+\node[pbox, below=0.2cm of lc] (c1) {Preprocess};
+\node[pbox, right=0.4cm of c1] (c2) {Retrieve};
+\node[ebox, right=0.4cm of c2] (c3) {Evaluate\\[-1pt]{\tiny(4D)}};
+\node[abox, right=0.4cm of c3] (c4) {Refine\\[-1pt]Query};
+\node[gbox, right=0.4cm of c4] (c5) {Generate};
+\draw[arrow] (c1) -- (c2);
+\draw[arrow] (c2) -- (c3);
+\draw[arrow] (c3) -- (c4) node[midway, above, font=\tiny\itshape] {low};
+\draw[arrow] (c3.north) -- ++(0, 0.4) -| (c5.north) node[near start, above, font=\tiny\itshape] {pass};
+\draw[darrow] (c4.south) -- ++(0, -0.4) -| (c2.south) node[near start, below, font=\tiny\itshape] {loop};
+
+% === (d) AgenticRAG (Ours) ===
+\node[plabel] (ld) at (0, -5.3) {(d) \ours{} (Ours)};
+\node[pbox, below=0.2cm of ld] (d1) {Preprocess};
+
+% Tools first, then fit box around them
+\node[box, fill=purple!4, draw=purple!30, minimum width=1.1cm, font=\tiny]
+    (dt1) at (4.5, -5.8) {search};
+\node[box, fill=purple!4, draw=purple!30, minimum width=1.1cm, font=\tiny,
+      right=0.15cm of dt1] (dt2) {decompose};
+\node[box, fill=purple!4, draw=purple!30, minimum width=1.1cm, font=\tiny,
+      right=0.15cm of dt2] (dt3) {evaluate};
+\node[box, fill=purple!4, draw=purple!30, minimum width=1.1cm, font=\tiny,
+      below=0.15cm of dt1] (dt4) {inspect};
+\node[box, fill=purple!4, draw=purple!30, minimum width=1.1cm, font=\tiny,
+      right=0.15cm of dt4] (dt5) {sections};
+\node[box, fill=purple!4, draw=purple!30, minimum width=1.1cm, font=\tiny,
+      right=0.15cm of dt5] (dt6) {terms};
+
+% Agent box — fit around tools (background layer so tools stay visible)
+\begin{scope}[on background layer]
+\node[rectangle, draw=purple!40, fill=purple!6, rounded corners=2pt,
+      line width=0.8pt, fit=(dt1)(dt2)(dt3)(dt4)(dt5)(dt6),
+      inner xsep=0.4cm, inner ysep=0.5cm] (d2) {};
+\end{scope}
+\node[font=\scriptsize\bfseries, text=purple!60, anchor=south]
+      at ([yshift=0.05cm]d2.north) {ReAct Agent};
+
+\node[gbox, right=0.5cm of d2] (d3) {Generate};
+\draw[arrow] (d1) -- (d2);
+\draw[arrow] (d2) -- (d3);
+
+\end{tikzpicture}
+}%
+\caption{Comparison of pipeline architectures. (a)~Naive RAG: single-pass retrieval. (b)~CRAG: binary evaluation with single-pass correction. (c)~Loop Refinement: fixed retrieve--evaluate--refine cycle. (d)~\ours{}: ReAct agent with six tools for adaptive refinement.}
+\label{fig:pipeline_comparison}
+\end{figure*}

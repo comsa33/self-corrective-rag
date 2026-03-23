@@ -9,6 +9,8 @@
 \usepackage{hyperref}
 \usepackage{xcolor}
 \usepackage{subcaption}
+\usepackage{tikz}
+\usetikzlibrary{positioning, arrows.meta, calc, shapes.geometric, fit, backgrounds}
 
 \bibliographystyle{elsarticle-num}
 
@@ -27,11 +29,12 @@
 
 \title{Agentic Self-Corrective RAG: Autonomous Retrieval Refinement via Tool-Augmented Language Models}
 
-%% Authors - to be filled
-\author[1]{Author Name\corref{cor1}}
+\author[1]{Ruo Lee\corref{cor1}}
 \cortext[cor1]{Corresponding author}
-\ead{email@university.ac.kr}
-\affiliation[1]{organization={Department}, city={City}, country={South Korea}}
+\ead{comsa333@gmail.com}
+\affiliation[1]{organization={Department of Artificial Intelligence},
+               addressline={Seoul School of Integrated Sciences \& Technologies (aSSIST)},
+               city={Seoul}, country={South Korea}}
 
 \begin{abstract}
 Retrieval-Augmented Generation (RAG) has emerged as a practical approach to ground large language model (LLM) outputs in external knowledge.

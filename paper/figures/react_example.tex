@@ -1,0 +1,47 @@
+% Figure 3: ReAct Agent Workflow Example
+\begin{figure}[t]
+\centering
+\small
+\begin{tikzpicture}[
+    >={Stealth[length=2mm]},
+    thought/.style={rectangle, draw=blue!50, fill=blue!5, rounded corners=2pt,
+                    text width=5.8cm, align=left, font=\scriptsize,
+                    inner sep=3pt},
+    action/.style={rectangle, draw=orange!50, fill=orange!5, rounded corners=2pt,
+                   text width=5.8cm, align=left, font=\scriptsize,
+                   inner sep=3pt},
+    obs/.style={rectangle, draw=green!50, fill=green!5, rounded corners=2pt,
+                text width=5.8cm, align=left, font=\scriptsize,
+                inner sep=3pt},
+    stepnum/.style={circle, draw=black!40, fill=black!8, minimum size=0.4cm,
+                 font=\scriptsize\bfseries},
+    inbox/.style={below=0.03cm of},  % gap between boxes within a step
+    stepgap/.style={below=0.35cm of}, % gap between steps
+]
+
+% Step 1 — T + A + O
+\node[thought] (t1) at (3.3, 0) {\textbf{T:} Multi-hop question. Decompose first.};
+\node[action, below=0.03cm of t1] (a1) {\textbf{A:} \texttt{decompose\_query}(``Who directed the film starring the actor born in Springfield?'')};
+\node[obs, below=0.03cm of a1] (o1) {\textbf{O:} sub\_questions=[``actor born in Springfield?'', ``film starring actor?'', ``director?'']};
+\node[stepnum] at (0, 0) {1};
+
+% Step 2 — T + A + O
+\node[thought, below=0.35cm of o1] (t2) {\textbf{T:} Search sub-questions for bridging facts.};
+\node[action, below=0.03cm of t2] (a2) {\textbf{A:} \texttt{search\_passages}(``actor born in Springfield'')};
+\node[obs, below=0.03cm of a2] (o2) {\textbf{O:} 5 passages. ``John Smith was born in Springfield, IL...''};
+\node[stepnum] at (0 |- t2) {2};
+
+% Step 3 — A + O
+\node[action, below=0.35cm of o2] (a3) {\textbf{A:} \texttt{evaluate\_passages}(question, passages)};
+\node[obs, below=0.03cm of a3] (o3) {\textbf{O:} Score 62/100, \textit{refine}. ``Missing director info.''};
+\node[stepnum] at (0 |- a3) {3};
+
+% Step 4 — A + O
+\node[action, below=0.35cm of o3] (a4) {\textbf{A:} \texttt{search\_passages}(``film directed starring John Smith'')};
+\node[obs, below=0.03cm of a4] (o4) {\textbf{O:} 3 passages. Score 85/100 $\to$ \texttt{finish}};
+\node[stepnum] at (0 |- a4) {4};
+
+\end{tikzpicture}
+\caption{Example ReAct trajectory for a 3-hop question. T=Thought, A=Action, O=Observation. The agent decomposes, searches, evaluates, and refines based on feedback.}
+\label{fig:react_example}
+\end{figure}

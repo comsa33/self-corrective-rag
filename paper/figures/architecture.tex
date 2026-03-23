@@ -1,0 +1,78 @@
+% Figure 1: Overall Architecture of AgenticRAG
+\begin{figure*}[t]
+\centering
+\resizebox{0.95\textwidth}{!}{%
+\begin{tikzpicture}[
+    node distance=0.8cm and 1.2cm,
+    >={Stealth[length=3mm]},
+    stage/.style={rectangle, draw=black!70, fill=blue!8, rounded corners=3pt,
+                  minimum width=2.6cm, minimum height=0.9cm, align=center,
+                  font=\small\bfseries},
+    tool/.style={rectangle, draw=black!60, fill=orange!10, rounded corners=2pt,
+                 minimum width=1.8cm, minimum height=0.6cm, align=center,
+                 font=\scriptsize},
+    agent/.style={rectangle, draw=blue!70, fill=blue!12, rounded corners=3pt,
+                  align=center, font=\small\bfseries, line width=1.2pt},
+    io/.style={rectangle, draw=black!40, fill=gray!8, rounded corners=2pt,
+               minimum width=2cm, minimum height=0.6cm, align=center,
+               font=\small},
+    arrow/.style={->, thick, black!70},
+    dashedarrow/.style={->, dashed, thick, black!45},
+    lbl/.style={font=\scriptsize\itshape, text=black!55},
+]
+
+% Row 1: Main pipeline flow
+\node[io] (input) {Question $q$};
+\node[stage, right=1.4cm of input] (preprocess) {Stage 1\\Preprocessing};
+\node[lbl, above=0.05cm of preprocess] {ChainOfThought};
+
+% Agent box — place tools first, then fit box around them
+% Row 1 tools at a fixed position
+\node[tool] (t1) at (9.5, 0.2) {search\_passages};
+\node[tool, right=0.3cm of t1] (t2) {decompose\_query};
+\node[tool, right=0.3cm of t2] (t3) {evaluate\_passages};
+% Row 2 tools
+\node[tool, below=0.4cm of t1] (t4) {get\_passage\_detail};
+\node[tool, right=0.3cm of t4] (t5) {list\_sections};
+\node[tool, right=0.3cm of t5] (t6) {get\_terminology};
+
+% Agent box — fit around all tools with padding (extra top for subtitle)
+\begin{scope}[on background layer]
+\node[agent, fit=(t1)(t2)(t3)(t4)(t5)(t6),
+      inner xsep=0.5cm, inner ysep=1.2cm] (agentbox) {};
+\end{scope}
+% Title above box, subtitle inside top area (above tools)
+\node[font=\small\bfseries, text=blue!70, anchor=south] at ([yshift=0.15cm]agentbox.north) {Stage 2: ReAct Agentic Refinement};
+\node[font=\scriptsize\itshape, text=black!50, anchor=south] at ([yshift=0.1cm]t1.north -| agentbox.center) {Thought $\to$ Action $\to$ Observation};
+
+% Continue main flow
+\node[stage, right=1.6cm of agentbox] (merge) {Stage 3\\Merging};
+\node[stage, right=1.2cm of merge] (generate) {Stage 4\\Generation};
+\node[lbl, above=0.05cm of generate] {ChainOfThought};
+\node[io, right=1.4cm of generate] (output) {Answer $a$};
+
+% Row 2: Retriever
+\node[stage, below=2.0cm of agentbox, fill=green!8] (retriever) {Hybrid Retriever\\FAISS + BM25 + RRF};
+\node[io, below=0.7cm of retriever] (corpus) {Document Corpus $\mathcal{C}$};
+
+% === Arrows ===
+% Main flow
+\draw[arrow] (input) -- (preprocess) node[midway, above, lbl] {$q$};
+\draw[arrow] (preprocess) -- (agentbox.west |- preprocess) node[midway, above, lbl] {$q', \mathcal{K}$};
+\draw[arrow] (agentbox.east |- merge) -- (merge) node[midway, above, lbl] {$\mathcal{P}_{\text{agent}}$};
+\draw[arrow] (merge) -- (generate) node[midway, above, lbl] {$\mathcal{P}^*$};
+\draw[arrow] (generate) -- (output) node[midway, above, lbl] {$a$};
+
+% Retriever connections
+\draw[arrow] (corpus) -- (retriever);
+\draw[dashedarrow] (agentbox.south) -- (retriever.north);
+
+% Initial retrieval bypass to merge
+\draw[dashedarrow] (preprocess.south) -- ++(0,-0.6) -| (merge.south)
+    node[pos=0.75, right, lbl] {$\mathcal{P}_{\text{init}}$};
+
+\end{tikzpicture}
+}%
+\caption{Overall architecture of \ours{}. The pipeline consists of four stages: (1)~query preprocessing, (2)~ReAct agentic refinement with six specialized tools, (3)~passage merging, and (4)~answer generation. Dashed arrows indicate the initial retrieval path and retriever connection.}
+\label{fig:architecture}
+\end{figure*}

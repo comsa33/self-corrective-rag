@@ -66,7 +66,7 @@ The key difference between Loop Refinement and \ours{} is the refinement strateg
 
 We use three primary metrics and one secondary metric:
 
-\paragraph{Primary Metrics.}
+\paragraph{Primary Metrics}
 
 \begin{itemize}
     \item \textbf{Exact Match (EM)}: Binary indicator of whether the normalized prediction exactly matches the reference answer, after lowercasing, removing articles/punctuation/whitespace, and stripping footnote markers.
@@ -76,7 +76,7 @@ We use three primary metrics and one secondary metric:
     \item \textbf{LLM-as-Judge}~\cite{zheng2023judging}: A DSPy-based correctness judge that evaluates whether the prediction is semantically equivalent to the reference answer, using the same evaluation model. This captures cases where the answer is correct but lexically different from the reference (\eg, ``Dutch'' vs.\ ``the Netherlands'').
 \end{itemize}
 
-\paragraph{Secondary Metric.}
+\paragraph{Secondary Metric}
 
 \begin{itemize}
     \item \textbf{ROUGE-L}~\cite{lin2004rouge}: Longest common subsequence-based overlap score, providing an alternative view of answer quality. Reported in supplementary material.
@@ -89,33 +89,33 @@ We also report \textbf{average latency} per question to quantify the computation
 \label{subsec:implementation}
 % ---------------------------------------------------------------------------
 
-\paragraph{Models.}
-All experiments use Gemini Flash Lite\footnote{Model identifier: \texttt{gemini/gemini-3.1-flash-lite-preview}} for all four LLM slots (preprocessing, evaluation, generation, agent) via LiteLLM.
-Embeddings use \texttt{all-MiniLM-L6-v2} (384 dimensions) via sentence-transformers~\cite{reimers2019sentence}.
+\paragraph{Models}
+All experiments use Gemini Flash Lite\footnote{Model~ID: \texttt{gemini/gemini-3.1-flash-lite-preview}} for all four LLM slots (preprocessing, evaluation, generation, agent) via LiteLLM.
+Embeddings use all-MiniLM-L6-v2 (384 dimensions) via sentence-trans\-formers~\cite{reimers2019sentence}.
 Temperature is set to 0.0 for reproducibility.
 
 % TODO: Add cross-model results (GPT-4o-mini) after scale-up experiments
 
-\paragraph{Retrieval.}
+\paragraph{Retrieval}
 FAISS indices use inner product search with L2-normalized embeddings (equivalent to cosine similarity).
 BM25 uses the rank-bm25 library with default parameters.
 RRF fusion uses $k = 60$.
 The retriever returns top-$k = 50$ results per query, with a maximum of $M = 30$ accumulated passages.
 
-\paragraph{Agent.}
+\paragraph{Agent}
 The ReAct agent operates with a maximum of $I = 5$ reasoning--action iterations.
 The quality threshold is $\tau = 40$ with progressive leniency decrement $\delta = 5$ per evaluation attempt.
 The maximum retry count for the evaluation tool is $T = 3$.
 
-\paragraph{DSPy Optimization.}
+\paragraph{DSPy Optimization}
 BootstrapFewShot and MIPROv2 optimizers use a training set of 50 examples per dataset, with token-level F1 as the optimization metric.
 Optimized prompts include up to 4 few-shot demonstrations.
 
-\paragraph{Infrastructure.}
+\paragraph{Infrastructure}
 Experiments run on a single machine with Python 3.11, DSPy 3.1+, and FAISS-CPU.
 All code, configurations, and experiment scripts are available at \url{[anonymized]}.
 
-\paragraph{Reproducibility.}
+\paragraph{Reproducibility}
 All experiments use a fixed random seed (42) for dataset sampling.
 Configuration is managed through YAML files with per-experiment overrides.
 The entire pipeline---from dataset preparation through index building to experiment execution---is automated via CLI scripts.

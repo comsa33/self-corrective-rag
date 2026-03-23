@@ -44,6 +44,7 @@ Table~\ref{tab:related_comparison} summarizes the key differences.
 \centering
 \caption{Comparison of self-corrective RAG approaches. \ours{} uniquely combines multi-tool agentic refinement with declarative pipeline optimization.}
 \label{tab:related_comparison}
+\resizebox{\textwidth}{!}{%
 \begin{tabular}{lccccc}
 \toprule
 \textbf{Method} & \textbf{Iterative} & \textbf{Tool Use} & \textbf{Declarative} & \textbf{Multi-hop} & \textbf{Agent} \\
@@ -57,6 +58,7 @@ Adaptive-RAG~\cite{jeong2024adaptiverag} & Selective & --          & --       & 
 \textbf{\ours{}}  & \textbf{Adaptive} & \textbf{6 tools} & \textbf{DSPy}  & \checkmark & \textbf{ReAct}    \\
 \bottomrule
 \end{tabular}
+}% end resizebox
 \end{table*}
 
 % ---------------------------------------------------------------------------

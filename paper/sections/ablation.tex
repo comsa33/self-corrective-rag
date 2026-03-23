@@ -22,6 +22,7 @@ We compare three variants of the evaluation tool within the \ours{} pipeline:
 \centering
 \caption{Evaluation tool ablation (RQ3). Differences between variants are small (max $\Delta = 0.036$ F1), with no consistent winner across datasets.}
 \label{tab:rq3}
+\resizebox{\columnwidth}{!}{%
 \begin{tabular}{l cc cc cc cc}
 \toprule
 & \multicolumn{2}{c}{\textbf{HotpotQA}} & \multicolumn{2}{c}{\textbf{2Wiki}} & \multicolumn{2}{c}{\textbf{MuSiQue}} & \multicolumn{2}{c}{\textbf{Finance}} \\
@@ -33,9 +34,10 @@ Agent + 1D     & \textbf{.580} & \textbf{.750} & .480 & .587 & .320 & .410 & .22
 Agent w/o Eval & .540 & .722 & \textbf{.540} & \textbf{.620} & .300 & .410 & \textbf{.240} & \textbf{.444} \\
 \bottomrule
 \end{tabular}
+}% end resizebox
 \end{table}
 
-\paragraph{Results.}
+\paragraph{Results}
 Table~\ref{tab:rq3} shows that the differences between evaluation variants are small, with a maximum F1 delta of 0.036 across all datasets.
 No single variant consistently outperforms the others:
 \begin{itemize}
@@ -44,7 +46,7 @@ No single variant consistently outperforms the others:
     \item 4D and 1D perform nearly identically, with 4D edging ahead on MuSiQue ($+0.021$) and 1D on HotpotQA ($+0.003$).
 \end{itemize}
 
-\paragraph{Interpretation.}
+\paragraph{Interpretation}
 The evaluation tool does not function as a direct accuracy booster.
 Instead, it serves as a \emph{quality gate mechanism}:
 \begin{itemize}
@@ -64,10 +66,10 @@ The small performance differences indicate that the ReAct agent is capable of as
 
 We evaluate four configurations on FinanceBench, the only dataset with hierarchically structured source documents (SEC filings):
 \begin{itemize}
-    \item \textbf{Full Tools}: All tools including \texttt{list\_document\_sections} and \texttt{get\_terminology}.
+    \item \textbf{Full Tools}: All tools including \texttt{list\_document\_sections} and \texttt{get\_termi\-nology}.
     \item \textbf{w/o Section}: Section browsing tool removed.
     \item \textbf{w/o Terminology}: Terminology mapping tool removed.
-    \item \textbf{w/o Both}: Both structure-aware tools removed (search-only retrieval).
+    \item \textbf{w/o Both}: Both structure-aware tools removed (search-only).
 \end{itemize}
 
 \begin{table}[t]
@@ -86,12 +88,12 @@ w/o Terminology & .220 & .401 & .377 & 14.4 \\
 \end{tabular}
 \end{table}
 
-\paragraph{Honest negative result.}
+\paragraph{Honest negative result}
 Table~\ref{tab:rq4} shows that removing structure-aware tools slightly \emph{improves} F1 (0.412 vs.\ 0.396, $\Delta = +0.016$) and reduces latency (13.8s vs.\ 14.9s).
 EM remains identical (0.220) across all variants.
 This is an honest negative result: the structure-aware tools do not provide measurable benefit on FinanceBench.
 
-\paragraph{Analysis.}
+\paragraph{Analysis}
 We attribute this negative result to two factors:
 \begin{enumerate}
     \item \textbf{Pre-chunked corpus.} FinanceBench documents are already segmented into well-defined passages during index construction. Section browsing provides little additional value when the corpus is already appropriately chunked for retrieval.

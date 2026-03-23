@@ -18,6 +18,7 @@ Table~\ref{tab:rq1_main} presents the main results across four datasets.
 \centering
 \caption{Main results (RQ1). Best result per dataset in \textbf{bold}. \ours{} (Agentic) consistently outperforms all baselines on complex multi-hop datasets (2WikiMultiHopQA and MuSiQue). $n=50$ per dataset.}
 \label{tab:rq1_main}
+\resizebox{\textwidth}{!}{%
 \begin{tabular}{l ccc ccc ccc ccc}
 \toprule
 & \multicolumn{3}{c}{\textbf{HotpotQA}} & \multicolumn{3}{c}{\textbf{2WikiMultiHopQA}} & \multicolumn{3}{c}{\textbf{MuSiQue}} & \multicolumn{3}{c}{\textbf{FinanceBench}} \\
@@ -33,26 +34,27 @@ Loop Refinement  & .540 & .711 & .840 & .380 & .485 & .680 & .340 & .402 & .440 
 \multicolumn{1}{r}{\textit{$\Delta$ vs.\ Loop}} & $=$ & $+.003$ & $=$ & $+.060$ & $+.069$ & $+.080$ & $+.040$ & $+.051$ & $+.040$ & $-.020$ & $-.002$ & $+.060$ \\
 \bottomrule
 \end{tabular}
+}% end resizebox
 \end{table*}
 
-\paragraph{Complex multi-hop questions.}
+\paragraph{Complex multi-hop questions}
 \ours{} achieves the best performance on 2WikiMultiHopQA (F1 0.554, $+0.069$ over Loop) and MuSiQue (F1 0.453, $+0.051$ over Loop).
 These improvements are consistent across all three metrics (EM, F1, Judge), indicating genuine quality gains rather than metric-specific artifacts.
 The LLM-as-Judge scores show even larger gaps: $+0.080$ on 2Wiki and $+0.040$ on MuSiQue, suggesting that the agentic approach produces answers that are more semantically correct even when token overlap is moderate.
 
-\paragraph{Simple 2-hop questions.}
+\paragraph{Simple 2-hop questions}
 On HotpotQA, all pipeline variants perform within a narrow range (F1 0.605--0.726), with Single-Pass slightly leading.
 This suggests that 2-hop questions do not require iterative refinement---a single well-preprocessed retrieval pass is sufficient, and the additional overhead of agentic reasoning provides no benefit.
 
-\paragraph{Enterprise documents.}
+\paragraph{Enterprise documents}
 On FinanceBench, Loop Refinement marginally outperforms \ours{} in F1 (0.414 vs.\ 0.412, $\Delta = -0.002$), while \ours{} leads in Judge score (0.900 vs.\ 0.840).
 The near-identical F1 scores suggest that both refinement approaches extract similar information, but the agentic approach may produce more naturally phrased answers that the LLM judge favors.
 
-\paragraph{CRAG Replica underperformance.}
+\paragraph{CRAG Replica underperformance}
 The CRAG Replica consistently ranks lowest, which is expected: our implementation replaces CRAG's web search fallback with internal re-retrieval (to match our enterprise-constrained setting) and uses LLM-based evaluation instead of a fine-tuned T5-large evaluator.
 These architectural differences explain the gap with reported CRAG results.
 
-\paragraph{Key finding.}
+\paragraph{Key finding}
 The agentic advantage is \emph{complexity-dependent}: improvements grow with question complexity (number of reasoning hops), while simple questions show no benefit.
 This pattern is consistent with the hypothesis that autonomous tool selection provides value primarily when the retrieval task is non-trivial and benefits from adaptive strategy.
 
@@ -118,16 +120,16 @@ Table~\ref{tab:tool_usage} reports the average number of tool calls per question
 \end{tabular}
 \end{table}
 
-\paragraph{Search dominance.}
+\paragraph{Search dominance}
 The agent calls \texttt{search\_passages} 3.5--3.9 times per question, making it the most frequently used tool.
 This is consistent with the agent's primary objective of accumulating high-quality passages.
 The slightly higher frequency on MuSiQue (3.9) and FinanceBench (3.8) reflects the greater retrieval difficulty of these datasets.
 
-\paragraph{Decomposition.}
+\paragraph{Decomposition}
 \texttt{decompose\_query} is called approximately 0.8--0.9 times per question, indicating that the agent correctly identifies most questions as multi-hop and decomposes them before searching.
 The sub-1.0 frequency means some questions are judged as single-hop and searched directly.
 
-\paragraph{Evaluation coverage.}
+\paragraph{Evaluation coverage}
 The \texttt{evaluate\_passages} tool is called 1.0--1.1 times per question, with 100\% coverage across all datasets.
 The mandatory evaluate fallback mechanism (which triggers when the agent skips evaluation) accounts for 6--12\% of evaluations, ensuring that quality assessment is never omitted.
 
@@ -159,15 +161,15 @@ Analysis of ReAct trajectories reveals three dominant behavioral patterns:
 
     \item \textbf{Search--Evaluate} (simple cases): For questions identified as single-hop, the agent skips decomposition and directly searches with the preprocessed query before evaluating.
 
-    \item \textbf{Decompose--Search--Evaluate--Search--Evaluate} (refinement loop): When the initial evaluation score falls below the quality threshold, the agent performs an additional search round using the evaluation feedback (suggested query, keywords) and re-evaluates.
+    \item \textbf{Decompose--Search--Evaluate--Refine} (refinement loop): When the initial evaluation score falls below the quality threshold, the agent uses evaluation feedback to refine the query, performs an additional search, and re-evaluates.
 \end{enumerate}
 
 Notably, the agent \emph{spontaneously develops} these structured protocols through ReAct reasoning, despite having access to a broader set of tools and no hard-coded execution sequence.
 The protocol is suggested in the agent's signature docstring but not enforced---the agent could deviate but consistently converges on these patterns.
 
-\paragraph{Domain-specific tool use.}
-On FinanceBench, the agent occasionally invokes \texttt{calculate} (0.1 calls/question) for numerical computations such as margin calculations and year-over-year comparisons.
-This tool is virtually unused on the Wikipedia-based datasets, demonstrating that the agent adapts its tool selection to the domain.
+\paragraph{Domain adaptation}
+On FinanceBench, the agent occasionally invokes \texttt{calculate} (0.1~calls per question) for numerical computations such as margin calculations.
+This tool is virtually unused on Wikipedia-based datasets, demonstrating domain-adaptive tool selection.
 
 % ---------------------------------------------------------------------------
 \subsection{RQ5: DSPy Optimization Effect}
@@ -182,6 +184,7 @@ Table~\ref{tab:rq5} compares four prompt engineering approaches.
 \centering
 \caption{DSPy optimization results (RQ5). ``Manual Prompt'' uses hand-crafted JSON templates; ``DSPy Unopt'' uses typed Signatures without optimization; Bootstrap and MIPROv2 add automatic few-shot/instruction optimization. Best per dataset in \textbf{bold}.}
 \label{tab:rq5}
+\resizebox{\textwidth}{!}{%
 \begin{tabular}{l ccc ccc ccc ccc}
 \toprule
 & \multicolumn{3}{c}{\textbf{HotpotQA}} & \multicolumn{3}{c}{\textbf{2WikiMultiHopQA}} & \multicolumn{3}{c}{\textbf{MuSiQue}} & \multicolumn{3}{c}{\textbf{FinanceBench}} \\
@@ -196,14 +199,15 @@ DSPy + MIPROv2   & .520 & .712 & \textbf{.940} & .367 & .549 & .800 & \textbf{.5
 \multicolumn{1}{r}{\textit{$\Delta$ Manual$\to$Unopt}} & $+.140$ & $+.099$ & $+.020$ & $+.107$ & $+.054$ & $-.060$ & $+.020$ & $-.003$ & $+.020$ & $+.160$ & $+.207$ & $+.120$ \\
 \bottomrule
 \end{tabular}
+}% end resizebox
 \end{table*}
 
-\paragraph{Structural benefit: Manual $\to$ DSPy Unopt.}
+\paragraph{Structural benefit: Manual $\to$ DSPy Unopt}
 The most striking finding is that simply replacing hand-crafted JSON prompt templates with DSPy typed Signatures yields substantial improvements \emph{without any optimization}: F1 increases of $+0.099$ (HotpotQA), $+0.054$ (2Wiki), and $+0.207$ (FinanceBench).
 The FinanceBench improvement is particularly dramatic, from 0.197 to 0.404 (more than doubling).
 This suggests that DSPy's structured prompting---with typed input/output fields, descriptive field annotations, and task-specific docstrings---provides a more effective interface for LLM reasoning than manually constructed prompts.
 
-\paragraph{Optimization benefit: Unopt $\to$ Bootstrap/MIPROv2.}
+\paragraph{Optimization benefit: Unopt $\to$ Bootstrap/MIPROv2}
 Automatic optimization provides additional gains, but the effect is \emph{dataset-dependent}:
 
 \begin{itemize}
@@ -216,7 +220,7 @@ Automatic optimization provides additional gains, but the effect is \emph{datase
     \item \textbf{Over-optimization risk}: On FinanceBench, MIPROv2 (0.368) \emph{underperforms} Unopt (0.404), suggesting that domain-specific data may benefit from conservative optimization or domain-adapted training examples.
 \end{itemize}
 
-\paragraph{Latency reduction.}
+\paragraph{Latency reduction}
 An unexpected benefit of optimization is reduced inference latency: Bootstrap and MIPROv2 variants complete in 2--3 seconds per question versus 19--24 seconds for Manual/Unopt (Table~\ref{tab:rq5_latency}).
 Pre-computed few-shot demonstrations reduce the amount of in-context reasoning required, effectively trading optimization-time compute for inference-time efficiency.
 
@@ -236,6 +240,6 @@ DSPy + MIPROv2   & 2.5 & 0.1 & 2.7 & 3.3 \\
 \end{tabular}
 \end{table}
 
-\paragraph{Key finding.}
+\paragraph{Key finding}
 DSPy provides a two-level contribution: (1) the \emph{structural benefit} of typed Signatures alone is the single largest improvement in our experiments ($+0.1$--$0.2$ F1), and (2) automatic optimization provides additional dataset-dependent gains.
 This supports the practical value of declarative LM programming for RAG systems.
