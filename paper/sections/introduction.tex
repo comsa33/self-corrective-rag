@@ -20,7 +20,7 @@ The agent autonomously reasons about retrieval quality and selects appropriate t
 Second, we implement the entire pipeline as a \textbf{DSPy declarative program}~\cite{khattab2024dspy}, replacing hand-crafted prompts with typed Signatures that enable both structured prompting and automatic optimization through BootstrapFewShot and MIPROv2~\cite{opsahl2024miprov2}.
 
 We evaluate \ours{} on four datasets: three multi-hop QA benchmarks (HotpotQA~\cite{yang2018hotpotqa}, 2WikiMultiHopQA~\cite{ho2020wiki2multi}, MuSiQue~\cite{trivedi2022musique}) and an enterprise financial QA benchmark (FinanceBench~\cite{financebench2023}).
-Results demonstrate that the agentic approach consistently outperforms fixed-loop and single-pass baselines on complex multi-hop questions, with F1 improvements of $+0.069$ on 2WikiMultiHopQA and $+0.051$ on MuSiQue.
+Results demonstrate that the agentic approach outperforms fixed-loop and single-pass baselines on complex multi-hop questions, with F1 improvements of $+0.069$ on 2WikiMultiHopQA and $+0.051$ on MuSiQue, while showing comparable performance on simpler 2-hop questions.
 DSPy's typed Signatures alone improve F1 by 0.1--0.2 over manual prompts, with additional gains from automatic optimization.
 
 The main contributions of this paper are:

@@ -94,8 +94,6 @@ All experiments use Gemini Flash Lite\footnote{Model~ID: \texttt{gemini/gemini-3
 Embeddings use all-MiniLM-L6-v2 (384 dimensions) via sentence-trans\-formers~\cite{reimers2019sentence}.
 Temperature is set to 0.0 for reproducibility.
 
-% TODO: Add cross-model results (GPT-4o-mini) after scale-up experiments
-
 \paragraph{Retrieval}
 FAISS indices use inner product search with L2-normalized embeddings (equivalent to cosine similarity).
 BM25 uses the rank-bm25 library with default parameters.

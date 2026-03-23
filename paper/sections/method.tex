@@ -85,7 +85,7 @@ The agent has access to six tools, each implemented as a closure over shared pip
     \item \textbf{\texttt{get\_terminology}$(term)$}: Maps user-facing terms to document-internal terminology, bridging vocabulary gaps between questions and corpus language.
 \end{enumerate}
 
-Additionally, a \texttt{calculate} tool handles numerical computations for domain-specific questions (\eg, financial calculations).
+An optional \texttt{calculate} tool is available for domain-specific numerical computations (\eg, financial calculations) but is not part of the six core retrieval tools.
 
 \subsubsection{Agent Protocol}
 \label{subsubsec:protocol}
