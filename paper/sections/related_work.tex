@@ -8,9 +8,9 @@
 % ---------------------------------------------------------------------------
 
 Retrieval-Augmented Generation~\cite{lewis2020rag} grounds LLM outputs in externally retrieved evidence, combining a retriever with a generator.
-Early approaches use a single retrieval pass with dense retrievers such as DPR~\cite{karpukhin2020dense} and ColBERT~\cite{khattab2020colbert}, or sparse methods like BM25~\cite{robertson2009bm25}.
+Early approaches use a single retrieval pass with dense retrievers such as DPR~\cite{karpukhin2020dense} and ColBERT~\cite{khattab2020colbert}, both building on contextualized BERT~\cite{devlin2019bert} representations, or sparse methods like BM25~\cite{robertson2009bm25}.
 Pre-training with retrieval objectives (REALM~\cite{guu2020realm}) and retrieval-augmented generation architectures (Fusion-in-Decoder~\cite{izacard2021leveraging}, Atlas~\cite{izacard2023atlas}) further improve knowledge grounding.
-Recent work improves retrieval quality through query rewriting~\cite{ma2023query}, hypothetical document embeddings (HyDE)~\cite{gao2023hyde}, and hybrid retrieval combining dense and sparse methods via Reciprocal Rank Fusion (RRF)~\cite{cormack2009rrf}.
+Recent work improves retrieval quality through query rewriting~\cite{ma2023query}, hypothetical document embeddings (HyDE)~\cite{gao2023hyde}, LLM-augmented dense retrieval~\cite{peng2025sptar,silva2024improving}, and hybrid retrieval combining dense and sparse methods via Reciprocal Rank Fusion (RRF)~\cite{cormack2009rrf}.
 For a comprehensive survey of RAG methods, we refer readers to Gao et al.~\cite{gao2024ragsurvey}.
 
 Our work builds on this foundation by employing hybrid FAISS~\cite{johnson2019faiss} + BM25 retrieval with RRF fusion as the base retrieval mechanism, enhanced by agentic refinement that iteratively improves retrieval quality through tool-augmented reasoning.
@@ -30,6 +30,9 @@ However, CRAG's single-pass correction with binary evaluation provides limited r
 
 \textbf{Adaptive-RAG}~\cite{jeong2024adaptiverag} routes questions to different retrieval strategies based on estimated complexity, using a classifier trained to distinguish simple, moderate, and complex questions.
 This complexity-aware approach is complementary to our work; our findings similarly show complexity-dependent improvement patterns.
+
+Multi-hop dense retrieval methods offer an alternative approach: MDR~\cite{xiong2021mdr} performs iterative retrieval by encoding the question with previously retrieved passages, Baleen~\cite{khattab2021baleen} uses condensed summarization between retrieval hops, and BeamDR~\cite{zhao2021beamdr} applies beam search in the dense representation space.
+Datasets such as IIRC~\cite{ferguson2020iirc} further test retrieval under incomplete information.
 
 Other iterative retrieval approaches include \textbf{FLARE}~\cite{jiang2023flare}, which triggers retrieval when the model's generation confidence drops below a threshold;
 \textbf{IRCoT}~\cite{trivedi2023ircot}, which interleaves retrieval with chain-of-thought reasoning steps for multi-hop questions;
@@ -71,11 +74,13 @@ MRKL~\cite{karpas2022mrkl} proposes a modular neuro-symbolic architecture combin
 Toolformer~\cite{schick2023toolformer} trains models to autonomously decide when and how to call tools via self-supervised learning.
 ART~\cite{paranjape2023art} automatically generates multi-step reasoning programs that interleave reasoning with tool calls.
 ReAct~\cite{yao2023react} interleaves reasoning traces with actions in a Thought--Action--Observation loop, enabling models to plan, execute, and refine their approach dynamically.
+Related reasoning paradigms include Tree of Thoughts~\cite{yao2023tree}, which explores multiple reasoning paths via tree search, and RAP~\cite{hao2023reasoning}, which frames LM reasoning as planning with a world model.
 Reflexion~\cite{shinn2023reflexion} extends this with verbal reinforcement learning, where agents reflect on failures to improve subsequent attempts.
 
-Broader agent frameworks have also emerged: HuggingGPT~\cite{shen2023hugginggpt} orchestrates specialized AI models as tools, and AgentBench~\cite{liu2024agentbench} provides a benchmark for evaluating LLMs as autonomous agents across diverse environments.
+Broader agent frameworks have also emerged: HuggingGPT~\cite{shen2023hugginggpt} orchestrates specialized AI models as tools, ToolLLM~\cite{qin2024toolllm} facilitates tool mastery across 16,000+ APIs, and AgentBench~\cite{liu2024agentbench} provides a benchmark for evaluating LLMs as autonomous agents across diverse environments.
+Additional benchmarks such as SWE-bench~\cite{jimenez2024swebench} and WebArena~\cite{zhou2024webarena} evaluate agents in software engineering and web navigation contexts, respectively.
 
-In the RAG context, agentic approaches have emerged that use LLM agents to orchestrate retrieval.
+In the RAG context, agentic approaches have emerged that use LLM agents to orchestrate retrieval~\cite{singh2025agenticrag}.
 Recent work explores multi-step retrieval agents that decompose complex queries~\cite{khot2023decomposed}, perform iterative search, and synthesize evidence from multiple sources.
 However, most existing agentic RAG systems focus on a single tool (search) with fixed orchestration logic, rather than providing a diverse tool set with autonomous tool selection.
 

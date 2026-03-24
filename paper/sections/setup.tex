@@ -8,6 +8,7 @@
 % ---------------------------------------------------------------------------
 
 We evaluate \ours{} on four datasets spanning multi-hop reasoning and enterprise document QA, summarized in Table~\ref{tab:datasets}.
+For a comprehensive survey of multi-hop QA methods, we refer readers to Mavi et al.~\cite{mavi2024multihop}.
 
 \begin{table}[t]
 \centering
@@ -35,6 +36,7 @@ This dataset tests deeper reasoning chains than HotpotQA.
 It is generally considered the most challenging of the three multi-hop datasets.
 
 \textbf{FinanceBench}~\cite{financebench2023} provides questions over real SEC filings (10-K, 10-Q, 8-K reports), requiring numerical reasoning and domain-specific terminology understanding.
+Related financial QA benchmarks include FinQA~\cite{chen2021finqa} for numerical reasoning over financial tables and DocFinQA~\cite{reddy2024docfinqa} for long-context financial documents.
 This dataset evaluates practical applicability in enterprise settings where external web search is unavailable.
 
 Each dataset provides its own context paragraphs (supporting documents plus distractors), which we use as the retrieval corpus.
@@ -83,6 +85,8 @@ We use three primary metrics and one secondary metric:
 \end{itemize}
 
 We also report \textbf{average latency} per question to quantify the computational cost--quality trade-off.
+We note that alternative evaluation frameworks exist for RAG systems, including RAGAS~\cite{es2024ragas} for component-level evaluation, FActScore~\cite{min2023factscore} for fine-grained factual precision, and BERTScore~\cite{zhang2020bertscore} for semantic similarity.
+We focus on EM, F1, and LLM-as-Judge as they directly measure answer correctness and are standard in the multi-hop QA literature.
 
 % ---------------------------------------------------------------------------
 \subsection{Implementation Details}
@@ -90,7 +94,7 @@ We also report \textbf{average latency} per question to quantify the computation
 % ---------------------------------------------------------------------------
 
 \paragraph{Models}
-All experiments use Gemini Flash Lite\footnote{Model~ID: \texttt{gemini/gemini-3.1-flash-lite-preview}} for all four LLM slots (preprocessing, evaluation, generation, agent) via LiteLLM.
+All experiments use Gemini Flash Lite~\cite{geminiteam2023gemini}\footnote{Model~ID: \texttt{gemini/gemini-3.1-flash-lite-preview}} for all four LLM slots (preprocessing, evaluation, generation, agent) via LiteLLM.
 Embeddings use all-MiniLM-L6-v2 (384 dimensions) via sentence-trans\-formers~\cite{reimers2019sentence}.
 Temperature is set to 0.0 for reproducibility.
 

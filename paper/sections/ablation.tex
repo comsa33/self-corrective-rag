@@ -96,7 +96,7 @@ This is an honest negative result: the structure-aware tools do not provide meas
 \paragraph{Analysis}
 We attribute this negative result to two factors:
 \begin{enumerate}
-    \item \textbf{Pre-chunked corpus.} FinanceBench documents are already segmented into well-defined passages during index construction. Section browsing provides little additional value when the corpus is already appropriately chunked for retrieval.
+    \item \textbf{Pre-chunked corpus.} FinanceBench documents are already segmented into well-defined passages during index construction~\cite{jimeno2024financial,zhao2025metachunking}. Section browsing provides little additional value when the corpus is already appropriately chunked for retrieval.
 
     \item \textbf{Marginal tool overhead.} Each additional tool increases the agent's action space and requires LLM reasoning to decide whether to invoke it. On this benchmark, the cognitive overhead of considering structure tools outweighs any retrieval benefit.
 \end{enumerate}
