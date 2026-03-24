@@ -38,6 +38,23 @@ from agentic_rag.config.loader import (
     load_experiment_config,
 )
 from agentic_rag.config.settings import settings
+
+
+def _model_tag() -> str:
+    """Extract a short model tag from the current generate model for result dirs.
+
+    e.g. 'gemini/gemini-3.1-flash-lite-preview' -> 'gemini-3.1-flash-lite'
+         'openai/gpt-5-mini' -> 'gpt-5-mini'
+    """
+    model = settings.model.generate_model
+    # Strip provider prefix
+    name = model.split("/")[-1] if "/" in model else model
+    # Strip common suffixes
+    for suffix in ("-preview", "-latest"):
+        name = name.removesuffix(suffix)
+    return name
+
+
 from experiments.common import (
     load_dataset,
     load_retriever,
@@ -68,6 +85,7 @@ def _run_variant(
     indexer,
     request_delay: float = 0.0,
     trainset: list | None = None,
+    checkpoint_dir: Path | None = None,
 ) -> list[dict]:
     """Run a single variant: apply settings, create pipeline, execute.
 
@@ -93,7 +111,13 @@ def _run_variant(
         _apply_optimization(variant.optimization, pipeline, trainset)
 
     slug = variant.name.lower().replace(" ", "_").replace("/", "_")
-    return run_pipeline_on_dataset(pipeline, dataset, slug, request_delay=request_delay)
+    return run_pipeline_on_dataset(
+        pipeline,
+        dataset,
+        slug,
+        request_delay=request_delay,
+        checkpoint_dir=checkpoint_dir,
+    )
 
 
 def _collect_training_data(
@@ -296,8 +320,11 @@ def run_experiment(
         )
 
     all_results: dict[str, list[dict]] = {}
+    config_stem = Path(config_path).stem
+    checkpoint_base = settings.results_dir / "checkpoints" / f"{config_stem}_{dataset_name}"
     for variant in exp.variants:
         logger.info(f"  Running variant: {variant.name}")
+        slug = variant.name.lower().replace(" ", "_").replace("/", "_")
         results = _run_variant(
             variant,
             test_data,
@@ -305,6 +332,7 @@ def run_experiment(
             indexer,
             request_delay,
             trainset=trainset if variant.optimization else None,
+            checkpoint_dir=checkpoint_base / slug,
         )
         all_results[variant.name] = results
 
@@ -317,7 +345,10 @@ def run_experiment(
     run_timestamp = time.strftime("%Y%m%d_%H%M%S")
     config_stem = Path(config_path).stem
     n_label = f"n{len(test_data)}" if test_data else ""
-    run_dir = settings.results_dir / f"{run_timestamp}_{config_stem}_{dataset_name}_{n_label}"
+    model = _model_tag()
+    run_dir = (
+        settings.results_dir / f"{run_timestamp}_{config_stem}_{dataset_name}_{n_label}_{model}"
+    )
     for name, results in all_results.items():
         slug = name.lower().replace(" ", "_").replace("/", "_")
         save_results(
@@ -354,9 +385,18 @@ def run_ablation(
     retriever, indexer = load_retriever(dataset_name=dataset_name)
 
     all_results: dict[str, list[dict]] = {}
+    checkpoint_base = settings.results_dir / "checkpoints" / f"ablation_{dataset_name}"
     for variant in variants:
         logger.info(f"  Running ablation variant: {variant.name}")
-        results = _run_variant(variant, dataset, retriever, indexer, request_delay)
+        slug = variant.name.lower().replace(" ", "_").replace("/", "_")
+        results = _run_variant(
+            variant,
+            dataset,
+            retriever,
+            indexer,
+            request_delay,
+            checkpoint_dir=checkpoint_base / slug,
+        )
         all_results[variant.name] = results
 
     print_comparison_table(
@@ -366,7 +406,8 @@ def run_ablation(
     )
     run_timestamp = time.strftime("%Y%m%d_%H%M%S")
     n_label = f"n{len(dataset)}" if dataset else ""
-    run_dir = settings.results_dir / f"{run_timestamp}_ablation_{dataset_name}_{n_label}"
+    model = _model_tag()
+    run_dir = settings.results_dir / f"{run_timestamp}_ablation_{dataset_name}_{n_label}_{model}"
     for name, results in all_results.items():
         slug = name.lower().replace(" ", "_").replace("/", "_")
         save_results(

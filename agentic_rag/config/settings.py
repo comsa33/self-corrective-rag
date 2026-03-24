@@ -169,6 +169,10 @@ def make_lm(model: str, **kwargs):
     Centralizes LM creation so rate-limit retry settings are consistent.
     """
     import dspy
+    import litellm
+
+    # gpt-5 reasoning models don't support temperature; drop unsupported params
+    litellm.drop_params = True
 
     defaults = {
         "temperature": settings.model.temperature,

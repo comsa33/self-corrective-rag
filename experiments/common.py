@@ -100,17 +100,40 @@ def run_pipeline_on_dataset(
     dataset: list[dict],
     pipeline_name: str = "pipeline",
     request_delay: float = 0.0,
+    checkpoint_dir: Path | None = None,
 ) -> list[dict]:
     """Run a pipeline on a dataset and collect results.
 
     Args:
         request_delay: Seconds to wait between items (for API rate limiting).
+        checkpoint_dir: If provided, saves incremental results every 10 items
+            to ``checkpoint_dir/<pipeline_name>_checkpoint.jsonl``.
+            On crash, existing checkpoint can be loaded to resume.
 
     Returns list of result dicts with predictions and metadata.
     """
     results = []
+    checkpoint_path = None
+    start_idx = 0
+
+    # Resume from checkpoint if exists
+    if checkpoint_dir is not None:
+        checkpoint_dir = Path(checkpoint_dir)
+        checkpoint_dir.mkdir(parents=True, exist_ok=True)
+        checkpoint_path = checkpoint_dir / f"{pipeline_name}_checkpoint.jsonl"
+
+        if checkpoint_path.exists():
+            with open(checkpoint_path, encoding="utf-8") as f:
+                for line in f:
+                    results.append(json.loads(line.strip()))
+            start_idx = len(results)
+            logger.info(
+                f"[{pipeline_name}] Resumed from checkpoint: {start_idx}/{len(dataset)} done"
+            )
 
     for i, item in enumerate(dataset):
+        if i < start_idx:
+            continue
         if i > 0 and request_delay > 0:
             time.sleep(request_delay)
         question = item["question"]
@@ -158,6 +181,18 @@ def run_pipeline_on_dataset(
 
         if (i + 1) % 10 == 0:
             logger.info(f"[{pipeline_name}] {i + 1}/{len(dataset)} done")
+            # Incremental checkpoint save
+            if checkpoint_path is not None:
+                with open(checkpoint_path, "w", encoding="utf-8") as f:
+                    for r in results:
+                        f.write(json.dumps(r, ensure_ascii=False, default=str) + "\n")
+                logger.debug(f"[{pipeline_name}] Checkpoint saved: {len(results)} items")
+
+    # Final checkpoint save
+    if checkpoint_path is not None:
+        with open(checkpoint_path, "w", encoding="utf-8") as f:
+            for r in results:
+                f.write(json.dumps(r, ensure_ascii=False, default=str) + "\n")
 
     return results
 
