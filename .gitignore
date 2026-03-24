@@ -22,6 +22,7 @@ data/raw/
 data/processed/
 data/indices/
 data/results/
+data/optimization/
 
 # Jupyter
 .ipynb_checkpoints/
