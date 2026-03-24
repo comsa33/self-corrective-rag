@@ -15,7 +15,7 @@
 \bibliographystyle{elsarticle-num}
 
 % Custom commands
-\newcommand{\ours}{\textsc{AgenticRAG}}
+\newcommand{\ours}{\textsc{TARA}}
 \newcommand{\ie}{\textit{i.e.}}
 \newcommand{\eg}{\textit{e.g.}}
 \newcommand{\cf}{\textit{cf.}}
@@ -27,14 +27,18 @@
 
 \begin{frontmatter}
 
-\title{Agentic Self-Corrective RAG: Autonomous Retrieval Refinement via Tool-Augmented Language Models}
+\title{TARA: Complexity-Adaptive Retrieval Refinement through Tool-Augmented ReAct Agents}
 
-\author[1]{Ruo Lee\corref{cor1}}
-\cortext[cor1]{Corresponding author}
+\author[1]{Ruo Lee}
 \ead{comsa333@gmail.com}
 \affiliation[1]{organization={Department of Artificial Intelligence},
                addressline={Seoul School of Integrated Sciences \& Technologies (aSSIST)},
                city={Seoul}, country={South Korea}}
+
+% TODO: 지도교수 확정 후 추가
+% \author[1]{교수명\corref{cor1}}
+% \cortext[cor1]{Corresponding author}
+% \ead{교수이메일}
 
 \begin{abstract}
 Retrieval-Augmented Generation (RAG) has emerged as a practical approach to ground large language model (LLM) outputs in external knowledge.
@@ -48,8 +52,8 @@ Comprehensive ablation studies reveal that the evaluation tool functions as a qu
 \end{abstract}
 
 \begin{highlights}
-\item ReAct agent with six tools autonomously refines retrieval for multi-hop QA
-\item Agentic approach improves F1 by 0.051--0.069 on complex multi-hop datasets
+\item TARA: ReAct agent with six tools for autonomous retrieval refinement
+\item Complexity-adaptive gains: F1 +0.051--0.069 on complex multi-hop datasets
 \item DSPy typed signatures boost F1 by 0.1--0.2 over manual prompt engineering
 \item Comprehensive ablation reveals evaluation tool as quality gate mechanism
 \item Evaluated on four datasets including enterprise financial documents
