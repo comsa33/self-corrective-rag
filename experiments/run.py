@@ -321,7 +321,9 @@ def run_experiment(
 
     all_results: dict[str, list[dict]] = {}
     config_stem = Path(config_path).stem
-    checkpoint_base = settings.results_dir / "checkpoints" / f"{config_stem}_{dataset_name}"
+    checkpoint_base = (
+        settings.results_dir / "checkpoints" / f"{config_stem}_{dataset_name}_{_model_tag()}"
+    )
     for variant in exp.variants:
         logger.info(f"  Running variant: {variant.name}")
         slug = variant.name.lower().replace(" ", "_").replace("/", "_")
@@ -385,7 +387,9 @@ def run_ablation(
     retriever, indexer = load_retriever(dataset_name=dataset_name)
 
     all_results: dict[str, list[dict]] = {}
-    checkpoint_base = settings.results_dir / "checkpoints" / f"ablation_{dataset_name}"
+    checkpoint_base = (
+        settings.results_dir / "checkpoints" / f"ablation_{dataset_name}_{_model_tag()}"
+    )
     for variant in variants:
         logger.info(f"  Running ablation variant: {variant.name}")
         slug = variant.name.lower().replace(" ", "_").replace("/", "_")

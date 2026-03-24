@@ -178,5 +178,10 @@ def make_lm(model: str, **kwargs):
         "temperature": settings.model.temperature,
         "num_retries": settings.model.num_retries,
     }
+    # gpt-5 reasoning models: set low reasoning effort for fair comparison
+    model_lower = model.lower()
+    if "gpt-5" in model_lower and "reasoning_effort" not in kwargs:
+        defaults["reasoning_effort"] = "low"
+
     defaults.update(kwargs)
     return dspy.LM(model, **defaults)
