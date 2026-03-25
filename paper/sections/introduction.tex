@@ -11,7 +11,7 @@ Self-corrective RAG methods~\cite{yan2024crag,asai2024selfrag} address this by i
 
 Existing self-corrective approaches suffer from two fundamental limitations.
 First, they rely on \emph{fixed iterative loops} with predetermined refinement strategies---retrieve, evaluate, refine query, repeat---that cannot adapt their strategy based on intermediate findings.
-A complex 4-hop question receives the same number of refinement iterations as a simple 2-hop question, regardless of whether the evidence gap has been resolved.
+A complex 4-hop question receives the same number of refinement iterations as a simple 2-hop question, regardless of whether the evidence gaps have been resolved.
 Second, they employ \emph{manual prompt engineering} for each pipeline stage, requiring careful hand-tuning of prompt templates that are fragile and difficult to optimize systematically.
 
 We propose \ours{} (\textbf{T}ool-\textbf{A}ugmented \textbf{R}etrieval \textbf{A}gent), a framework that addresses both limitations through two key design decisions.
@@ -20,9 +20,9 @@ The agent autonomously reasons about retrieval quality and selects appropriate t
 Second, we implement the entire pipeline as a \textbf{DSPy declarative program}~\cite{khattab2024dspy}, replacing hand-crafted prompts with typed Signatures that enable both structured prompting and automatic optimization through BootstrapFewShot and MIPROv2~\cite{opsahl2024miprov2}.
 
 We evaluate \ours{} on four datasets: three multi-hop QA benchmarks (HotpotQA~\cite{yang2018hotpotqa}, 2WikiMultiHopQA~\cite{ho2020wiki2multi}, MuSiQue~\cite{trivedi2022musique}) and an enterprise financial QA benchmark (FinanceBench~\cite{financebench2023}).
-Evaluated on $n = 200$ samples per dataset with paired bootstrap significance testing, results demonstrate that the agentic approach achieves statistically significant improvement over all baselines on 2WikiMultiHopQA (F1 $+0.089$, $p < 0.001$), with consistent positive trends on MuSiQue ($+0.039$).
-Cross-model validation with gpt-5-mini reveals a model--pipeline interaction effect---\emph{Reasoning Model Refusal Asymmetry}---where reasoning-oriented models apply excessive evidentiary standards in agentic pipelines, providing practical guidance for model-aware pipeline selection.
-DSPy's typed Signatures alone improve F1 by 0.075--0.190 over manual prompts on three of four datasets, with additional gains from automatic optimization.
+Using $n = 200$ samples per dataset with paired bootstrap significance testing, we demonstrate that the agentic approach achieved statistically significant improvement over all baselines on 2WikiMultiHopQA (F1 $+0.089$, $p < 0.001$), with consistent positive trends on MuSiQue ($+0.039$).
+Cross-model validation with gpt-5-mini revealed a model--pipeline interaction effect---\emph{Reasoning Model Refusal Asymmetry}---where reasoning-oriented models apply excessive evidentiary standards in agentic pipelines, providing practical guidance for model-aware pipeline selection.
+DSPy's typed Signatures alone improved F1 by 0.075--0.190 over manual prompts on three of four datasets, with additional gains from automatic optimization.
 
 The main contributions of this paper are:
 \begin{enumerate}

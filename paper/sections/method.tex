@@ -48,7 +48,7 @@ Figure~\ref{fig:architecture} illustrates the \ours{} pipeline, and Figure~\ref{
 \begin{enumerate}
     \item \textbf{Query Preprocessing.} The input question $q$ is rephrased into a standalone search query $q'$ and a set of search keywords $\mathcal{K}$ using a ChainOfThought module (DSPy \texttt{PreprocessSignature}). Optionally, a Hypothetical Document Embedding (HyDE)~\cite{gao2023hyde} query is generated for improved dense retrieval.
 
-    \item \textbf{ReAct Agentic Refinement.} The preprocessed query is passed to a ReAct agent equipped with six tools (\S\ref{subsec:agent}). The agent iteratively searches, decomposes, evaluates, and inspects passages through autonomous reasoning. This stage replaces the fixed for-loop in prior work.
+    \item \textbf{ReAct Agentic Refinement.} The preprocessed query is passed to a ReAct agent equipped with six tools (\S\ref{subsec:agent}). The agent iteratively searches, decomposes, evaluates, and inspects passages through autonomous reasoning. This stage replaces the fixed iterative loop in prior work.
 
     \item \textbf{Passage Merging.} Agent-selected passages are merged with initial retrieval results (from Stage 1) using priority-based deduplication: agent-refined passages take precedence, followed by initial results, capped at $M = 30$ passages.
 
@@ -72,7 +72,7 @@ The signature's docstring serves as a structured protocol, guiding the agent thr
 The agent has access to six tools, each implemented as a closure over shared pipeline components (retriever, indexer, evaluator):
 
 \begin{enumerate}
-    \item \textbf{\texttt{search\_passages}$(q, \mathcal{K})$}: Executes hybrid retrieval (FAISS + BM25 with RRF fusion) and returns passage previews (first 200 characters) to conserve context. This is the primary retrieval tool, called 3--4 times per question on average.
+    \item \textbf{\texttt{search\_passages}$(q, \mathcal{K})$}: Executes hybrid retrieval (FAISS + BM25 with RRF fusion) and returns passage previews (first 200 characters) to conserve context. This is the primary retrieval tool, called on average 3--4 times per question.
 
     \item \textbf{\texttt{decompose\_query}$(q)$}: Decomposes a complex multi-hop question into 2--4 independent sub-questions using a DSPy \texttt{DecomposeQuerySignature}. Returns a boolean \texttt{is\_multi\_hop} flag and the sub-question list.
 
@@ -127,7 +127,7 @@ The quality threshold decreases with each evaluation attempt to prevent over-ite
     \label{eq:progressive}
 \end{equation}
 where $\tau = 40$ is the base threshold.
-This ensures the agent eventually terminates with the best available passages rather than endlessly searching for marginally better results.
+This ensures the agent eventually terminates with the best available passages rather than continuing to search for marginally improved results.
 
 \paragraph{Structured Feedback}
 When the evaluation score falls below the threshold, the evaluation tool provides targeted feedback---suggested queries, keywords to add or remove---that directly informs the agent's next search action.
@@ -163,9 +163,9 @@ Each Signature's docstring provides task-specific instructions and scoring guide
 
 Signatures are composed with DSPy modules:
 \begin{itemize}
-    \item \texttt{ChainOfThought}~\cite{wei2022chain}: Wraps PreprocessSignature and QnAGenerateSignature to elicit step-by-step reasoning before outputs.
-    \item \texttt{Predict}: Wraps EvaluationSignature for direct structured output.
-    \item \texttt{ReAct}: Wraps AgenticRefinementSignature with tool integration, implementing the Thought--Action--Observation loop.
+    \item \texttt{ChainOfThought}~\cite{wei2022chain}: Wraps the PreprocessSignature and QnAGenerateSignature to elicit step-by-step reasoning before outputs.
+    \item \texttt{Predict}: Wraps the EvaluationSignature for direct structured output.
+    \item \texttt{ReAct}: Wraps the AgenticRefinementSignature with tool integration, implementing the Thought--Action--Observation loop.
 \end{itemize}
 
 \subsubsection{Automatic Optimization}
@@ -199,8 +199,8 @@ BM25~\cite{robertson2009bm25} provides lexical matching for keyword-heavy querie
 \paragraph{Reciprocal Rank Fusion}
 The results from both retrievers are combined using RRF:
 \begin{equation}
-    \text{RRF}(d) = \sum_{r \in \{dense, sparse\}} \frac{1}{k + \text{rank}_r(d)},
+    \text{RRF}(d) = \sum_{r \in \{dense, sparse\}} \frac{1}{\kappa + \text{rank}_r(d)},
     \label{eq:rrf}
 \end{equation}
-where $k = 60$ is a constant and $\text{rank}_r(d)$ is the rank of document $d$ in retriever $r$'s result list.
-The fused ranking is used as the final retrieval output, with $k_{\text{top}} = 50$ results returned per query.
+where $\kappa = 60$ is a smoothing constant and $\text{rank}_r(d)$ is the rank of document $d$ in retriever $r$'s result list.
+The fused ranking is used as the final retrieval output, with the top $k = 50$ results returned per query.

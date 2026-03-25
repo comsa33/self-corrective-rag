@@ -10,7 +10,7 @@
 Retrieval-Augmented Generation~\cite{lewis2020rag} grounds LLM outputs in externally retrieved evidence, combining a retriever with a generator.
 Early approaches use a single retrieval pass with dense retrievers such as DPR~\cite{karpukhin2020dense} and ColBERT~\cite{khattab2020colbert}, both building on contextualized BERT~\cite{devlin2019bert} representations, or sparse methods like BM25~\cite{robertson2009bm25}.
 Pre-training with retrieval objectives (REALM~\cite{guu2020realm}) and retrieval-augmented generation architectures (Fusion-in-Decoder~\cite{izacard2021leveraging}, Atlas~\cite{izacard2023atlas}) further improve knowledge grounding.
-Recent work improves retrieval quality through query rewriting~\cite{ma2023query}, hypothetical document embeddings (HyDE)~\cite{gao2023hyde}, LLM-augmented dense retrieval~\cite{peng2025sptar,silva2024improving}, and hybrid retrieval combining dense and sparse methods via Reciprocal Rank Fusion (RRF)~\cite{cormack2009rrf}.
+Recent work improves retrieval quality through query rewriting~\cite{ma2023query}, hypothetical document embeddings (HyDE)~\cite{gao2023hyde}, LLM-augmented dense retrieval~\cite{peng2025sptar,silva2024improving}, hybrid retrieval combining dense and sparse methods via Reciprocal Rank Fusion (RRF)~\cite{cormack2009rrf}, and document chunking strategies tailored to specific domains~\cite{zhao2025metachunking,jimeno2024financial}.
 For a comprehensive survey of RAG methods, we refer readers to Gao et al.~\cite{gao2024ragsurvey}.
 
 Our work builds on this foundation by employing hybrid FAISS~\cite{johnson2019faiss} + BM25 retrieval with RRF fusion as the base retrieval mechanism, enhanced by agentic refinement that iteratively improves retrieval quality through tool-augmented reasoning.
@@ -102,4 +102,4 @@ BootstrapFewShot collects successful execution traces and uses them as few-shot 
 MIPROv2 extends this by jointly optimizing natural language instructions and demonstrations using Bayesian surrogate models.
 
 While DSPy has been applied to various NLP tasks, its application to self-corrective RAG pipelines---particularly in combination with ReAct agents and multi-tool orchestration---has not been systematically studied.
-Our work demonstrates that DSPy's structured prompting provides substantial benefits even without optimization ($+0.1$--$0.2$ F1), with additional gains from automatic optimization that are dataset-dependent.
+Our work demonstrates that DSPy's structured prompting provides substantial benefits even without optimization ($+0.075$--$0.190$ F1), with additional gains from automatic optimization that are dataset-dependent.

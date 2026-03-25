@@ -144,7 +144,7 @@ Loop Refinement  & .510 & .689 & .750 & .425 & .510 & .540 & .370 & .505 & .485 
 \paragraph{Model--pipeline interaction effect}
 The cross-model experiment reveals a striking reversal: with gpt-5-mini, CRAG Replica outperforms \ours{} on 2WikiMultiHopQA (F1 0.637 vs.\ 0.551, $p = 0.004$) and FinanceBench (F1 0.343 vs.\ 0.317, $p = 0.042$).
 This contrasts sharply with the Gemini results, where \ours{} leads on both datasets.
-The reversal is driven by what we term \emph{Reasoning Model Refusal Asymmetry}: gpt-5-mini's reasoning capabilities lead it to apply higher evidentiary standards within the ReAct framework, resulting in a 30\% answer refusal rate on 2WikiMultiHopQA (compared to CRAG's 18\%).
+The reversal is driven by what we term \emph{Reasoning Model Refusal Asymmetry}: the reasoning capabilities of gpt-5-mini lead it to apply higher evidentiary standards within the ReAct framework, resulting in a 30\% answer refusal rate on 2WikiMultiHopQA (compared to 18\% for CRAG).
 CRAG's rigid judge--correct--generate pipeline precludes refusal, ensuring an answer is always produced.
 We analyze this phenomenon in detail in \S\ref{subsec:model_interaction}.
 
@@ -182,7 +182,7 @@ Loop Refinement & 3.1 & 1.7 & 3.6 & 2.7 \\
 \ours{} requires 14--17 seconds per question, approximately 4--5$\times$ slower than Loop Refinement and 30--50$\times$ slower than Naive RAG.
 This overhead stems from the ReAct reasoning loop: each iteration involves LLM inference for thought generation, tool selection, and observation processing.
 With an average of 5.4--6.2 tool calls per question (see \S\ref{subsec:rq2}), the agent performs substantially more LLM calls than the fixed-loop approach.
-With gpt-5-mini, latency increases further (45.7s per question on 2WikiMultiHopQA) due to the model's reasoning overhead, while CRAG requires 147.8s due to its multi-stage pipeline involving 45.2 LLM calls per question.
+With gpt-5-mini, latency increases further to 45.7s per question on 2WikiMultiHopQA due to the model's reasoning overhead. CRAG requires 147.8s per question with gpt-5-mini, as its multi-stage pipeline involves 45.2 LLM calls per question.
 We discuss the latency--quality trade-off and practical implications in \S\ref{sec:discussion}.
 
 % ---------------------------------------------------------------------------
@@ -232,8 +232,8 @@ Conversely, FinanceBench requires the fewest searches (1.9), reflecting its smal
 This progressive disclosure reduces context window consumption while maintaining retrieval precision.
 
 \paragraph{Structure-aware navigation}
-\texttt{list\_document\_sections} is rarely used on Wikipedia-based datasets ($\leq 0.1$/q) but more frequently on MuSiQue (0.4/q) and FinanceBench (0.5/q), where complex document structures benefit from hierarchical navigation.
-In contrast, \texttt{get\_terminology} is virtually unused across all datasets ($< 0.1$/q), indicating that the vocabulary gap between questions and corpus language is not a significant bottleneck for these benchmarks.
+\texttt{list\_document\_sections} is rarely used on Wikipedia-based datasets ($\leq 0.1$ per question) but more frequently on MuSiQue (0.4 per question) and FinanceBench (0.5 per question), where complex document structures benefit from hierarchical navigation.
+In contrast, \texttt{get\_terminology} is virtually unused across all datasets ($< 0.1$ calls per question), indicating that the vocabulary gap between questions and corpus language is not a significant bottleneck for these benchmarks.
 
 \paragraph{Domain-adaptive tool selection}
 On FinanceBench, the agent invokes \texttt{calculate} (0.4 calls per question) for numerical computations such as margin calculations and year-over-year comparisons.
@@ -254,7 +254,7 @@ Analysis of ReAct trajectories reveals three dominant behavioral patterns:
     \item \textbf{Decompose--Search--Evaluate--Refine} (iterative refinement): When the initial evaluation score falls below the quality threshold, the agent uses evaluation feedback to refine the query, performs an additional search, and re-evaluates.
 \end{enumerate}
 
-Notably, the agent \emph{spontaneously develops} these structured protocols through ReAct reasoning, despite having access to a broader set of tools and no hard-coded execution sequence.
+Notably, the agent \emph{converges on} these structured protocols through ReAct reasoning, despite having access to a broader set of tools and no hard-coded execution sequence.
 The protocol is suggested in the agent's signature docstring but not enforced---the agent could deviate but consistently converges on these patterns across all 800+ questions evaluated.
 
 % ---------------------------------------------------------------------------
@@ -302,11 +302,11 @@ Automatic optimization provides additional gains, but the effect is \emph{datase
 \begin{itemize}
     \item \textbf{BootstrapFewShot} excels on structured multi-hop tasks: best F1 on HotpotQA (0.681, $+0.031$ over Unopt) and 2WikiMultiHopQA (0.647, $+0.046$). Successful execution traces as few-shot examples help the model recognize multi-hop retrieval patterns.
 
-    \item \textbf{MIPROv2} excels on complex reasoning: best F1 on MuSiQue (0.525, $+0.069$ over Unopt). The jointly optimized instructions and demonstrations apparently help with deeper reasoning chains.
+    \item \textbf{MIPROv2} excels on complex reasoning: best F1 on MuSiQue (0.525, $+0.069$ over Unopt). The jointly optimized instructions and demonstrations appear to facilitate deeper reasoning chains.
 
     \item \textbf{Over-optimization risk}: On FinanceBench, both optimizers \emph{underperform} Unopt (Bootstrap 0.421, MIPROv2 0.410 vs.\ Unopt 0.436), suggesting over-optimization on a small training set (50 examples from 150 total). This is consistent with the general machine learning principle that smaller datasets are more susceptible to overfitting during optimization.
 \end{itemize}
 
 \paragraph{Key finding}
-DSPy provides a two-level contribution: (1) the \emph{structural benefit} of typed Signatures alone is the single largest improvement in our experiments (F1 $+0.075$--$0.190$ on three of four datasets), and (2) automatic optimization provides additional dataset-dependent gains (BootstrapFewShot most consistently effective, achieving overall best F1 on 3/4 datasets).
+DSPy provides a two-level contribution: (1) the \emph{structural benefit} of typed Signatures alone is the single largest improvement in our experiments (F1 $+0.075$--$0.190$ on three of four datasets), and (2) automatic optimization provides additional dataset-dependent gains (BootstrapFewShot is most consistently effective, achieving the overall best F1 on 3/4 datasets).
 The total improvement from Manual to best DSPy variant ranges from $+0.068$ to $+0.190$ F1, supporting the practical value of declarative LM programming for RAG systems.

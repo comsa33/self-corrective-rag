@@ -23,7 +23,7 @@ This aligns with Adaptive-RAG's~\cite{jeong2024adaptiverag} approach of routing 
 \label{subsec:boundary}
 % ---------------------------------------------------------------------------
 
-FinanceBench presents a consistent boundary condition for agentic refinement: \ours{} underperforms Loop Refinement on both Gemini ($-0.014$ F1) and gpt-5-mini ($-0.011$ F1), with Naive RAG achieving the highest LLM-as-Judge scores on both models (0.580 and 0.540, respectively).
+Results on FinanceBench reveal a consistent boundary condition for agentic refinement: \ours{} underperforms Loop Refinement on both Gemini ($-0.014$ F1) and gpt-5-mini ($-0.011$ F1), with Naive RAG achieving the highest LLM-as-Judge scores on both models (0.580 and 0.540, respectively).
 Statistical testing confirms that no pairwise comparison on FinanceBench reaches significance, indicating a genuine ceiling rather than sampling noise.
 
 We identify three contributing factors:
@@ -85,7 +85,7 @@ The mechanism operates as follows:
     Each refusal scores F1 $= 0.0$, dragging the average down.
     When the agent \emph{does} answer, its F1 is 0.712---substantially higher than CRAG's overall 0.637---indicating that refusals, not answer quality, drive the performance gap.
 
-    \item \textbf{CRAG's forced-answer pipeline}: CRAG's rigid judge--correct--generate architecture does not afford the model an opportunity to refuse.
+    \item \textbf{CRAG's forced-answer pipeline}: CRAG's rigid judge--correct--generate architecture does not permit the model to refuse.
     The pipeline always produces an answer, converting some refusal-prone questions into correct (or partially correct) responses.
 
     \item \textbf{Gemini in ReAct}: As a generation-focused model, Gemini is less conservative in its evidentiary standards.
@@ -98,7 +98,7 @@ First, pipeline selection should consider the base model's reasoning characteris
 Second, the refusal asymmetry suggests that evaluation tools should be designed to provide calibrated confidence signals that interact predictably with different model types, rather than relying on the model's implicit evidentiary standards.
 
 \paragraph{Efficiency perspective}
-Despite CRAG's higher F1 with gpt-5-mini on 2WikiMultiHopQA, it requires 45.2 LLM calls per question (147.8 seconds) compared to \ours{}'s 9.9 calls (45.7 seconds)---a 4.6$\times$ cost premium.
+Despite CRAG's higher F1 with gpt-5-mini on 2WikiMultiHopQA, it requires 45.2 LLM calls per question (147.8 seconds) compared to 9.9 calls (45.7 seconds) for \ours{}---a 4.6$\times$ cost premium.
 Combined with Gemini Flash Lite, \ours{} achieves the optimal cost--performance balance across our experimental configurations.
 
 % ---------------------------------------------------------------------------
@@ -143,8 +143,8 @@ This two-level decomposition has practical implications: teams adopting DSPy can
 \label{subsec:emergent}
 % ---------------------------------------------------------------------------
 
-A noteworthy observation is that the ReAct agent \emph{spontaneously develops} structured retrieval protocols.
-Despite having access to seven tools with no enforced execution order, the agent consistently converges on a decompose--search--evaluate pattern across all 800+ questions in our evaluation (RQ2, \S\ref{subsec:rq2}).
+A noteworthy observation is that the ReAct agent \emph{converges on} structured retrieval protocols.
+Despite having access to six core tools with no enforced execution order, the agent consistently converges on a decompose--search--evaluate pattern across all 800+ questions in our evaluation (RQ2, \S\ref{subsec:rq2}).
 
 This emergent behavior suggests that the combination of typed Signatures (providing a recommended protocol), evaluation feedback (providing quality signals), and ReAct reasoning (enabling reflective planning) creates sufficient inductive bias for structured behavior without requiring hard-coded orchestration logic.
 The progressive information disclosure pattern (search previews followed by selective full-text retrieval) and domain-adaptive tool selection (\texttt{calculate} on FinanceBench, \texttt{list\_document\_sections} on complex documents) further demonstrate the agent's capacity for sophisticated retrieval strategies that arise purely from the interaction between tools and reasoning.
