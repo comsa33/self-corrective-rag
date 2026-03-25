@@ -6,8 +6,9 @@ We conduct two ablation studies to analyze the contribution of individual compon
 Table~\ref{tab:full_ablation} additionally provides a consolidated view of all ablation variants on a single metric (F1) for cross-component comparison.
 
 \noindent\textit{Note on baseline values.}
-The ``Full system'' rows in ablation tables represent independent experiment runs with identical configurations to Table~\ref{tab:rq1_main}.
-Minor differences in absolute F1 values (typically $\leq 0.02$) arise from non-determinism in LLM API calls at temperature~$= 0$; all within-table comparisons are fair as variants share the same run conditions.
+Tables~\ref{tab:rq3} and~\ref{tab:rq4} report results from their respective experiment runs; the ``Full system'' baseline is shared across both.
+Table~\ref{tab:full_ablation} consolidates values from these individual RQ tables for cross-component comparison.
+Minor differences between the Full system F1 here and Table~\ref{tab:rq1_main} (typically $\leq 0.02$) arise from non-determinism in LLM API calls at temperature~$= 0$.
 
 % ---------------------------------------------------------------------------
 \subsection{RQ3: Evaluation Tool Variants}
@@ -140,14 +141,14 @@ Full system & Agent + All Tools          & .674 & .611 & .449 & .411 \\
 \midrule
 \multirow{2}{*}{Evaluation (RQ3)}
   & 1D Evaluation              & \textbf{.680} & .608 & \textbf{.455} & \textbf{.421} \\
-  & w/o Evaluate Tool          & .667 & .596 & .440 & .395 \\
+  & w/o Evaluate Tool          & .674 & .580 & .438 & .387 \\
 \midrule
 Retrieval (RQ2)
   & w/o Search (no re-retrieval) & .621 & .541 & .420 & .393 \\
 \midrule
 \multirow{2}{*}{Structure (RQ4)}
-  & w/o Section Index          & .658 & .602 & .437 & .413 \\
-  & w/o Term Index             & .666 & \textbf{.613} & .445 & .410 \\
+  & w/o Section Index          & .656 & \textbf{.621} & .445 & .390 \\
+  & w/o Term Index             & .654 & .593 & .433 & .388 \\
 \midrule
 Agent (RQ1)
   & w/o Agent (for-loop)       & .636 & .495 & .399 & .400 \\
