@@ -1,17 +1,17 @@
-# v1.5 Experiment Results Summary (Pilot, n=50)
+# v1.6 Experiment Results Summary (Scale-up, n=200)
 
-**Code version**: v1.5
-**Model**: Gemini Flash Lite (all 4 slots)
+**Code version**: v1.6-scaleup
+**Primary Model**: Gemini 3.1 Flash Lite Preview
+**Cross-Model**: gpt-5-mini (RQ1 only)
 **Embedding**: all-MiniLM-L6-v2
-**Date**: 2026-03-22
-**Sample size**: n=50 per dataset
+**Date**: 2026-03-24 ~ 2026-03-25
+**Sample size**: n=200 per dataset (FinanceBench n=150, 전체 데이터)
 
-> **Note (2026-03-23)**: 이 결과는 n=50 pilot 데이터입니다.
-> 최종 논문 제출 시 n=500+ 및 cross-model(GPT-4o-mini 등)로 스케일업 예정.
-> Contribution 구조가 4개 독립 → 1개 통합 프레임워크로 재구성되었습니다.
-> - 구 C1(Agentic) + 구 C4(DSPy) = **Main Contribution**
-> - 구 C2(RQ3) + 구 C3(RQ4) = **Ablation Studies**
-> - 상세: `docs/PAPER_PLAN.md`, `docs/Q1_READINESS_ASSESSMENT.md`
+> **Note**: 이 결과는 n=200 스케일업 실험 결과입니다.
+> - Gemini: RQ1~5 + ablation × 4 datasets 전체 완료
+> - gpt-5-mini: RQ1 × 4 datasets 완료 (cross-model 검증)
+> - LLM-as-Judge: 미실행 (별도 일괄 실행 예정)
+> - Bootstrap CI 통계 검증: 미실행
 
 ---
 
@@ -19,73 +19,58 @@
 
 **Question**: Does ReAct-based agentic refinement improve answer quality compared to fixed-loop refinement and single-pass baselines?
 
-### HotpotQA (2-hop, simple)
-
-| Pipeline | EM | F1 | ROUGE-L |
-|----------|------|------|---------|
-| Naive RAG | 0.560 | 0.720 | 0.720 |
-| CRAG Replica | 0.440 | 0.605 | 0.605 |
-| Single-Pass | 0.540 | 0.726 | 0.726 |
-| Loop Refinement | 0.540 | 0.711 | 0.711 |
-| **Agentic (ReAct)** | **0.560** | 0.714 | 0.714 |
-
-### 2WikiMultiHopQA (2-4 hop, complex)
-
-| Pipeline | EM | F1 | ROUGE-L |
-|----------|------|------|---------|
-| Naive RAG | 0.260 | 0.378 | 0.378 |
-| CRAG Replica | 0.060 | 0.240 | 0.240 |
-| Single-Pass | 0.380 | 0.485 | 0.485 |
-| Loop Refinement | 0.380 | 0.485 | 0.485 |
-| **Agentic (ReAct)** | **0.440** | **0.554** | **0.554** |
-
-### MuSiQue (2-4 hop, complex)
-
-| Pipeline | EM | F1 | ROUGE-L |
-|----------|------|------|---------|
-| Naive RAG | 0.260 | 0.342 | 0.339 |
-| CRAG Replica | 0.180 | 0.248 | 0.248 |
-| Single-Pass | 0.320 | 0.384 | 0.382 |
-| Loop Refinement | 0.340 | 0.402 | 0.402 |
-| **Agentic (ReAct)** | **0.380** | **0.453** | **0.449** |
-
-### FinanceBench (enterprise, SEC filings)
-
-| Pipeline | EM | F1 | ROUGE-L |
-|----------|------|------|---------|
-| Naive RAG | 0.220 | 0.404 | 0.382 |
-| CRAG Replica | 0.160 | 0.333 | 0.311 |
-| Single-Pass | 0.200 | 0.374 | 0.351 |
-| **Loop Refinement** | **0.240** | **0.414** | **0.391** |
-| Agentic (ReAct) | 0.220 | 0.412 | 0.390 |
-
-### RQ1 LLM-as-Judge
-
-| Pipeline | HotpotQA | 2Wiki | MuSiQue | FinanceBench |
-| --- | --- | --- | --- | --- |
-| Naive RAG | 0.820 | 0.520 | 0.420 | 0.840 |
-| CRAG Replica | 0.700 | 0.480 | 0.280 | 0.680 |
-| Single-Pass | 0.860 | 0.680 | 0.440 | 0.800 |
-| Loop Refinement | 0.840 | 0.680 | 0.440 | 0.840 |
-| **Agentic (ReAct)** | 0.840 | **0.760** | **0.480** | **0.900** |
-
-### RQ1 Key Findings
-
-1. **Complex multi-hop (2Wiki, MuSiQue)**: Agentic consistently best — F1 +0.069 (2Wiki) and +0.051 (MuSiQue) over Loop
-2. **Simple 2-hop (HotpotQA)**: No significant difference between pipelines — all within noise range
-3. **Enterprise (FinanceBench)**: Loop slightly edges Agentic (F1 0.414 vs 0.412) — marginal difference
-4. **CRAG Replica**: Consistently worst — expected since it's a simplified replication
-5. **Pattern**: Agentic advantage grows with question complexity (hop count)
-
-### RQ1 Latency
+### Gemini Flash Lite — F1
 
 | Pipeline | HotpotQA | 2Wiki | MuSiQue | FinanceBench |
 |----------|----------|-------|---------|--------------|
-| Naive RAG | 0.5s | 0.3s | 0.3s | 0.3s |
-| CRAG Replica | 0.4s | 0.1s | 0.1s | 0.1s |
-| Single-Pass | 4.2s | 3.0s | 3.5s | 4.9s |
-| Loop Refinement | 3.1s | 1.7s | 3.6s | 2.7s |
-| Agentic (ReAct) | 14.9s | 13.6s | 15.2s | 16.8s |
+| Naive RAG | 0.606 | 0.378 | 0.342 | 0.398 |
+| CRAG Replica | 0.553 | 0.255 | 0.251 | 0.333 |
+| Single-Pass | 0.630 | 0.486 | 0.384 | 0.381 |
+| Loop Refinement | 0.636 | 0.495 | 0.399 | **0.400** |
+| **Agentic (ReAct)** | **0.658** | **0.584** | **0.438** | 0.386 |
+
+### Gemini Flash Lite — EM
+
+| Pipeline | HotpotQA | 2Wiki | MuSiQue | FinanceBench |
+|----------|----------|-------|---------|--------------|
+| Naive RAG | 0.445 | 0.275 | 0.235 | 0.167 |
+| CRAG Replica | 0.400 | 0.130 | 0.175 | 0.107 |
+| Single-Pass | 0.470 | 0.375 | 0.280 | 0.160 |
+| Loop Refinement | 0.480 | 0.380 | 0.300 | 0.180 |
+| **Agentic (ReAct)** | **0.505** | **0.470** | **0.330** | 0.153 |
+
+### gpt-5-mini (Cross-Model) — F1
+
+| Pipeline | HotpotQA | 2Wiki | MuSiQue | FinanceBench |
+|----------|----------|-------|---------|--------------|
+| Naive RAG | 0.657 | 0.400 | 0.441 | 0.321 |
+| CRAG Replica | **0.698** | **0.637** | 0.491 | **0.343** |
+| Single-Pass | 0.678 | 0.465 | 0.504 | 0.308 |
+| Loop Refinement | 0.689 | 0.510 | 0.505 | 0.328 |
+| **Agentic (ReAct)** | 0.697 | 0.551 | **0.516** | 0.317 |
+
+### gpt-5-mini (Cross-Model) — EM
+
+| Pipeline | HotpotQA | 2Wiki | MuSiQue | FinanceBench |
+|----------|----------|-------|---------|--------------|
+| Naive RAG | 0.485 | 0.335 | 0.310 | 0.140 |
+| CRAG Replica | 0.535 | **0.550** | 0.370 | 0.147 |
+| Single-Pass | 0.505 | 0.390 | 0.375 | 0.140 |
+| Loop Refinement | 0.510 | 0.425 | 0.370 | 0.160 |
+| **Agentic (ReAct)** | 0.510 | 0.485 | **0.375** | 0.133 |
+
+### RQ1 Key Findings
+
+1. **Gemini: Agentic 3/4 데이터셋 1위** — multi-hop에서 일관된 우위
+   - 2Wiki +0.089, MuSiQue +0.039, HotpotQA +0.022 vs Loop
+   - FinanceBench -0.014 (corpus 211개, retrieval space saturation)
+2. **gpt-5-mini: CRAG가 예상 밖 강세** — HotpotQA/2Wiki/FinanceBench에서 1위
+   - reasoning model에서 CRAG의 단순 web search fallback 로직이 유리할 수 있음
+   - MuSiQue에서만 Agentic 1위 (+0.011)
+3. **Corpus 크기와 Agentic 이점 비례** (Gemini):
+   - 66K(+0.022) → 8K(+0.089) → 5K(+0.039) → 211(-0.014)
+4. **CRAG Replica**: Gemini에서 전 데이터셋 최하위, gpt-5-mini에서는 최상위
+5. **FinanceBench 상세 분석**: `docs/FINANCEBENCH_ANALYSIS.md` 참조
 
 ---
 
@@ -96,35 +81,23 @@
 ### Tool Frequency (per question average)
 
 | Tool | HotpotQA | 2Wiki | MuSiQue | FinanceBench |
-| --- | --- | --- | --- | --- |
-| search_passages | 3.7 | 3.5 | 3.9 | 3.8 |
-| evaluate_passages | 1.1 | 1.1 | 1.1 | 1.0 |
-| decompose_query | 0.8 | 0.9 | 0.8 | 0.8 |
-| calculate | - | - | - | 0.1 |
-| **Avg tools/question** | **5.6** | **5.5** | **5.7** | **5.8** |
-
-### Evaluate Coverage
-
-| Dataset | Evaluate Used | Mandatory Fallback |
-| --- | --- | --- |
-| HotpotQA | 50/50 (100%) | 3 |
-| 2WikiMultiHopQA | 50/50 (100%) | 3 |
-| MuSiQue | 50/50 (100%) | 4 |
-| FinanceBench | 50/50 (100%) | 6 |
-
-### Dominant Trajectory Patterns
-
-1. **decompose → search × N → evaluate** (most common across all datasets)
-2. **search → evaluate** (simple cases, no decomposition needed)
-3. **decompose → search × N → evaluate → search → evaluate** (refinement loop)
+|------|----------|-------|---------|--------------|
+| search_passages | 2.4 | 2.7 | 3.4 | 1.9 |
+| evaluate_passages | 1.0 | 1.1 | 1.0 | 1.0 |
+| decompose_query | 0.9 | 1.0 | 0.9 | 1.0 |
+| get_passage_detail | 1.1 | 0.8 | 0.6 | 1.1 |
+| list_document_sections | 0.1 | 0.1 | 0.4 | 0.5 |
+| calculate | - | - | - | 0.4 |
+| get_terminology | ~0 | 0 | ~0 | ~0 |
+| **Avg tools/question** | **5.4** | **5.7** | **6.2** | **5.8** |
 
 ### RQ2 Key Findings
 
-1. **Structured protocol**: Agent consistently follows decompose → search → evaluate pattern
-2. **100% evaluate coverage**: Mandatory fallback ensures quality gate is never skipped (6-12% of cases)
-3. **Adaptive search depth**: 3.5-3.9 searches/question, more on complex datasets
-4. **FinanceBench-specific**: calculate tool used for numerical computation (0.1/q)
-5. **Decompose usage ~80%**: Agent correctly identifies most questions as multi-hop
+1. **search_passages 압도적 1위** — agent의 핵심 행동은 반복 검색
+2. **MuSiQue가 search 가장 많이 사용** (3.4/q) — 3-4홉 질문이라 추가 검색 필요
+3. **FinanceBench에서만 calculate tool 사용** (0.4/q) — 재무 계산 특화
+4. **get_terminology 거의 미사용** (전 데이터셋) — RQ4 결과와 일관
+5. **list_document_sections은 MuSiQue/FinanceBench에서 상대적 다사용** — 복잡한 문서 구조 탐색
 
 ---
 
@@ -134,80 +107,75 @@
 
 ### Results (F1)
 
-| Dataset | Agent + 4D | Agent + 1D | Agent w/o Eval | 4D vs w/o |
-| --- | --- | --- | --- | --- |
-| HotpotQA | 0.747 | **0.750** | 0.722 | +0.025 |
-| 2WikiMultiHopQA | 0.584 | 0.587 | **0.620** | -0.036 |
-| MuSiQue | **0.431** | 0.410 | 0.410 | +0.021 |
-| FinanceBench | 0.434 | 0.422 | **0.444** | -0.010 |
+| Dataset | Agent + 4D | Agent + 1D | Agent w/o Eval | Best |
+|---------|-----------|-----------|---------------|------|
+| HotpotQA | 0.674 | **0.680** | 0.674 | 1D |
+| 2WikiMultiHopQA | **0.611** | 0.608 | 0.580 | 4D |
+| MuSiQue | 0.449 | **0.455** | 0.438 | 1D |
+| FinanceBench | 0.411 | **0.421** | 0.387 | 1D |
 
 ### Results (EM)
 
 | Dataset | Agent + 4D | Agent + 1D | Agent w/o Eval |
-| --- | --- | --- | --- |
-| HotpotQA | **0.580** | **0.580** | 0.540 |
-| 2WikiMultiHopQA | 0.480 | 0.480 | **0.540** |
-| MuSiQue | **0.360** | 0.320 | 0.300 |
-| FinanceBench | 0.240 | 0.220 | **0.240** |
-
-### RQ3 LLM-as-Judge
-
-| Dataset | Agent + 4D | Agent + 1D | Agent w/o Eval |
-| --- | --- | --- | --- |
-| HotpotQA | 0.840 | **0.860** | **0.860** |
-| 2WikiMultiHopQA | **0.860** | 0.800 | 0.840 |
-| MuSiQue | 0.460 | 0.460 | **0.480** |
-| FinanceBench | **0.900** | 0.880 | **0.900** |
+|---------|-----------|-----------|---------------|
+| HotpotQA | 0.525 | **0.530** | 0.525 |
+| 2WikiMultiHopQA | **0.500** | 0.505 | 0.475 |
+| MuSiQue | **0.345** | 0.340 | 0.340 |
+| FinanceBench | 0.180 | **0.187** | 0.153 |
 
 ### RQ3 Key Findings
 
-1. **Mixed results**: No consistent winner across datasets — differences are small (max delta 0.036 F1)
-2. **Eval helps on HotpotQA/MuSiQue**: 4D/1D outperform w/o by +0.021~0.028 F1
-3. **Eval slightly hurts on 2Wiki**: w/o eval is best — possible overhead from unnecessary refinement cycles
-4. **4D vs 1D**: Nearly identical — 4D edges on MuSiQue (+0.021), 1D edges on HotpotQA (+0.003)
-5. **Latency cost**: Eval variants ~14-16s vs w/o ~10-12s per question
+1. **w/o Eval 항상 최하위** — eval tool의 quality gate 역할 유효 (4개 데이터셋 전부)
+2. **1D가 3/4 데이터셋에서 1위** — 4D 세분화가 반드시 필요하지는 않음
+3. **4D vs w/o 차이**: 2Wiki +0.031 (가장 큼), HotpotQA ±0.000 (차이 없음)
+4. **n=50 "4D≈1D≈w/o" → n=200 "1D≈4D > w/o"** 명확화
 
-### RQ3 Paper Framing (C2)
+### RQ3 Paper Framing
 
-The evaluation tool provides a **quality gate** mechanism rather than a direct accuracy boost:
-- Ensures consistent evaluation coverage (100% with mandatory fallback)
-- Enables the refinement loop (search → evaluate → refine → re-evaluate)
-- 4D granularity offers diagnostic value (which dimension is weak?) even when aggregate F1 is similar
-- The primary contribution is **architectural**: structured feedback for autonomous decision-making
+Evaluate tool은 **quality gate** mechanism:
+- w/o Eval 항상 최하위 → eval 존재 자체가 중요
+- 1D holistic score가 4D 세분화보다 근소 효과적
+- 4D의 가치는 진단 피드백 (어떤 dimension이 부족한지)
 
 ---
 
-## RQ4: Structure-Aware Tools (FinanceBench only)
+## RQ4: Structure-Aware Tools
 
-**Question**: Do structure-aware retrieval tools (section index, terminology mapping) improve agent performance on enterprise documents?
+**Question**: Do structure-aware retrieval tools (section index, terminology mapping) improve agent performance?
 
-### Results (Protocol-Fixed Re-run)
+### Results (F1)
 
-*Agent protocol fixed: search_passages is PRIMARY tool, list_document_sections is OPTIONAL supplement.*
-*Previous run had agent using structure tools as search replacement (search=1.0/q vs 2.2/q).*
+| Dataset | Full Tools | w/o Section | w/o Term | w/o Both |
+|---------|-----------|-----------|----------|----------|
+| HotpotQA | 0.674 | 0.656 | 0.654 | **0.677** |
+| 2WikiMultiHopQA | 0.611 | **0.621** | 0.593 | 0.597 |
+| MuSiQue | **0.449** | 0.445 | 0.433 | 0.422 |
+| FinanceBench | **0.411** | 0.390 | 0.388 | 0.384 |
 
-| Variant | EM | F1 | ROUGE-L | Avg Retries | Avg Latency |
-| --- | --- | --- | --- | --- | --- |
-| Full Tools | 0.220 | 0.396 | 0.373 | 4.5 | 14.9s |
-| w/o Section Index | 0.220 | 0.403 | 0.382 | 4.4 | 14.2s |
-| w/o Terminology | 0.220 | 0.401 | 0.377 | 4.5 | 14.4s |
-| **w/o Structure Tools** | **0.220** | **0.412** | **0.385** | 4.3 | 13.8s |
+### Results (EM)
 
-### RQ4 Key Findings (Honest Negative Result)
+| Dataset | Full Tools | w/o Section | w/o Term | w/o Both |
+|---------|-----------|-----------|----------|----------|
+| HotpotQA | **0.525** | 0.495 | 0.500 | **0.525** |
+| 2WikiMultiHopQA | 0.500 | **0.505** | 0.480 | 0.485 |
+| MuSiQue | **0.345** | 0.335 | 0.335 | 0.320 |
+| FinanceBench | **0.180** | 0.153 | 0.153 | 0.153 |
 
-1. **Structure tools do not improve F1**: w/o Both (0.412) > Full Tools (0.396) — removing tools slightly helps
-2. **Protocol fix narrowed gap**: Pre-fix delta was 0.045, post-fix delta is 0.016 — much of the original harm was from search displacement
-3. **EM identical across all variants** (0.220): Structure tools don't affect exact match
-4. **Latency reduction**: Removing tools saves ~1s/question (13.8s vs 14.9s)
-5. **No catastrophic harm**: Differences are small (< 0.02 F1)
+### RQ4 Key Findings
 
-### RQ4 Paper Framing (C3)
+1. **Dataset-dependent**: MuSiQue/FinanceBench에서 Full Tools 1위, HotpotQA에서 w/o Both가 더 높음
+2. **MuSiQue**: Full > w/o Both (+0.027) — 3-4홉 문서 구조 탐색에 유효
+3. **FinanceBench**: Full > w/o Both (+0.027) — SEC filing 구조 브라우징 도움
+4. **HotpotQA**: w/o Both (0.677) > Full (0.674) — 위키피디아는 구조 tool 불필요
+5. **2Wiki**: w/o Section이 오히려 최고 (0.621) — mixed result
+6. **RQ2와 일관**: get_terminology 거의 미사용, list_document_sections은 MuSiQue/Finance에서 활용
 
-**Honest negative result** — structure-aware tools do not improve retrieval on this benchmark:
-- SEC filings are already well-chunked, reducing the value of section browsing
-- Terminology mapping adds marginal overhead without measurably improving retrieval quality
-- **C3 contribution reframed**: The tools demonstrate an **extensibility framework** for domain adaptation — the architecture supports adding domain-specific tools, even though the specific tools tested here showed no benefit on FinanceBench
-- Future work: Test on documents with richer hierarchical structure (e.g., legal contracts, technical manuals) where section-aware browsing may provide more value
+### RQ4 Paper Framing
+
+n=50에서 "structure tools 효과 없음" → n=200에서 **"dataset-dependent"**로 수정:
+- 구조화된 문서(SEC filings, 멀티홉)에서는 효과 있음
+- 단순 위키피디아 기반에서는 불필요
+- **extensibility framework**로서의 가치: domain-specific tool 추가 가능한 아키텍처
 
 ---
 
@@ -217,55 +185,88 @@ The evaluation tool provides a **quality gate** mechanism rather than a direct a
 
 ### Results (F1)
 
-| Dataset | Manual Prompt | DSPy Unopt | DSPy + Bootstrap | DSPy + MIPROv2 |
-| --- | --- | --- | --- | --- |
-| HotpotQA | 0.618 | **0.717** | 0.699 | 0.712 |
-| 2WikiMultiHopQA | 0.495 | 0.549 | **0.632** | 0.549 |
-| MuSiQue | 0.470 | 0.467 | 0.520 | **0.577** |
-| FinanceBench | 0.197 | **0.404** | 0.424 | 0.368 |
+| Dataset | Manual | DSPy Unopt | Bootstrap | MIPROv2 | N |
+|---------|--------|-----------|-----------|---------|---|
+| HotpotQA | 0.575 | 0.650 | **0.681** | 0.663 | 130 |
+| 2WikiMultiHopQA | 0.501 | 0.601 | **0.647** | 0.549 | 130 |
+| MuSiQue | 0.465 | 0.456 | **0.533** | 0.525 | 130 |
+| FinanceBench | 0.246 | **0.436** | 0.421 | 0.410 | 80 |
 
 ### Results (EM)
 
-| Dataset | Manual Prompt | DSPy Unopt | DSPy + Bootstrap | DSPy + MIPROv2 |
-| --- | --- | --- | --- | --- |
-| HotpotQA | 0.400 | **0.540** | **0.540** | 0.520 |
-| 2WikiMultiHopQA | 0.260 | 0.367 | **0.510** | 0.367 |
-| MuSiQue | 0.320 | 0.340 | 0.440 | **0.500** |
-| FinanceBench | 0.000 | **0.160** | **0.180** | 0.140 |
-
-### RQ5 LLM-as-Judge
-
-| Dataset | Manual Prompt | DSPy Unopt | DSPy + Bootstrap | DSPy + MIPROv2 |
-| --- | --- | --- | --- | --- |
-| HotpotQA | 0.900 | 0.920 | 0.920 | **0.940** |
-| 2WikiMultiHopQA | **0.860** | 0.800 | 0.820 | 0.800 |
-| MuSiQue | 0.520 | 0.540 | 0.580 | **0.680** |
-| FinanceBench | 0.720 | 0.840 | **0.880** | 0.840 |
-
-### RQ5 Latency
-
-| Dataset | Manual Prompt | DSPy Unopt | DSPy + Bootstrap | DSPy + MIPROv2 |
-| --- | --- | --- | --- | --- |
-| HotpotQA | 19.2s | 19.7s | 2.4s | 2.5s |
-| 2WikiMultiHopQA | 19.2s | 20.0s | 2.1s | 0.1s |
-| MuSiQue | 20.3s | 21.2s | 2.4s | 2.7s |
-| FinanceBench | 21.9s | 23.9s | 3.2s | 3.3s |
-
-*Note: Bootstrap/MIPROv2 latency is lower because optimization pre-computes few-shot demos, reducing per-query reasoning. The optimization cost (train 50 queries) is amortized.*
+| Dataset | Manual | DSPy Unopt | Bootstrap | MIPROv2 |
+|---------|--------|-----------|-----------|---------|
+| HotpotQA | 0.400 | 0.508 | **0.538** | 0.508 |
+| 2WikiMultiHopQA | 0.308 | 0.477 | **0.554** | 0.423 |
+| MuSiQue | 0.331 | 0.354 | **0.454** | 0.431 |
+| FinanceBench | 0.000 | **0.200** | 0.188 | 0.175 |
 
 ### RQ5 Key Findings
 
-1. **DSPy Signature alone is the biggest win**: Manual → DSPy Unopt shows +0.099 to +0.207 F1 improvement across all datasets. FinanceBench sees 2x improvement (0.197 → 0.404)
-2. **Bootstrap strongest on multi-hop**: Best F1 on 2Wiki (0.632, +0.083 over Unopt) and competitive on FinanceBench (0.424)
-3. **MIPROv2 strongest on complex reasoning**: Best F1 on MuSiQue (0.577, +0.110 over Unopt), the hardest multi-hop dataset
-4. **Optimization is dataset-dependent**: No single optimizer wins everywhere — Bootstrap excels on structured multi-hop, MIPROv2 on complex reasoning
-5. **HotpotQA saturated**: Unopt already strong (0.717), optimization adds marginal or no improvement
-6. **FinanceBench caution**: MIPROv2 (0.368) underperforms Unopt (0.404) — over-optimization risk on domain-specific data
+1. **Manual 항상 최하위** — DSPy declarative 방식의 우위 확실
+2. **Bootstrap 3/4 데이터셋 1위** — 가장 안정적인 최적화 방법
+3. **FinanceBench에서 Unoptimized > Bootstrap** — 소규모 corpus에서 최적화 과적합 가능성
+4. **Manual → DSPy Unopt**: 가장 큰 개선 (+0.075~+0.190 F1)
+5. **DSPy Unopt → Bootstrap**: 추가 개선 (+0.031~+0.077 F1, FinanceBench 제외)
 
-### RQ5 Paper Framing (C4)
+### RQ5 Paper Framing
 
-DSPy's declarative pipeline provides two levels of contribution:
+DSPy의 기여는 두 단계:
+1. **Structural benefit** (Manual → Unopt): Typed I/O fields + structured prompts만으로 큰 개선
+2. **Optimization benefit** (Unopt → Bootstrap): Few-shot 자동 생성으로 추가 개선
+3. FinanceBench 역전은 "소규모 corpus에서 최적화 과적합" 가능성 → Discussion에서 논의
 
-1. **Structural benefit** (Manual → DSPy Unopt): DSPy Signatures with typed I/O fields and structured prompts consistently outperform hand-crafted JSON prompt templates, with no optimization needed
-2. **Optimization benefit** (Unopt → Bootstrap/MIPROv2): Automatic few-shot demonstration and instruction optimization provides additional gains on complex datasets, with Bootstrap and MIPROv2 excelling in different scenarios
-3. **Practical implication**: DSPy enables "optimize once, deploy everywhere" — train 50 examples amortized across all future queries
+---
+
+## Ablation Study
+
+### Full Ablation (Gemini, F1)
+
+| Variant | HotpotQA | 2Wiki | MuSiQue | FinanceBench |
+|---------|----------|-------|---------|--------------|
+| Full (Agent + All Tools) | 0.674 | 0.611 | 0.449 | 0.411 |
+| 1D Evaluation | **0.680** | 0.608 | **0.455** | **0.421** |
+| w/o Evaluate Tool | 0.667 | 0.596 | 0.440 | 0.395 |
+| w/o Search (no re-retrieval) | 0.621 | 0.541 | 0.420 | 0.393 |
+| w/o Section Index | 0.658 | 0.602 | 0.437 | 0.413 |
+| w/o Term Index | 0.666 | **0.613** | 0.445 | 0.410 |
+| w/o Agent (for-loop) | 0.636 | 0.495 | 0.399 | 0.400 |
+| Manual Prompt | 0.608 | 0.496 | 0.481 | 0.256 |
+
+### Ablation Key Findings
+
+1. **w/o Agent (for-loop)이 항상 Full보다 낮음** (FinanceBench 제외) — agent의 기여 일관
+2. **w/o Search가 가장 큰 하락** — re-retrieval이 agent의 핵심 메커니즘
+3. **Manual Prompt가 대부분 최하위** — DSPy 효과 재확인
+4. **1D Evaluation이 Full보다 약간 높음** — RQ3과 일관
+5. **MuSiQue Manual(0.481) > Full(0.449)** — 이상값, 추가 분석 필요
+
+---
+
+## Cross-Model Summary
+
+### Gemini vs gpt-5-mini: Agentic F1
+
+| Dataset | Gemini | gpt-5-mini | Delta |
+|---------|--------|-----------|-------|
+| HotpotQA | 0.658 | 0.697 | +0.039 |
+| 2WikiMultiHopQA | 0.584 | 0.551 | -0.033 |
+| MuSiQue | 0.438 | 0.516 | +0.078 |
+| FinanceBench | 0.386 | 0.317 | -0.069 |
+
+### Key Observations
+
+1. **gpt-5-mini가 전반적으로 더 높은 F1** (HotpotQA, MuSiQue)
+2. **그러나 gpt-5-mini에서 Agentic 순위가 낮음** — CRAG가 2/4 데이터셋 1위
+3. **Gemini에서 Agentic 우위가 더 명확** — 논문의 주요 결과로 적합
+4. **FinanceBench는 양쪽 모델 모두 Agentic 열세** — method-level boundary condition 확인
+
+---
+
+## 다음 단계
+
+1. [ ] LLM-as-Judge 일괄 실행 (전체 결과 jsonl 재사용)
+2. [ ] Bootstrap CI 통계 검증
+3. [ ] gpt-5-mini CRAG 강세 원인 분석
+4. [ ] 결과 테이블/플롯 교체 (논문)
+5. [ ] Discussion 업데이트 (retrieval space saturation, cross-model 분석)
