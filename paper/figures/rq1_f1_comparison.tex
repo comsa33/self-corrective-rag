@@ -84,9 +84,10 @@ FinanceBench,   0.386, 0.065, 0.063
 
 \legend{Naive RAG, CRAG Replica, Single-Pass, Loop Refinement, \ours{} (95\% CI)}
 
-% Significance annotation
-\node[font=\scriptsize\bfseries, anchor=south, yshift=1pt]
-    at (axis cs:2WikiMultiHopQA, 0.648) {***};
+% Significance: p < 0.001 above TARA error bar on 2Wiki
+% TARA is 5th of 5 bars → xshift = +14pt from group center
+\node[font=\scriptsize, anchor=south, yshift=2pt, xshift=14pt]
+    at (axis cs:2WikiMultiHopQA, 0.648) {$p{<}0.001$};
 
 \end{axis}
 \end{tikzpicture}
