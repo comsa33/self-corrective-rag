@@ -3,15 +3,17 @@
 **Code version**: v1.6-scaleup
 **Primary Model**: Gemini 3.1 Flash Lite Preview
 **Cross-Model**: gpt-5-mini (RQ1 only)
+**LLM-as-Judge**: gpt-4.1-nano (independent judge)
 **Embedding**: all-MiniLM-L6-v2
 **Date**: 2026-03-24 ~ 2026-03-25
 **Sample size**: n=200 per dataset (FinanceBench n=150, 전체 데이터)
 
-> **Note**: 이 결과는 n=200 스케일업 실험 결과입니다.
+> **Status (2026-03-25)**:
 > - Gemini: RQ1~5 + ablation × 4 datasets 전체 완료
 > - gpt-5-mini: RQ1 × 4 datasets 완료 (cross-model 검증)
-> - LLM-as-Judge: 미실행 (별도 일괄 실행 예정)
-> - Bootstrap CI 통계 검증: 미실행
+> - Bootstrap CI 통계 검증: ✅ RQ1 완료
+> - LLM-as-Judge: 🔄 RQ1 실행 중 (gpt-4.1-nano, 8개 병렬)
+> - Cross-model 분석: ✅ 완료 (Reasoning Model Refusal Asymmetry 발견)
 
 ---
 
@@ -59,18 +61,46 @@
 | Loop Refinement | 0.510 | 0.425 | 0.370 | 0.160 |
 | **Agentic (ReAct)** | 0.510 | 0.485 | **0.375** | 0.133 |
 
+### Bootstrap CI — Gemini RQ1 (95% Confidence Intervals, F1)
+
+| Pipeline | HotpotQA | 2Wiki | MuSiQue | FinanceBench |
+|----------|----------|-------|---------|--------------|
+| Agentic | 0.666 [.604,.725] | 0.578 [.506,.648] | 0.440 [.362,.519] | 0.387 [.323,.451] |
+| Loop | 0.636 [.579,.692] | 0.495 [.433,.557] | 0.399 [.337,.458] | 0.400 [.344,.457] |
+| CRAG | 0.553 [.494,.612] | 0.255 [.209,.305] | 0.251 [.198,.306] | 0.333 [.282,.384] |
+| Naive | 0.606 [.548,.662] | 0.378 [.320,.435] | 0.342 [.285,.402] | 0.398 [.344,.454] |
+
+### Pairwise Significance — Gemini Agentic vs others (F1)
+
+| vs Pipeline | HotpotQA | 2Wiki | MuSiQue | FinanceBench |
+|-------------|----------|-------|---------|--------------|
+| vs Loop | +0.007 (n.s.) | **+0.102 (p<.001)*** | +0.039 (n.s.) | -0.020 (n.s.) |
+| vs CRAG | **+0.099 (p<.001)*** | **+0.335 (p<.001)*** | **+0.177 (p<.001)*** | +0.056 (p=.025)* |
+| vs Naive | +0.041 (n.s.) | **+0.229 (p<.001)*** | **+0.112 (p<.001)*** | -0.009 (n.s.) |
+| vs Single | +0.008 (n.s.) | **+0.102 (p<.001)*** | +0.048 (n.s.) | +0.010 (n.s.) |
+
+### Pairwise Significance — gpt-5-mini Agentic vs others (F1)
+
+| vs Pipeline | HotpotQA | 2Wiki | MuSiQue | FinanceBench |
+|-------------|----------|-------|---------|--------------|
+| vs Loop | +0.003 (n.s.) | +0.030 (n.s.) | -0.003 (n.s.) | -0.017 (n.s.) |
+| vs CRAG | -0.001 (n.s.) | **-0.110 (p=.004)** | +0.006 (n.s.) | -0.047 (p=.042)* |
+| vs Naive | +0.043 (p=.013)* | **+0.146 (p<.001)*** | **+0.101 (p=.007)** | +0.009 (n.s.) |
+| vs Single | +0.016 (n.s.) | **+0.079 (p=.006)** | -0.018 (n.s.) | +0.018 (n.s.) |
+
 ### RQ1 Key Findings
 
 1. **Gemini: Agentic 3/4 데이터셋 1위** — multi-hop에서 일관된 우위
-   - 2Wiki +0.089, MuSiQue +0.039, HotpotQA +0.022 vs Loop
-   - FinanceBench -0.014 (corpus 211개, retrieval space saturation)
-2. **gpt-5-mini: CRAG가 예상 밖 강세** — HotpotQA/2Wiki/FinanceBench에서 1위
-   - reasoning model에서 CRAG의 단순 web search fallback 로직이 유리할 수 있음
-   - MuSiQue에서만 Agentic 1위 (+0.011)
+   - **2Wiki: p<0.001 (모든 baseline 대비 유의미)** — 가장 강력한 증거
+   - HotpotQA/MuSiQue: Agentic vs Loop n.s. (유의미하지 않음)
+   - FinanceBench: 모든 pipeline 간 차이 n.s. (Retrieval Space Saturation)
+2. **gpt-5-mini: CRAG가 2Wiki에서 유의미하게 우수 (p=0.004)**
+   - 원인: **Reasoning Model Refusal Asymmetry** (Section 분석 참조)
+   - Agent 거부율 30% (2Wiki) → CRAG 거부율 18% → F1 역전
 3. **Corpus 크기와 Agentic 이점 비례** (Gemini):
    - 66K(+0.022) → 8K(+0.089) → 5K(+0.039) → 211(-0.014)
-4. **CRAG Replica**: Gemini에서 전 데이터셋 최하위, gpt-5-mini에서는 최상위
-5. **FinanceBench 상세 분석**: `docs/FINANCEBENCH_ANALYSIS.md` 참조
+4. **FinanceBench: 양 모델 동일 패턴** (Agentic 열세) → method-level boundary condition
+5. **상세 분석**: `docs/FINANCEBENCH_ANALYSIS.md` (cross-model 비교 포함)
 
 ---
 
@@ -243,7 +273,7 @@ DSPy의 기여는 두 단계:
 
 ---
 
-## Cross-Model Summary
+## Cross-Model Analysis
 
 ### Gemini vs gpt-5-mini: Agentic F1
 
@@ -254,19 +284,52 @@ DSPy의 기여는 두 단계:
 | MuSiQue | 0.438 | 0.516 | +0.078 |
 | FinanceBench | 0.386 | 0.317 | -0.069 |
 
-### Key Observations
+### Reasoning Model Refusal Asymmetry (핵심 발견)
+
+gpt-5-mini에서 CRAG가 Agentic보다 우수한 원인: **모델-파이프라인 상호작용 효과**
+
+#### 거부율 비교 (답변 거부 = "Cannot determine" 등)
+
+| Dataset | gpt-5-mini Agent | gpt-5-mini CRAG | Gemini Agent | Gemini CRAG |
+|---------|-----------------|-----------------|-------------|-------------|
+| HotpotQA | 2% | 2% | 2% | 4% |
+| **2Wiki** | **30%** | **18%** | **14%** | **34%** |
+| MuSiQue | 22% | 22% | 11% | 22% |
+| FinanceBench | 2% | 1% | 1% | 9% |
+
+**완전 역전 패턴**: gpt-5-mini Agent 거부율 > CRAG 거부율, Gemini는 반대.
+
+#### 메커니즘
+
+- **gpt-5-mini (reasoning model)**: ReAct에서 높은 evidentiary standard 적용 → eval score 66 (>threshold 55)에서도 "Cannot determine" 거부 → 30% 거부가 F1=0.0 → 평균 하락
+- **CRAG**: judge-correct-generate 강제 파이프라인 → 거부 선택지 없음 → 정답 확률 상승
+- **Gemini (generation model)**: ReAct에서 덜 신중 → 거부율 낮음 → Agentic 유리
+
+#### 효율성 비교 (gpt-5-mini 2Wiki)
+
+| Metric | Agentic | CRAG |
+|--------|---------|------|
+| F1 | 0.531 | **0.607** |
+| LLM 호출 | **9.9** | 45.2 |
+| Latency | **45.7s** | 147.8s |
+
+CRAG가 F1은 높지만 **4.6배 비효율적**. Agentic + Gemini가 최적의 cost-performance balance.
+
+### Cross-Model Summary
 
 1. **gpt-5-mini가 전반적으로 더 높은 F1** (HotpotQA, MuSiQue)
-2. **그러나 gpt-5-mini에서 Agentic 순위가 낮음** — CRAG가 2/4 데이터셋 1위
+2. **gpt-5-mini에서 Agentic 순위 낮음** — CRAG가 2/4 데이터셋 1위 (Refusal Asymmetry)
 3. **Gemini에서 Agentic 우위가 더 명확** — 논문의 주요 결과로 적합
 4. **FinanceBench는 양쪽 모델 모두 Agentic 열세** — method-level boundary condition 확인
+5. **논문 기여**: Model-Pipeline Interaction Effect → Discussion에서 별도 subsection
 
 ---
 
 ## 다음 단계
 
-1. [ ] LLM-as-Judge 일괄 실행 (전체 결과 jsonl 재사용)
-2. [ ] Bootstrap CI 통계 검증
-3. [ ] gpt-5-mini CRAG 강세 원인 분석
-4. [ ] 결과 테이블/플롯 교체 (논문)
-5. [ ] Discussion 업데이트 (retrieval space saturation, cross-model 분석)
+1. [x] Bootstrap CI 통계 검증 (RQ1 완료)
+2. [x] gpt-5-mini CRAG 강세 원인 분석 (Refusal Asymmetry 발견)
+3. [🔄] LLM-as-Judge 실행 중 (RQ1, gpt-4.1-nano, 8개 병렬)
+4. [ ] LLM-as-Judge 결과 반영 후 최종 테이블 업데이트
+5. [ ] 결과 테이블/플롯 교체 (논문)
+6. [ ] Discussion 업데이트 (Retrieval Space Saturation + Model-Pipeline Interaction)
