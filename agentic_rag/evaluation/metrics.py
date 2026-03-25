@@ -219,14 +219,17 @@ def llm_judge_correctness(
     prediction: str,
     reference: str,
     question: str = "",
+    judge_model: str | None = None,
 ) -> float:
     """LLM-based correctness evaluation (LLM-as-Judge).
 
-    Uses the evaluate_model to judge whether the prediction is semantically
-    correct compared to the reference answer. Returns 1.0 (correct) or
-    0.0 (incorrect). Handles cases where the prediction is phrased
-    differently but conveys the same answer (e.g., "1572" vs "He died
-    in 1572").
+    Uses the specified judge_model (or evaluate_model by default) to judge
+    whether the prediction is semantically correct compared to the reference
+    answer. Returns 1.0 (correct) or 0.0 (incorrect).
+
+    Args:
+        judge_model: Override model for judging (e.g., "openai/gpt-4.1-nano").
+                     If None, uses settings.model.evaluate_model.
 
     This is the standard approach used in recent agentic RAG papers
     (Test-Time Strategies 2026, Search-o1) as a complement to EM/F1.
@@ -254,9 +257,10 @@ def llm_judge_correctness(
         )
 
     evaluator = dspy.Predict(CorrectnessJudge)
+    model = judge_model or settings.model.evaluate_model
 
     try:
-        with dspy.context(lm=make_lm(settings.model.evaluate_model)):
+        with dspy.context(lm=make_lm(model)):
             result = evaluator(
                 question=question,
                 reference_answer=reference,
