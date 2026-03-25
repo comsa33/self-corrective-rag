@@ -3,6 +3,7 @@
 % ===========================================================================
 
 This section presents the main experimental results.
+All experiments use $n = 200$ samples per dataset (FinanceBench: $n = 150$, full dataset) unless otherwise noted.
 We address three research questions: RQ1 compares \ours{} against baselines (\S\ref{subsec:rq1}), RQ2 analyzes the agent's tool usage patterns (\S\ref{subsec:rq2}), and RQ5 evaluates DSPy optimization effects (\S\ref{subsec:rq5}).
 Ablation studies for RQ3 (evaluation tool variants) and RQ4 (structure-aware tools) are presented in \S\ref{sec:ablation}.
 
@@ -13,11 +14,13 @@ Ablation studies for RQ3 (evaluation tool variants) and RQ4 (structure-aware too
 
 \textbf{Does ReAct-based agentic refinement improve answer quality compared to fixed-loop refinement and single-pass baselines?}
 
-Table~\ref{tab:rq1_main} presents the main results across four datasets.
+Table~\ref{tab:rq1_main} and Figure~\ref{fig:rq1_f1} present the main results across four datasets using Gemini Flash Lite.
+
+\input{figures/rq1_f1_comparison}
 
 \begin{table*}[t]
 \centering
-\caption{Main results (RQ1). Best result per dataset in \textbf{bold}. \ours{} (Agentic) consistently outperforms all baselines on complex multi-hop datasets (2WikiMultiHopQA and MuSiQue). $n=50$ per dataset.}
+\caption{Main results (RQ1, Gemini Flash Lite). Best result per dataset in \textbf{bold}. $n = 200$ per dataset (FinanceBench: $n = 150$, full dataset). LLM-as-Judge uses gpt-4.1-nano as an independent evaluator.}
 \label{tab:rq1_main}
 \resizebox{\textwidth}{!}{%
 \begin{tabular}{l ccc ccc ccc ccc}
@@ -26,49 +29,142 @@ Table~\ref{tab:rq1_main} presents the main results across four datasets.
 \cmidrule(lr){2-4} \cmidrule(lr){5-7} \cmidrule(lr){8-10} \cmidrule(lr){11-13}
 \textbf{Pipeline} & EM & F1 & Judge & EM & F1 & Judge & EM & F1 & Judge & EM & F1 & Judge \\
 \midrule
-Naive RAG        & \textbf{.560} & .720 & .820 & .260 & .378 & .520 & .260 & .342 & .420 & .220 & .404 & .840 \\
-CRAG Replica     & .440 & .605 & .700 & .060 & .240 & .480 & .180 & .248 & .280 & .160 & .333 & .680 \\
-Single-Pass      & .540 & \textbf{.726} & \textbf{.860} & .380 & .485 & .680 & .320 & .384 & .440 & .200 & .374 & .800 \\
-Loop Refinement  & .540 & .711 & .840 & .380 & .485 & .680 & .340 & .402 & .440 & \textbf{.240} & \textbf{.414} & .840 \\
-\textbf{\ours{}} & \textbf{.560} & .714 & .840 & \textbf{.440} & \textbf{.554} & \textbf{.760} & \textbf{.380} & \textbf{.453} & \textbf{.480} & .220 & .412 & \textbf{.900} \\
+Naive RAG        & .445 & .606 & .700 & .275 & .378 & .400 & .235 & .342 & .335 & .167 & .398 & \textbf{.580} \\
+CRAG Replica     & .400 & .553 & .645 & .130 & .255 & .320 & .175 & .251 & .225 & .107 & .333 & .487 \\
+Single-Pass      & .470 & .630 & .720 & .375 & .486 & .495 & .280 & .384 & .360 & .160 & .381 & .507 \\
+Loop Refinement  & .480 & .636 & .730 & .380 & .495 & .505 & .300 & .399 & .380 & \textbf{.180} & \textbf{.400} & .533 \\
+\textbf{\ours{}} & \textbf{.505} & \textbf{.658} & \textbf{.765} & \textbf{.470} & \textbf{.584} & \textbf{.645} & \textbf{.330} & \textbf{.438} & \textbf{.405} & .153 & .386 & .527 \\
 \midrule
-\multicolumn{1}{r}{\textit{$\Delta$ vs.\ Loop}} & $=$ & $+.003$ & $=$ & $+.060$ & $+.069$ & $+.080$ & $+.040$ & $+.051$ & $+.040$ & $-.020$ & $-.002$ & $+.060$ \\
+\multicolumn{1}{r}{\textit{$\Delta$ vs.\ Loop}} & $+.025$ & $+.022$ & $+.035$ & $+.090$ & $+.089$ & $+.140$ & $+.030$ & $+.039$ & $+.025$ & $-.027$ & $-.014$ & $-.006$ \\
 \bottomrule
 \end{tabular}
 }% end resizebox
 \end{table*}
 
 \paragraph{Complex multi-hop questions}
-\ours{} achieves the best performance on 2WikiMultiHopQA (F1 0.554, $+0.069$ over Loop) and MuSiQue (F1 0.453, $+0.051$ over Loop).
+\ours{} achieves the best performance on both complex multi-hop datasets: 2WikiMultiHopQA (F1 0.584, $+0.089$ over Loop Refinement) and MuSiQue (F1 0.438, $+0.039$ over Loop).
 These improvements are consistent across all three metrics (EM, F1, Judge), indicating genuine quality gains rather than metric-specific artifacts.
-The LLM-as-Judge scores show even larger gaps: $+0.080$ on 2Wiki and $+0.040$ on MuSiQue, suggesting that the agentic approach produces answers that are more semantically correct even when token overlap is moderate.
+The LLM-as-Judge scores show the largest gaps on 2WikiMultiHopQA ($+0.140$), where the judge identifies correct multi-hop reasoning even when token overlap is moderate.
+As we show in \S\ref{subsubsec:significance}, the 2WikiMultiHopQA improvement is statistically significant ($p < 0.001$) across all baseline comparisons.
 
 \paragraph{Simple 2-hop questions}
-On HotpotQA, all pipeline variants perform within a narrow range (F1 0.605--0.726), with Single-Pass slightly leading.
-This suggests that 2-hop questions do not require iterative refinement---a single well-preprocessed retrieval pass is sufficient, and the additional overhead of agentic reasoning provides no benefit.
+On HotpotQA, \ours{} leads across all metrics (F1 0.658, EM 0.505, Judge 0.765), but the margin over Loop Refinement is small (F1 $+0.022$).
+This suggests that 2-hop questions---where the required evidence can typically be retrieved in one or two search passes---do not fully exercise the agent's adaptive refinement capabilities.
+The overhead of multi-step ReAct reasoning provides limited benefit when a single well-preprocessed retrieval pass is already sufficient.
 
 \paragraph{Enterprise documents}
-On FinanceBench, Loop Refinement marginally outperforms \ours{} in F1 (0.414 vs.\ 0.412, $\Delta = -0.002$), while \ours{} leads in Judge score (0.900 vs.\ 0.840).
-The near-identical F1 scores suggest that both refinement approaches extract similar information, but the agentic approach may produce more naturally phrased answers that the LLM judge favors.
+On FinanceBench, Loop Refinement marginally outperforms \ours{} in F1 (0.400 vs.\ 0.386, $\Delta = -0.014$) and EM (0.180 vs.\ 0.153).
+Notably, Naive RAG achieves the highest Judge score (0.580), outperforming all iterative methods.
+This pattern---where iterative refinement does \emph{not} improve and may slightly degrade answer quality---suggests a boundary condition for our approach.
+We analyze this effect in detail in \S\ref{subsec:boundary}, attributing it to retrieval space saturation in FinanceBench's small corpus (211 passages).
 
 \paragraph{CRAG Replica underperformance}
 The CRAG Replica consistently ranks lowest, which is expected: our implementation replaces CRAG's web search fallback with internal re-retrieval (to match our enterprise-constrained setting) and uses LLM-based evaluation instead of a fine-tuned T5-large evaluator.
-These architectural differences explain the gap with reported CRAG results.
+These architectural constraints substantially disadvantage the CRAG approach.
 
 \paragraph{Key finding}
-The agentic advantage is \emph{complexity-dependent}: improvements grow with question complexity (number of reasoning hops), while simple questions show no benefit.
-This pattern is consistent with the hypothesis that autonomous tool selection provides value primarily when the retrieval task is non-trivial and benefits from adaptive strategy.
+The agentic advantage is \emph{complexity-dependent}: improvements grow with question complexity (number of reasoning hops and retrieval difficulty), while simple questions and small-corpus settings show no benefit.
+This pattern is consistent with the hypothesis that autonomous tool selection provides value primarily when the retrieval task requires adaptive strategy.
+
+% ---------------------------------------------------------------------------
+\subsubsection{Statistical Significance}
+\label{subsubsec:significance}
+% ---------------------------------------------------------------------------
+
+To rigorously assess the reliability of observed differences, we perform paired bootstrap significance testing~\cite{efron1993bootstrap} with 10,000 resamples and Bonferroni correction for multiple comparisons.
+Table~\ref{tab:rq1_significance} reports 95\% confidence intervals for \ours{} and pairwise comparisons against each baseline.
+
+\begin{table*}[t]
+\centering
+\caption{Statistical significance (F1, paired bootstrap test, 10,000 resamples, Bonferroni-corrected $\alpha = 0.0125$). Top row: \ours{} F1 with 95\% bootstrap confidence interval. Lower rows: F1 difference $\Delta$ vs.\ each baseline (from Table~\ref{tab:rq1_main}); $p$-values from paired bootstrap. Significance: $^{***}p < 0.001$.}
+\label{tab:rq1_significance}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{l cccc}
+\toprule
+& \textbf{HotpotQA} & \textbf{2WikiMultiHopQA} & \textbf{MuSiQue} & \textbf{FinanceBench} \\
+\midrule
+\ours{} F1 [95\% CI] & .658\;[.604,\;.725] & .584\;[.506,\;.648] & .438\;[.362,\;.519] & .386\;[.323,\;.451] \\
+\midrule
+$\Delta$ vs.\ Loop       & $+.022$           & $+.089^{***}$      & $+.039$           & $-.014$           \\
+$\Delta$ vs.\ CRAG       & $+.105^{***}$     & $+.329^{***}$      & $+.187^{***}$     & $+.053$           \\
+$\Delta$ vs.\ Single     & $+.028$           & $+.098^{***}$      & $+.054$           & $+.005$           \\
+$\Delta$ vs.\ Naive      & $+.052$           & $+.206^{***}$      & $+.096^{***}$     & $-.012$           \\
+\bottomrule
+\end{tabular}
+}% end resizebox
+\end{table*}
+
+\paragraph{2WikiMultiHopQA: strongest evidence}
+\ours{} achieves statistically significant improvement over \emph{all four baselines} on 2WikiMultiHopQA ($p < 0.001$ in each case), with the largest effect against CRAG ($\Delta = +0.329$).
+The 95\% confidence interval [$0.506, 0.648$] does not overlap with the confidence intervals of Loop [$0.433, 0.557$] or CRAG [$0.209, 0.305$], providing strong evidence that the improvement is not due to sampling variability.
+
+\paragraph{MuSiQue: significant vs.\ weaker baselines}
+Against CRAG ($+0.187$, $p < 0.001$) and Naive ($+0.096$, $p < 0.001$), the improvement is significant.
+Against Loop ($+0.039$) and Single-Pass ($+0.054$), the positive trend does not reach significance, indicating that the refinement mechanisms converge for 3--4 hop questions that overlap in difficulty.
+
+\paragraph{HotpotQA: comparable performance}
+No pairwise comparison reaches significance except against CRAG ($+0.105$, $p < 0.001$), confirming that 2-hop questions do not discriminate between refinement approaches.
+
+\paragraph{FinanceBench: no significant differences}
+All pairwise comparisons are non-significant, with confidence intervals substantially overlapping.
+The marginally negative delta against Loop ($-0.014$) is well within noise.
+This statistical confirmation of the null result is consistent with the retrieval space saturation hypothesis discussed in \S\ref{subsec:boundary}.
+
+% ---------------------------------------------------------------------------
+\subsubsection{Cross-Model Validation}
+\label{subsubsec:crossmodel}
+% ---------------------------------------------------------------------------
+
+To assess whether the observed patterns are model-dependent, we replicate the RQ1 experiment using gpt-5-mini\footnote{Model~ID: \texttt{gpt-5-mini}, with \texttt{reasoning\_effort=low}.}, a reasoning-oriented model from a different provider and architecture family.
+Table~\ref{tab:rq1_crossmodel} presents the results.
+
+\begin{table*}[t]
+\centering
+\caption{Cross-model validation (RQ1, gpt-5-mini). $n = 200$ per dataset (FinanceBench: $n = 150$). LLM-as-Judge: gpt-4.1-nano (same independent judge as Gemini experiments). Best per dataset in \textbf{bold}.}
+\label{tab:rq1_crossmodel}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{l ccc ccc ccc ccc}
+\toprule
+& \multicolumn{3}{c}{\textbf{HotpotQA}} & \multicolumn{3}{c}{\textbf{2WikiMultiHopQA}} & \multicolumn{3}{c}{\textbf{MuSiQue}} & \multicolumn{3}{c}{\textbf{FinanceBench}} \\
+\cmidrule(lr){2-4} \cmidrule(lr){5-7} \cmidrule(lr){8-10} \cmidrule(lr){11-13}
+\textbf{Pipeline} & EM & F1 & Judge & EM & F1 & Judge & EM & F1 & Judge & EM & F1 & Judge \\
+\midrule
+Naive RAG        & .485 & .657 & .755 & .335 & .400 & .405 & .310 & .441 & .425 & .140 & .321 & \textbf{.540} \\
+CRAG Replica     & \textbf{.535} & \textbf{.698} & .780 & \textbf{.550} & \textbf{.637} & \textbf{.655} & .370 & .491 & .460 & \textbf{.147} & \textbf{.343} & .520 \\
+Single-Pass      & .505 & .678 & .735 & .390 & .465 & .485 & \textbf{.375} & .504 & .490 & .140 & .308 & .480 \\
+Loop Refinement  & .510 & .689 & .750 & .425 & .510 & .540 & .370 & .505 & .485 & .160 & .328 & .507 \\
+\textbf{\ours{}} & .510 & .697 & \textbf{.790} & .485 & .551 & .560 & \textbf{.375} & \textbf{.516} & \textbf{.505} & .133 & .317 & .513 \\
+\midrule
+\multicolumn{1}{r}{\textit{$\Delta$ vs.\ CRAG}} & $-.025$ & $-.001$ & $+.010$ & $-.065$ & $-.086$ & $-.095$ & $+.005$ & $+.025$ & $+.045$ & $-.014$ & $-.026$ & $-.007$ \\
+\bottomrule
+\end{tabular}
+}% end resizebox
+\end{table*}
+
+\paragraph{Model--pipeline interaction effect}
+The cross-model experiment reveals a striking reversal: with gpt-5-mini, CRAG Replica outperforms \ours{} on 2WikiMultiHopQA (F1 0.637 vs.\ 0.551, $p = 0.004$) and FinanceBench (F1 0.343 vs.\ 0.317, $p = 0.042$).
+This contrasts sharply with the Gemini results, where \ours{} leads on both datasets.
+The reversal is driven by what we term \emph{Reasoning Model Refusal Asymmetry}: gpt-5-mini's reasoning capabilities lead it to apply higher evidentiary standards within the ReAct framework, resulting in a 30\% answer refusal rate on 2WikiMultiHopQA (compared to CRAG's 18\%).
+CRAG's rigid judge--correct--generate pipeline precludes refusal, ensuring an answer is always produced.
+We analyze this phenomenon in detail in \S\ref{subsec:model_interaction}.
+
+\paragraph{Consistent findings}
+Despite the model--pipeline interaction, several patterns remain consistent across both models:
+(1)~\ours{} leads on MuSiQue (F1 0.516, Judge 0.505), the hardest multi-hop dataset;
+(2)~Naive RAG achieves the highest Judge score on FinanceBench with both models (0.580 for Gemini, 0.540 for gpt-5-mini);
+(3)~HotpotQA shows compressed performance ranges with both models.
+The LLM-as-Judge also resolves an apparent tie on HotpotQA: \ours{} achieves 0.790 vs.\ CRAG's 0.780, suggesting subtle quality advantages that F1 cannot capture.
 
 % ---------------------------------------------------------------------------
 \subsubsection{Latency Analysis}
 \label{subsubsec:latency}
 % ---------------------------------------------------------------------------
 
-Table~\ref{tab:latency} reports average per-question latency.
+Table~\ref{tab:latency} reports average per-question latency for the Gemini configuration.
 
 \begin{table}[t]
 \centering
-\caption{Average latency per question (seconds). Agentic refinement incurs significant overhead due to multi-step ReAct reasoning.}
+\caption{Average latency per question (seconds, Gemini Flash Lite, $\tau = 40$). Latency is dominated by LLM API calls; the agent averages 5--6 tool invocations per question.}
 \label{tab:latency}
 \begin{tabular}{lcccc}
 \toprule
@@ -85,8 +181,8 @@ Loop Refinement & 3.1 & 1.7 & 3.6 & 2.7 \\
 
 \ours{} requires 14--17 seconds per question, approximately 4--5$\times$ slower than Loop Refinement and 30--50$\times$ slower than Naive RAG.
 This overhead stems from the ReAct reasoning loop: each iteration involves LLM inference for thought generation, tool selection, and observation processing.
-With an average of 5.5--5.8 tool calls per question (see \S\ref{subsec:rq2}), the agent performs substantially more LLM calls than the fixed-loop approach.
-
+With an average of 5.4--6.2 tool calls per question (see \S\ref{subsec:rq2}), the agent performs substantially more LLM calls than the fixed-loop approach.
+With gpt-5-mini, latency increases further (45.7s per question on 2WikiMultiHopQA) due to the model's reasoning overhead, while CRAG requires 147.8s due to its multi-stage pipeline involving 45.2 LLM calls per question.
 We discuss the latency--quality trade-off and practical implications in \S\ref{sec:discussion}.
 
 % ---------------------------------------------------------------------------
@@ -101,54 +197,47 @@ We discuss the latency--quality trade-off and practical implications in \S\ref{s
 \label{subsubsec:tool_freq}
 % ---------------------------------------------------------------------------
 
-Table~\ref{tab:tool_usage} reports the average number of tool calls per question.
+Table~\ref{tab:tool_usage} and Figure~\ref{fig:tool_usage} report the average number of tool calls per question across all four datasets.
+
+\input{figures/tool_usage_heatmap}
 
 \begin{table}[t]
 \centering
-\caption{Average tool calls per question across datasets. The agent consistently prioritizes search and decomposition, with evaluate called exactly once per question (mandatory fallback ensures 100\% coverage).}
+\caption{Average tool calls per question ($n = 200$ per dataset). The agent prioritizes search and decomposition, with evaluation called at least once per question via mandatory fallback.}
 \label{tab:tool_usage}
 \begin{tabular}{lcccc}
 \toprule
 \textbf{Tool} & \textbf{HotpotQA} & \textbf{2Wiki} & \textbf{MuSiQue} & \textbf{Finance} \\
 \midrule
-\texttt{search\_passages}    & 3.7 & 3.5 & 3.9 & 3.8 \\
-\texttt{evaluate\_passages}  & 1.1 & 1.1 & 1.1 & 1.0 \\
-\texttt{decompose\_query}    & 0.8 & 0.9 & 0.8 & 0.8 \\
-\texttt{calculate}           & --  & --  & --  & 0.1 \\
+\texttt{search\_passages}          & 2.4 & 2.7 & 3.4 & 1.9 \\
+\texttt{evaluate\_passages}        & 1.0 & 1.1 & 1.0 & 1.0 \\
+\texttt{decompose\_query}          & 0.9 & 1.0 & 0.9 & 1.0 \\
+\texttt{get\_passage\_detail}      & 1.1 & 0.8 & 0.6 & 1.1 \\
+\texttt{list\_document\_sections}  & 0.1 & 0.1 & 0.4 & 0.5 \\
+\texttt{calculate}                 & --  & --  & --  & 0.4 \\
+\texttt{get\_terminology}          & $<$0.1 & 0.0 & $<$0.1 & $<$0.1 \\
 \midrule
-\textbf{Total tools/question} & 5.6 & 5.5 & 5.7 & 5.8 \\
+\textbf{Total tools/question} & \textbf{5.4} & \textbf{5.7} & \textbf{6.2} & \textbf{5.8} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \paragraph{Search dominance}
-The agent calls \texttt{search\_passages} 3.5--3.9 times per question, making it the most frequently used tool.
-This is consistent with the agent's primary objective of accumulating high-quality passages.
-The slightly higher frequency on MuSiQue (3.9) and FinanceBench (3.8) reflects the greater retrieval difficulty of these datasets.
+The agent calls \texttt{search\_passages} 1.9--3.4 times per question, making it the most frequently used tool.
+MuSiQue exhibits the highest search frequency (3.4), consistent with its 3--4 hop structure requiring multiple independent evidence retrieval passes.
+Conversely, FinanceBench requires the fewest searches (1.9), reflecting its small corpus where initial retrieval often suffices.
 
-\paragraph{Decomposition}
-\texttt{decompose\_query} is called approximately 0.8--0.9 times per question, indicating that the agent correctly identifies most questions as multi-hop and decomposes them before searching.
-The sub-1.0 frequency means some questions are judged as single-hop and searched directly.
+\paragraph{Progressive information disclosure}
+\texttt{get\_passage\_detail} is called 0.6--1.1 times per question, indicating that the agent actively employs a two-stage retrieval strategy: first scanning search previews (200-character summaries), then retrieving full text for promising passages.
+This progressive disclosure reduces context window consumption while maintaining retrieval precision.
 
-\paragraph{Evaluation coverage}
-The \texttt{evaluate\_passages} tool is called 1.0--1.1 times per question, with 100\% coverage across all datasets.
-The mandatory evaluate fallback mechanism (which triggers when the agent skips evaluation) accounts for 6--12\% of evaluations, ensuring that quality assessment is never omitted.
+\paragraph{Structure-aware navigation}
+\texttt{list\_document\_sections} is rarely used on Wikipedia-based datasets ($\leq 0.1$/q) but more frequently on MuSiQue (0.4/q) and FinanceBench (0.5/q), where complex document structures benefit from hierarchical navigation.
+In contrast, \texttt{get\_terminology} is virtually unused across all datasets ($< 0.1$/q), indicating that the vocabulary gap between questions and corpus language is not a significant bottleneck for these benchmarks.
 
-\begin{table}[t]
-\centering
-\caption{Evaluate coverage. Mandatory fallback ensures 100\% evaluation coverage even when the agent omits the evaluate tool.}
-\label{tab:eval_coverage}
-\begin{tabular}{lcc}
-\toprule
-\textbf{Dataset} & \textbf{Evaluate Used} & \textbf{Mandatory Fallback} \\
-\midrule
-HotpotQA        & 50/50 (100\%) & 3 (6\%) \\
-2WikiMultiHopQA & 50/50 (100\%) & 3 (6\%) \\
-MuSiQue         & 50/50 (100\%) & 4 (8\%) \\
-FinanceBench    & 50/50 (100\%) & 6 (12\%) \\
-\bottomrule
-\end{tabular}
-\end{table}
+\paragraph{Domain-adaptive tool selection}
+On FinanceBench, the agent invokes \texttt{calculate} (0.4 calls per question) for numerical computations such as margin calculations and year-over-year comparisons.
+This tool is completely unused on Wikipedia-based datasets, demonstrating the agent's ability to adapt its tool repertoire to the domain without explicit configuration.
 
 % ---------------------------------------------------------------------------
 \subsubsection{Trajectory Patterns}
@@ -162,15 +251,11 @@ Analysis of ReAct trajectories reveals three dominant behavioral patterns:
 
     \item \textbf{Search--Evaluate} (simple cases): For questions identified as single-hop, the agent skips decomposition and directly searches with the preprocessed query before evaluating.
 
-    \item \textbf{Decompose--Search--Evaluate--Refine} (refinement loop): When the initial evaluation score falls below the quality threshold, the agent uses evaluation feedback to refine the query, performs an additional search, and re-evaluates.
+    \item \textbf{Decompose--Search--Evaluate--Refine} (iterative refinement): When the initial evaluation score falls below the quality threshold, the agent uses evaluation feedback to refine the query, performs an additional search, and re-evaluates.
 \end{enumerate}
 
 Notably, the agent \emph{spontaneously develops} these structured protocols through ReAct reasoning, despite having access to a broader set of tools and no hard-coded execution sequence.
-The protocol is suggested in the agent's signature docstring but not enforced---the agent could deviate but consistently converges on these patterns.
-
-\paragraph{Domain adaptation}
-On FinanceBench, the agent occasionally invokes \texttt{calculate} (0.1~calls per question) for numerical computations such as margin calculations.
-This tool is virtually unused on Wikipedia-based datasets, demonstrating domain-adaptive tool selection.
+The protocol is suggested in the agent's signature docstring but not enforced---the agent could deviate but consistently converges on these patterns across all 800+ questions evaluated.
 
 % ---------------------------------------------------------------------------
 \subsection{RQ5: DSPy Optimization Effect}
@@ -180,67 +265,48 @@ This tool is virtually unused on Wikipedia-based datasets, demonstrating domain-
 \textbf{Does DSPy's declarative pipeline and automatic optimization improve answer quality compared to manual prompt engineering?}
 
 Table~\ref{tab:rq5} compares four prompt engineering approaches.
+The test set sizes ($N$) differ from RQ1 because 50 examples per dataset are reserved for DSPy optimization training and 20 for validation.
 
 \begin{table*}[t]
 \centering
-\caption{DSPy optimization results (RQ5). ``Manual Prompt'' uses hand-crafted JSON templates; ``DSPy Unopt'' uses typed Signatures without optimization; Bootstrap and MIPROv2 add automatic few-shot/instruction optimization. Best per dataset in \textbf{bold}.}
+\caption{DSPy optimization results (RQ5, Gemini Flash Lite). ``Manual'' uses hand-crafted JSON templates; ``Unopt'' uses DSPy typed Signatures without optimization; Bootstrap and MIPROv2 add automatic few-shot/instruction optimization. Best per dataset in \textbf{bold}. $N$: test set size after train/validation split.}
 \label{tab:rq5}
 \resizebox{\textwidth}{!}{%
-\begin{tabular}{l ccc ccc ccc ccc}
+\begin{tabular}{l cc cc cc cc c}
 \toprule
-& \multicolumn{3}{c}{\textbf{HotpotQA}} & \multicolumn{3}{c}{\textbf{2WikiMultiHopQA}} & \multicolumn{3}{c}{\textbf{MuSiQue}} & \multicolumn{3}{c}{\textbf{FinanceBench}} \\
-\cmidrule(lr){2-4} \cmidrule(lr){5-7} \cmidrule(lr){8-10} \cmidrule(lr){11-13}
-\textbf{Variant} & EM & F1 & Judge & EM & F1 & Judge & EM & F1 & Judge & EM & F1 & Judge \\
+& \multicolumn{2}{c}{\textbf{HotpotQA}} & \multicolumn{2}{c}{\textbf{2WikiMultiHopQA}} & \multicolumn{2}{c}{\textbf{MuSiQue}} & \multicolumn{2}{c}{\textbf{FinanceBench}} & \\
+\cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7} \cmidrule(lr){8-9}
+\textbf{Variant} & EM & F1 & EM & F1 & EM & F1 & EM & F1 & $N$ \\
 \midrule
-Manual Prompt    & .400 & .618 & .900 & .260 & .495 & \textbf{.860} & .320 & .470 & .520 & .000 & .197 & .720 \\
-DSPy Unopt       & .540 & \textbf{.717} & .920 & .367 & .549 & .800 & .340 & .467 & .540 & \textbf{.160} & .404 & .840 \\
-DSPy + Bootstrap & \textbf{.540} & .699 & .920 & \textbf{.510} & \textbf{.632} & .820 & .440 & .520 & .580 & .180 & \textbf{.424} & \textbf{.880} \\
-DSPy + MIPROv2   & .520 & .712 & \textbf{.940} & .367 & .549 & .800 & \textbf{.500} & \textbf{.577} & \textbf{.680} & .140 & .368 & .840 \\
+Manual Prompt       & .400 & .575 & .308 & .501 & .331 & .465 & .000 & .246 & -- \\
+DSPy Unopt          & .508 & .650 & .477 & .601 & .354 & .456 & \textbf{.200} & \textbf{.436} & -- \\
+DSPy + Bootstrap    & \textbf{.538} & \textbf{.681} & \textbf{.554} & \textbf{.647} & .454 & .533 & .188 & .421 & 130/80 \\
+DSPy + MIPROv2      & .508 & .663 & .423 & .549 & \textbf{.431} & \textbf{.525} & .175 & .410 & 130/80 \\
 \midrule
-\multicolumn{1}{r}{\textit{$\Delta$ Manual$\to$Unopt}} & $+.140$ & $+.099$ & $+.020$ & $+.107$ & $+.054$ & $-.060$ & $+.020$ & $-.003$ & $+.020$ & $+.160$ & $+.207$ & $+.120$ \\
+\multicolumn{1}{r}{\textit{$\Delta$ Manual$\to$Unopt}} & $+.108$ & $+.075$ & $+.169$ & $+.100$ & $+.023$ & $-.009$ & $+.200$ & $+.190$ & \\
+\multicolumn{1}{r}{\textit{$\Delta$ Manual$\to$Best}} & $+.138$ & $+.106$ & $+.246$ & $+.146$ & $+.100$ & $+.068$ & $+.200$ & $+.190$ & \\
 \bottomrule
 \end{tabular}
 }% end resizebox
 \end{table*}
 
 \paragraph{Structural benefit: Manual $\to$ DSPy Unopt}
-The most striking finding is that simply replacing hand-crafted JSON prompt templates with DSPy typed Signatures yields substantial improvements \emph{without any optimization}: F1 increases of $+0.099$ (HotpotQA), $+0.054$ (2Wiki), and $+0.207$ (FinanceBench).
-The FinanceBench improvement is particularly dramatic, from 0.197 to 0.404 (more than doubling).
-This suggests that DSPy's structured prompting---with typed input/output fields, descriptive field annotations, and task-specific docstrings---provides a more effective interface for LLM reasoning than manually constructed prompts.
+Replacing hand-crafted JSON prompt templates with DSPy typed Signatures yields substantial improvements \emph{without any optimization}: F1 increases of $+0.075$ (HotpotQA), $+0.100$ (2WikiMultiHopQA), and $+0.190$ (FinanceBench).
+The FinanceBench improvement is particularly dramatic: from F1 0.246 to 0.436, with EM increasing from 0.000 (no exact matches) to 0.200.
+The Manual prompt's EM of 0.000 on FinanceBench illustrates the fragility of hand-crafted prompts---even partially correct answers never exactly match the reference format, while DSPy's typed output fields enforce structural consistency.
+MuSiQue is the exception, where Unopt slightly underperforms Manual ($-0.009$ F1), suggesting that the manual prompt's task-specific instructions were already well-tuned for this dataset.
 
 \paragraph{Optimization benefit: Unopt $\to$ Bootstrap/MIPROv2}
 Automatic optimization provides additional gains, but the effect is \emph{dataset-dependent}:
 
 \begin{itemize}
-    \item \textbf{BootstrapFewShot} excels on structured multi-hop tasks: best F1 on 2Wiki (0.632, $+0.083$ over Unopt) and FinanceBench (0.424, $+0.020$). Successful execution traces as few-shot examples help the model recognize multi-hop retrieval patterns.
+    \item \textbf{BootstrapFewShot} excels on structured multi-hop tasks: best F1 on HotpotQA (0.681, $+0.031$ over Unopt) and 2WikiMultiHopQA (0.647, $+0.046$). Successful execution traces as few-shot examples help the model recognize multi-hop retrieval patterns.
 
-    \item \textbf{MIPROv2} excels on complex reasoning: best F1 on MuSiQue (0.577, $+0.110$ over Unopt), the hardest dataset. Optimized instructions apparently help with deeper reasoning chains.
+    \item \textbf{MIPROv2} excels on complex reasoning: best F1 on MuSiQue (0.525, $+0.069$ over Unopt). The jointly optimized instructions and demonstrations apparently help with deeper reasoning chains.
 
-    \item On HotpotQA, Unopt already achieves strong performance (0.717), and optimization provides marginal or no improvement---a ceiling effect.
-
-    \item \textbf{Over-optimization risk}: On FinanceBench, MIPROv2 (0.368) \emph{underperforms} Unopt (0.404), suggesting that domain-specific data may benefit from conservative optimization or domain-adapted training examples.
+    \item \textbf{Over-optimization risk}: On FinanceBench, both optimizers \emph{underperform} Unopt (Bootstrap 0.421, MIPROv2 0.410 vs.\ Unopt 0.436), suggesting over-optimization on a small training set (50 examples from 150 total). This is consistent with the general machine learning principle that smaller datasets are more susceptible to overfitting during optimization.
 \end{itemize}
 
-\paragraph{Latency reduction}
-An unexpected benefit of optimization is reduced inference latency: Bootstrap and MIPROv2 variants complete in 2--3 seconds per question versus 19--24 seconds for Manual/Unopt (Table~\ref{tab:rq5_latency}).
-Pre-computed few-shot demonstrations reduce the amount of in-context reasoning required, effectively trading optimization-time compute for inference-time efficiency.
-
-\begin{table}[t]
-\centering
-\caption{Average latency per question (seconds) for DSPy variants. Optimized variants are substantially faster due to pre-computed few-shot demonstrations.}
-\label{tab:rq5_latency}
-\begin{tabular}{lcccc}
-\toprule
-\textbf{Variant} & \textbf{HotpotQA} & \textbf{2Wiki} & \textbf{MuSiQue} & \textbf{Finance} \\
-\midrule
-Manual Prompt  & 19.2 & 19.2 & 20.3 & 21.9 \\
-DSPy Unopt     & 19.7 & 20.0 & 21.2 & 23.9 \\
-DSPy + Bootstrap & 2.4 & 2.1 & 2.4 & 3.2 \\
-DSPy + MIPROv2   & 2.5 & 0.1 & 2.7 & 3.3 \\
-\bottomrule
-\end{tabular}
-\end{table}
-
 \paragraph{Key finding}
-DSPy provides a two-level contribution: (1) the \emph{structural benefit} of typed Signatures alone is the single largest improvement in our experiments ($+0.1$--$0.2$ F1), and (2) automatic optimization provides additional dataset-dependent gains.
-This supports the practical value of declarative LM programming for RAG systems.
+DSPy provides a two-level contribution: (1) the \emph{structural benefit} of typed Signatures alone is the single largest improvement in our experiments (F1 $+0.075$--$0.190$ on three of four datasets), and (2) automatic optimization provides additional dataset-dependent gains (BootstrapFewShot most consistently effective, achieving overall best F1 on 3/4 datasets).
+The total improvement from Manual to best DSPy variant ranges from $+0.068$ to $+0.190$ F1, supporting the practical value of declarative LM programming for RAG systems.

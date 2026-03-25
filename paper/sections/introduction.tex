@@ -20,14 +20,15 @@ The agent autonomously reasons about retrieval quality and selects appropriate t
 Second, we implement the entire pipeline as a \textbf{DSPy declarative program}~\cite{khattab2024dspy}, replacing hand-crafted prompts with typed Signatures that enable both structured prompting and automatic optimization through BootstrapFewShot and MIPROv2~\cite{opsahl2024miprov2}.
 
 We evaluate \ours{} on four datasets: three multi-hop QA benchmarks (HotpotQA~\cite{yang2018hotpotqa}, 2WikiMultiHopQA~\cite{ho2020wiki2multi}, MuSiQue~\cite{trivedi2022musique}) and an enterprise financial QA benchmark (FinanceBench~\cite{financebench2023}).
-Results demonstrate that the agentic approach outperforms fixed-loop and single-pass baselines on complex multi-hop questions, with F1 improvements of $+0.069$ on 2WikiMultiHopQA and $+0.051$ on MuSiQue, while showing comparable performance on simpler 2-hop questions.
-DSPy's typed Signatures alone improve F1 by 0.1--0.2 over manual prompts, with additional gains from automatic optimization.
+Evaluated on $n = 200$ samples per dataset with paired bootstrap significance testing, results demonstrate that the agentic approach achieves statistically significant improvement over all baselines on 2WikiMultiHopQA (F1 $+0.089$, $p < 0.001$), with consistent positive trends on MuSiQue ($+0.039$).
+Cross-model validation with gpt-5-mini reveals a model--pipeline interaction effect---\emph{Reasoning Model Refusal Asymmetry}---where reasoning-oriented models apply excessive evidentiary standards in agentic pipelines, providing practical guidance for model-aware pipeline selection.
+DSPy's typed Signatures alone improve F1 by 0.075--0.190 over manual prompts on three of four datasets, with additional gains from automatic optimization.
 
 The main contributions of this paper are:
 \begin{enumerate}
     \item We propose \ours{}, a framework that replaces fixed-loop refinement with a ReAct-based agent equipped with six specialized tools, enabling autonomous, complexity-adaptive retrieval refinement for multi-hop question answering.
 
-    \item We implement the entire pipeline as a DSPy declarative program and demonstrate that typed Signatures alone provide the single largest improvement in our experiments (F1 $+0.1$--$0.2$), with automatic optimization yielding further dataset-dependent gains.
+    \item We implement the entire pipeline as a DSPy declarative program and demonstrate that typed Signatures alone provide the single largest improvement in our experiments (F1 $+0.075$--$0.190$), with automatic optimization yielding further dataset-dependent gains.
 
-    \item We provide comprehensive empirical evaluation across four datasets and five pipeline variants, including ablation studies on tool configurations with honest reporting of negative results, analysis of emergent agent behavior patterns, and quantification of the latency--quality trade-off.
+    \item We provide rigorous empirical evaluation ($n = 200$ with bootstrap significance testing) across four datasets, five pipeline variants, and two model families, including ablation studies on tool configurations, identification of boundary conditions (retrieval space saturation) and model--pipeline interaction effects (Reasoning Model Refusal Asymmetry), and quantification of the latency--quality trade-off.
 \end{enumerate}

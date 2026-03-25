@@ -5,16 +5,17 @@
 We presented \ours{}, a framework that replaces fixed-loop self-corrective RAG with a ReAct-based agent equipped with six specialized tools for autonomous retrieval refinement.
 Implemented as a DSPy declarative pipeline, the framework enables both structured prompting through typed Signatures and automatic optimization through BootstrapFewShot and MIPROv2.
 
-Our experiments across four datasets demonstrate two principal findings.
-First, agentic refinement provides \emph{complexity-dependent} improvements: consistent gains on complex multi-hop questions (F1 $+0.051$--$0.069$ on 2WikiMultiHopQA and MuSiQue) with comparable performance on simpler tasks.
-Second, DSPy's typed Signatures alone improve F1 by 0.1--0.2 over manual prompt engineering, with automatic optimization providing additional dataset-dependent gains.
+Our experiments across four datasets ($n = 200$) with bootstrap significance testing and cross-model validation demonstrate three principal findings.
+First, agentic refinement provides \emph{complexity-dependent} improvements: statistically significant gains on complex multi-hop questions (F1 $+0.089$ on 2WikiMultiHopQA, $p < 0.001$) with diminishing benefits on simpler tasks and a boundary condition on small corpora (FinanceBench).
+Second, DSPy's typed Signatures alone improve F1 by 0.075--0.190 over manual prompt engineering on three of four datasets, with BootstrapFewShot providing the most consistently effective automatic optimization.
+Third, cross-model validation reveals a \emph{model--pipeline interaction effect}: reasoning-oriented models (gpt-5-mini) exhibit higher refusal rates in agentic pipelines, suggesting that pipeline selection should account for the base model's reasoning characteristics.
 
 Analysis of agent behavior reveals emergent structured protocols (decompose--search--evaluate) that arise from the combination of typed Signatures and ReAct reasoning, without hard-coded orchestration.
-Ablation studies show that the evaluation tool serves as a quality gate mechanism rather than a direct accuracy booster, and that structure-aware retrieval tools do not improve performance on well-chunked corpora---an honest negative result that informs future tool design.
+Ablation studies confirm that the evaluation tool serves as a quality gate mechanism (1D holistic scores are sufficient), structure-aware tools provide dataset-dependent benefits on complex documents, and re-retrieval is the agent's most critical capability.
 
 \paragraph{Future Work}
 Several directions merit investigation:
-(1)~scaling experiments to full datasets with statistical significance testing and cross-model validation;
-(2)~evaluating structure-aware tools on documents with rich hierarchical structure (\eg, legal contracts, technical manuals);
-(3)~reducing agent latency through parallel tool execution, speculative decoding, or agent module optimization;
-and (4)~extending the framework with additional tools for tasks such as table parsing, cross-document reasoning, and temporal analysis.
+(1)~evaluating structure-aware tools on documents with rich hierarchical structure (\eg, legal contracts, technical manuals);
+(2)~reducing agent latency through parallel tool execution, speculative decoding, or agent module distillation;
+(3)~addressing the Reasoning Model Refusal Asymmetry through calibrated refusal thresholds or forced-answer fallback mechanisms;
+and (4)~extending the framework with additional domain-specific tools for tasks such as table parsing, cross-document reasoning, and temporal analysis.

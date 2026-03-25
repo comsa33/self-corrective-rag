@@ -52,7 +52,9 @@ We compare \ours{} against four baselines of increasing complexity, all sharing 
 \begin{enumerate}
     \item \textbf{Naive RAG}: Single-pass retrieve-and-generate with no evaluation or correction. Uses the same hybrid retriever and ChainOfThought generator.
 
-    \item \textbf{CRAG Replica}~\cite{yan2024crag}: Reproduces the core CRAG mechanism with binary relevance evaluation (correct/incorrect/ambiguous), knowledge refinement via strip decomposition, and internal search fallback (replacing CRAG's web search, which is unavailable in our enterprise-constrained setting). Note: the original CRAG uses a fine-tuned T5-large evaluator; we use LLM-based evaluation for same-compute-class comparison.
+    \item \textbf{CRAG Replica}~\cite{yan2024crag}: Reproduces the core CRAG mechanism with binary relevance evaluation (correct/incorrect/ambiguous), knowledge refinement via strip decomposition, and internal search fallback.
+    Two adaptations are necessary for fair comparison: (a)~CRAG's web search fallback is replaced with internal corpus re-retrieval, as our evaluation setting assumes a closed corpus without external web access---a realistic constraint for enterprise deployments; (b)~the original fine-tuned T5-large evaluator is replaced with LLM-based evaluation using the same model as other pipelines, ensuring the same compute class across all baselines.
+    These adaptations disadvantage CRAG relative to its original design; we discuss this in \S\ref{subsec:rq1}.
 
     \item \textbf{Single-Pass}: Preprocessing (query rephrasing + keyword extraction) followed by hybrid retrieval and generation. Includes one evaluation step but no iterative refinement.
 
@@ -94,7 +96,11 @@ We focus on EM, F1, and LLM-as-Judge as they directly measure answer correctness
 % ---------------------------------------------------------------------------
 
 \paragraph{Models}
-All experiments use Gemini Flash Lite~\cite{geminiteam2023gemini}\footnote{Model~ID: \texttt{gemini/gemini-3.1-flash-lite-preview}} for all four LLM slots (preprocessing, evaluation, generation, agent) via LiteLLM.
+Primary experiments use Gemini Flash Lite~\cite{geminiteam2023gemini}\footnote{Model~ID: \texttt{gemini/gemini-3.1-flash-lite-preview}} for all four LLM slots (preprocessing, evaluation, generation, agent) via LiteLLM.
+For cross-model validation (RQ1), we replicate experiments with gpt-5-mini\footnote{Model~ID: \texttt{gpt-5-mini}, \texttt{reasoning\_effort=low}.}, a reasoning-oriented model from a different architecture family, to assess generalizability.
+An independent LLM-as-Judge (gpt-4.1-nano) evaluates answer correctness by comparing predicted and reference answers via a DSPy-based correctness signature.
+The judge receives the question, reference answer, and predicted answer, and outputs a binary correctness decision with chain-of-thought reasoning.
+This model is independent of all pipeline models to avoid evaluation bias; it captures semantic equivalences that token-level F1 misses (\eg, ``Dutch'' vs.\ ``the Netherlands'').
 Embeddings use all-MiniLM-L6-v2 (384 dimensions) via sentence-trans\-formers~\cite{reimers2019sentence}.
 Temperature is set to 0.0 for reproducibility.
 
@@ -106,16 +112,23 @@ The retriever returns top-$k = 50$ results per query, with a maximum of $M = 30$
 
 \paragraph{Agent}
 The ReAct agent operates with a maximum of $I = 5$ reasoning--action iterations.
-The quality threshold is $\tau = 40$ with progressive leniency decrement $\delta = 5$ per evaluation attempt.
+The quality threshold is $\tau = 40$ with progressive leniency decrement $\delta = 5$ per evaluation attempt (minimum effective threshold: 20).
 The maximum retry count for the evaluation tool is $T = 3$.
+The maximum accumulated passages is $M = 30$.
 
 \paragraph{DSPy Optimization}
-BootstrapFewShot and MIPROv2 optimizers use a training set of 50 examples per dataset, with token-level F1 as the optimization metric.
+BootstrapFewShot and MIPROv2 optimizers use a training set of 50 examples per dataset, with 20 reserved for validation and the remainder for testing ($N = 130$ for multi-hop datasets, $N = 80$ for FinanceBench).
+Token-level F1 serves as the optimization metric.
 Optimized prompts include up to 4 few-shot demonstrations.
 
 \paragraph{Infrastructure}
 Experiments run on a single machine with Python 3.11, DSPy 3.1+, and FAISS-CPU.
 All code, configurations, and experiment scripts are available at \url{[anonymized]}.
+
+\paragraph{Sample size and statistical testing}
+Main experiments use $n = 200$ samples per dataset, with FinanceBench evaluated on the full dataset ($n = 150$).
+Statistical significance is assessed via paired bootstrap testing~\cite{efron1993bootstrap} with 10,000 resamples and Bonferroni correction for multiple comparisons.
+We report 95\% bootstrap confidence intervals for all primary comparisons.
 
 \paragraph{Reproducibility}
 All experiments use a fixed random seed (42) for dataset sampling.

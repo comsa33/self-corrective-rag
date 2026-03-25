@@ -12,7 +12,7 @@
 > - Gemini: RQ1~5 + ablation × 4 datasets 전체 완료
 > - gpt-5-mini: RQ1 × 4 datasets 완료 (cross-model 검증)
 > - Bootstrap CI 통계 검증: ✅ RQ1 완료
-> - LLM-as-Judge: 🔄 RQ1 실행 중 (gpt-4.1-nano, 8개 병렬)
+> - LLM-as-Judge (gpt-4.1-nano): ✅ RQ1 완료 (8 datasets × 5 pipelines = 40 files)
 > - Cross-model 분석: ✅ 완료 (Reasoning Model Refusal Asymmetry 발견)
 
 ---
@@ -88,6 +88,26 @@
 | vs Naive | +0.043 (p=.013)* | **+0.146 (p<.001)*** | **+0.101 (p=.007)** | +0.009 (n.s.) |
 | vs Single | +0.016 (n.s.) | **+0.079 (p=.006)** | -0.018 (n.s.) | +0.018 (n.s.) |
 
+### LLM-as-Judge Accuracy — Gemini (gpt-4.1-nano judge)
+
+| Pipeline | HotpotQA | 2Wiki | MuSiQue | FinanceBench |
+|----------|----------|-------|---------|--------------|
+| Naive RAG | 0.700 | 0.400 | 0.335 | **0.580** |
+| CRAG Replica | 0.645 | 0.320 | 0.225 | 0.487 |
+| Single-Pass | 0.720 | 0.495 | 0.360 | 0.507 |
+| Loop Refinement | 0.730 | 0.505 | 0.380 | 0.533 |
+| **Agentic (ReAct)** | **0.765** | **0.645** | **0.405** | 0.527 |
+
+### LLM-as-Judge Accuracy — gpt-5-mini (gpt-4.1-nano judge)
+
+| Pipeline | HotpotQA | 2Wiki | MuSiQue | FinanceBench |
+|----------|----------|-------|---------|--------------|
+| Naive RAG | 0.755 | 0.405 | 0.425 | **0.540** |
+| CRAG Replica | 0.780 | **0.655** | 0.460 | 0.520 |
+| Single-Pass | 0.735 | 0.485 | 0.490 | 0.480 |
+| Loop Refinement | 0.750 | 0.540 | 0.485 | 0.507 |
+| **Agentic (ReAct)** | **0.790** | 0.560 | **0.505** | 0.513 |
+
 ### RQ1 Key Findings
 
 1. **Gemini: Agentic 3/4 데이터셋 1위** — multi-hop에서 일관된 우위
@@ -101,6 +121,11 @@
    - 66K(+0.022) → 8K(+0.089) → 5K(+0.039) → 211(-0.014)
 4. **FinanceBench: 양 모델 동일 패턴** (Agentic 열세) → method-level boundary condition
 5. **상세 분석**: `docs/FINANCEBENCH_ANALYSIS.md` (cross-model 비교 포함)
+6. **LLM-as-Judge 주요 발견**:
+   - Gemini: Agentic 3/4 데이터셋 1위 (F1 패턴과 일치), FinanceBench에서 Naive RAG 1위 (0.580)
+   - gpt-5-mini: Agentic HotpotQA 1위 (0.790 > CRAG 0.780) — F1에서는 tie였으나 Judge에서 역전
+   - gpt-5-mini 2Wiki: CRAG 여전히 1위 (0.655 vs Agentic 0.560) — Refusal Asymmetry 재확인
+   - **FinanceBench: 양 모델 모두 Naive RAG가 Judge 1위** — 반복 정제가 오히려 정답을 distort하는 증거
 
 ---
 
@@ -329,7 +354,7 @@ CRAG가 F1은 높지만 **4.6배 비효율적**. Agentic + Gemini가 최적의 c
 
 1. [x] Bootstrap CI 통계 검증 (RQ1 완료)
 2. [x] gpt-5-mini CRAG 강세 원인 분석 (Refusal Asymmetry 발견)
-3. [🔄] LLM-as-Judge 실행 중 (RQ1, gpt-4.1-nano, 8개 병렬)
-4. [ ] LLM-as-Judge 결과 반영 후 최종 테이블 업데이트
+3. [x] LLM-as-Judge 완료 (RQ1, gpt-4.1-nano, 8 dirs × 5 pipelines = 40 files)
+4. [x] LLM-as-Judge 결과 반영 — 테이블 추가 완료
 5. [ ] 결과 테이블/플롯 교체 (논문)
 6. [ ] Discussion 업데이트 (Retrieval Space Saturation + Model-Pipeline Interaction)

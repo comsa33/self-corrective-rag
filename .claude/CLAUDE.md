@@ -117,7 +117,7 @@ cat data/results/*/summary.json      # 메트릭 요약 (EM, F1, ROUGE-L)
 - **Enterprise/Domain** (practical applicability): FinanceBench (SEC filings, CC-BY-NC-4.0)
 
 ## Key Parameters
-- QUALITY_THRESHOLD = 55
+- QUALITY_THRESHOLD = 40
 - MAX_RETRY = 3
 - MAX_PASSAGES = 30
 - top_k = 50, hybrid_weight = 0.48

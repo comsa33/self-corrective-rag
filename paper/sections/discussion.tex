@@ -8,21 +8,105 @@
 % ---------------------------------------------------------------------------
 
 The most consistent finding across our experiments is that the agentic advantage is \emph{proportional to question complexity}.
-On simple 2-hop questions (HotpotQA), \ours{} performs comparably to single-pass baselines.
-On complex 2--4 hop questions (2WikiMultiHopQA, MuSiQue), the improvement is substantial and consistent across all metrics.
+On simple 2-hop questions (HotpotQA), \ours{} performs comparably to single-pass baselines ($\Delta \leq +0.022$ F1, not significant).
+On complex 2--4 hop questions (2WikiMultiHopQA), the improvement is substantial ($+0.089$ F1, $p < 0.001$) and consistent across all metrics.
+MuSiQue shows a positive but non-significant trend ($+0.039$ F1), positioning it between the simple and complex extremes.
 
-This pattern has a natural explanation: complex multi-hop questions benefit from the agent's ability to \emph{adaptively compose retrieval strategies}---decomposing questions, searching sub-questions independently, and evaluating the combined evidence.
-Simple questions that can be answered from a single well-retrieved passage set do not require this adaptive strategy, and the additional reasoning overhead provides no benefit.
+This gradient has a natural explanation: complex multi-hop questions benefit from the agent's ability to \emph{adaptively compose retrieval strategies}---decomposing questions, searching sub-questions independently, and evaluating the combined evidence.
+Simple questions that can be answered from a single well-retrieved passage set do not require this adaptive strategy, and the additional reasoning overhead provides no measurable benefit.
 
 This suggests a practical deployment guideline: \ours{} should be selectively applied to questions identified as complex or multi-hop, while simpler questions can be routed to faster single-pass pipelines.
-This is consistent with the Adaptive-RAG~\cite{jeong2024adaptiverag} approach of routing by question complexity, though our system handles the complex-question case more effectively through tool-augmented reasoning rather than simple retrieval augmentation.
+This aligns with Adaptive-RAG's~\cite{jeong2024adaptiverag} approach of routing by question complexity, though our system handles the complex-question case more effectively through tool-augmented reasoning.
+
+% ---------------------------------------------------------------------------
+\subsection{Boundary Conditions: Retrieval Space Saturation}
+\label{subsec:boundary}
+% ---------------------------------------------------------------------------
+
+FinanceBench presents a consistent boundary condition for agentic refinement: \ours{} underperforms Loop Refinement on both Gemini ($-0.014$ F1) and gpt-5-mini ($-0.011$ F1), with Naive RAG achieving the highest LLM-as-Judge scores on both models (0.580 and 0.540, respectively).
+Statistical testing confirms that no pairwise comparison on FinanceBench reaches significance, indicating a genuine ceiling rather than sampling noise.
+
+We identify three contributing factors:
+
+\paragraph{Small retrieval space}
+FinanceBench contains only 211 passages, compared to 5,000--66,000 for the multi-hop datasets.
+In such a constrained retrieval space, the initial hybrid retrieval already surfaces most relevant passages.
+The agent's iterative search provides diminishing returns because there are few additional passages to discover---a phenomenon we term \emph{retrieval space saturation}.
+This is supported by the compressed performance range: the top four pipelines span only 0.019 F1 (0.381--0.400) on Gemini.
+
+\paragraph{Answer distortion through over-refinement}
+The LLM-as-Judge results reveal that Naive RAG produces the best-judged answers on FinanceBench.
+This suggests that iterative refinement---whether agentic or loop-based---can \emph{distort} answers on domain-specific questions.
+Financial questions often require precise numerical answers or specific terminology; additional refinement cycles may introduce hedging language, rounding errors, or over-elaboration that reduce answer precision.
+We observe that agentic answers average 33.9 words per response compared to 12.7 for reference answers, indicating verbosity that penalizes exact match scoring.
+
+\paragraph{Evaluation score miscalibration}
+The evaluation tool produces higher scores on FinanceBench questions that ultimately receive lower F1 scores.
+Questions with evaluation scores $\geq 80$ achieve average F1 of only 0.289, while questions where evaluation errors occur achieve higher F1 (0.452).
+This suggests that the evaluation tool is not well-calibrated for domain-specific retrieval quality, potentially triggering unnecessary refinement cycles when the initial retrieval is already adequate.
+
+These findings imply that agentic refinement is most valuable when the retrieval space is large enough to benefit from iterative exploration and when answer precision is compatible with multiple retrieval passes.
+Enterprise deployments on small, well-curated corpora may benefit more from simpler pipeline configurations.
+
+% ---------------------------------------------------------------------------
+\subsection{Model--Pipeline Interaction Effect}
+\label{subsec:model_interaction}
+% ---------------------------------------------------------------------------
+
+The cross-model experiment reveals a previously uncharacterized interaction between model architecture and pipeline design.
+With Gemini Flash Lite (a generation-focused model), \ours{} consistently outperforms CRAG on multi-hop datasets.
+With gpt-5-mini (a reasoning-focused model), the pattern \emph{reverses}: CRAG outperforms \ours{} on 2WikiMultiHopQA ($+0.086$ F1, $p = 0.004$).
+
+\paragraph{Reasoning Model Refusal Asymmetry}
+We trace this reversal to differential refusal behavior across pipeline architectures.
+Table~\ref{tab:refusal} quantifies the answer refusal rates (responses containing ``Cannot determine,'' ``insufficient information,'' or equivalent).
+
+\begin{table}[t]
+\centering
+\caption{Answer refusal rates (\%) on 2WikiMultiHopQA by model and pipeline. Reasoning models (gpt-5-mini) refuse more frequently in agentic pipelines, while generation models (Gemini) show the opposite pattern.}
+\label{tab:refusal}
+\begin{tabular}{lcccc}
+\toprule
+& \multicolumn{2}{c}{\textbf{gpt-5-mini}} & \multicolumn{2}{c}{\textbf{Gemini}} \\
+\cmidrule(lr){2-3} \cmidrule(lr){4-5}
+\textbf{Pipeline} & \textbf{\ours{}} & \textbf{CRAG} & \textbf{\ours{}} & \textbf{CRAG} \\
+\midrule
+Refusal rate    & 30\% & 18\% & 14\% & 34\% \\
+F1 (all)        & .551 & .637 & .584 & .255 \\
+F1 (non-refused) & .712 & -- & -- & -- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The mechanism operates as follows:
+\begin{itemize}
+    \item \textbf{gpt-5-mini in ReAct}: The model's reasoning capabilities lead it to apply stringent evidentiary standards.
+    Even when the evaluation tool reports adequate quality (mean score 66, above the threshold of 40), the agent independently judges the evidence insufficient and produces a refusal response.
+    Each refusal scores F1 $= 0.0$, dragging the average down.
+    When the agent \emph{does} answer, its F1 is 0.712---substantially higher than CRAG's overall 0.637---indicating that refusals, not answer quality, drive the performance gap.
+
+    \item \textbf{CRAG's forced-answer pipeline}: CRAG's rigid judge--correct--generate architecture does not afford the model an opportunity to refuse.
+    The pipeline always produces an answer, converting some refusal-prone questions into correct (or partially correct) responses.
+
+    \item \textbf{Gemini in ReAct}: As a generation-focused model, Gemini is less conservative in its evidentiary standards.
+    It refuses only 14\% of the time in the agentic pipeline, allowing \ours{} to outperform CRAG (which, with Gemini, refuses 34\% due to CRAG's stricter binary evaluation triggering more ``incorrect'' classifications).
+\end{itemize}
+
+\paragraph{Implications}
+This finding has two practical implications.
+First, pipeline selection should consider the base model's reasoning characteristics: reasoning-oriented models may benefit from forced-answer pipelines or calibrated refusal thresholds, while generation-oriented models are better suited to agentic frameworks.
+Second, the refusal asymmetry suggests that evaluation tools should be designed to provide calibrated confidence signals that interact predictably with different model types, rather than relying on the model's implicit evidentiary standards.
+
+\paragraph{Efficiency perspective}
+Despite CRAG's higher F1 with gpt-5-mini on 2WikiMultiHopQA, it requires 45.2 LLM calls per question (147.8 seconds) compared to \ours{}'s 9.9 calls (45.7 seconds)---a 4.6$\times$ cost premium.
+Combined with Gemini Flash Lite, \ours{} achieves the optimal cost--performance balance across our experimental configurations.
 
 % ---------------------------------------------------------------------------
 \subsection{Latency--Quality Trade-off}
 \label{subsec:tradeoff}
 % ---------------------------------------------------------------------------
 
-\ours{} incurs 4--5$\times$ latency overhead compared to Loop Refinement (14--17s vs.\ 2--4s per question).
+\ours{} incurs 4--5$\times$ latency overhead compared to Loop Refinement (14--17s vs.\ 2--4s per question on Gemini).
 This trade-off must be evaluated in context:
 
 \begin{itemize}
@@ -30,9 +114,10 @@ This trade-off must be evaluated in context:
 
     \item \textbf{Cost attribution.} The latency is dominated by LLM API calls (5--6 tool invocations per question, each requiring LLM inference). With faster or locally deployed models, the absolute latency would decrease proportionally.
 
-    \item \textbf{Quality payoff.} The F1 improvement of $+0.051$--$0.069$ on complex questions represents a meaningful quality gain that may justify the latency cost in accuracy-critical applications.
+    \item \textbf{Quality payoff.} The F1 improvement of $+0.089$ on 2WikiMultiHopQA ($p < 0.001$) represents a statistically significant quality gain that justifies the latency cost in accuracy-critical applications.
 
-    \item \textbf{DSPy optimization mitigation.} As shown in Table~\ref{tab:rq5_latency}, optimized DSPy variants reduce the per-module latency from 19--24s to 2--3s through pre-computed demonstrations, suggesting that optimization of the agent module itself could substantially reduce the overall pipeline latency.
+    \item \textbf{Selective deployment.} As discussed in \S\ref{subsec:complexity}, the agentic approach should be selectively applied to complex questions.
+    A two-tier system that routes simple questions to Single-Pass (3--5s) and complex questions to \ours{} (14--17s) would achieve an effective average latency well below 15s while capturing the quality benefits.
 \end{itemize}
 
 % ---------------------------------------------------------------------------
@@ -42,14 +127,16 @@ This trade-off must be evaluated in context:
 
 The RQ5 results reveal an important decomposition of DSPy's contribution:
 
-The \emph{structural benefit}---replacing manual JSON prompts with typed Signatures---accounts for the majority of the improvement (F1 $+0.1$--$0.2$).
+The \emph{structural benefit}---replacing manual JSON prompts with typed Signatures---accounts for the majority of the improvement (F1 $+0.075$--$0.190$ on three of four datasets).
 This benefit is essentially ``free'': it requires no training data, no optimization compute, and no hyperparameter tuning.
 The typed field descriptions act as structured prompts that are more informative than hand-crafted templates, guiding the LLM to produce well-formatted, task-aligned outputs.
+The extreme case of FinanceBench (Manual EM $= 0.000$ $\to$ Unopt EM $= 0.200$) illustrates how typed output fields can rescue a completely failing prompt by enforcing structural consistency.
 
-The \emph{optimization benefit}---BootstrapFewShot and MIPROv2---provides additional dataset-dependent gains but requires a training set and optimization compute.
-The observation that different optimizers excel on different datasets (Bootstrap on structured multi-hop, MIPROv2 on complex reasoning) suggests that optimizer selection should be treated as a hyperparameter tuned per deployment scenario.
+The \emph{optimization benefit}---BootstrapFewShot and MIPROv2---provides additional dataset-dependent gains but requires training data and optimization compute.
+BootstrapFewShot is the most consistently effective optimizer, achieving best F1 on 3/4 datasets.
+However, both optimizers \emph{underperform} Unopt on FinanceBench, demonstrating an over-optimization risk when the training set is small (50 examples from 150 total).
 
-This two-level decomposition has practical implications: teams adopting DSPy can expect immediate gains from Signatures alone, with further improvements available through targeted optimization when training data is available.
+This two-level decomposition has practical implications: teams adopting DSPy can expect immediate gains from Signatures alone, with further improvements available through targeted optimization when sufficient training data is available.
 
 % ---------------------------------------------------------------------------
 \subsection{Emergent Agent Behavior}
@@ -57,27 +144,34 @@ This two-level decomposition has practical implications: teams adopting DSPy can
 % ---------------------------------------------------------------------------
 
 A noteworthy observation is that the ReAct agent \emph{spontaneously develops} structured retrieval protocols.
-Despite having access to six tools with no enforced execution order, the agent consistently converges on a decompose--search--evaluate pattern (RQ2).
+Despite having access to seven tools with no enforced execution order, the agent consistently converges on a decompose--search--evaluate pattern across all 800+ questions in our evaluation (RQ2, \S\ref{subsec:rq2}).
 
 This emergent behavior suggests that the combination of typed Signatures (providing a recommended protocol), evaluation feedback (providing quality signals), and ReAct reasoning (enabling reflective planning) creates sufficient inductive bias for structured behavior without requiring hard-coded orchestration logic.
-
-The mandatory evaluate fallback (triggered in 6--12\% of cases) serves as a safety net for the minority of cases where the agent deviates from this protocol, ensuring consistent quality coverage without constraining agent autonomy.
+The progressive information disclosure pattern (search previews followed by selective full-text retrieval) and domain-adaptive tool selection (\texttt{calculate} on FinanceBench, \texttt{list\_document\_sections} on complex documents) further demonstrate the agent's capacity for sophisticated retrieval strategies that arise purely from the interaction between tools and reasoning.
 
 % ---------------------------------------------------------------------------
-\subsection{Limitations}
+\subsection{Limitations and Future Work}
 \label{subsec:limitations}
 % ---------------------------------------------------------------------------
 
-We acknowledge several limitations of this work:
+We acknowledge several limitations:
 
 \begin{enumerate}
-    \item \textbf{Sample size.} Our experiments use $n = 50$ samples per dataset for pilot evaluation. While the observed patterns are consistent across datasets and metrics, larger-scale experiments ($n \geq 500$) with statistical significance testing are needed to confirm these findings. We plan to scale up experiments with bootstrap confidence intervals in future work.
+    \item \textbf{Retrieval corpus.} We use each dataset's provided context paragraphs rather than a large-scale open-domain corpus (\eg, DPR's Wikipedia dump~\cite{karpukhin2020dense}).
+    This ensures controlled evaluation of the refinement mechanism, but limits comparison with methods evaluated on open-domain retrieval.
+    The retrieval space saturation observed on FinanceBench (\S\ref{subsec:boundary}) may not generalize to larger enterprise corpora.
 
-    \item \textbf{Model generalizability.} All experiments use a single model (Gemini Flash Lite). The effectiveness of agentic refinement may vary with model capability---stronger models may benefit less from iterative refinement, while weaker models may struggle with multi-step ReAct reasoning. Cross-model validation is needed.
+    \item \textbf{Model--pipeline interaction.} The Reasoning Model Refusal Asymmetry (\S\ref{subsec:model_interaction}) demonstrates that pipeline effectiveness depends on the base model's reasoning characteristics.
+    Our cross-model validation covers two models (Gemini Flash Lite and gpt-5-mini); broader validation across model families (\eg, open-source models such as LLaMA~\cite{touvron2023llama}) and model sizes would strengthen the generalizability claims.
 
-    \item \textbf{Retrieval corpus.} We use each dataset's provided context paragraphs rather than a large-scale corpus (\eg, DPR Wikipedia). This limits direct comparison with prior work that retrieves from open-domain corpora, though it ensures controlled evaluation of the refinement mechanism itself.
+    \item \textbf{Latency.} The 4--5$\times$ latency overhead limits applicability to latency-sensitive scenarios.
+    Techniques such as parallel tool execution, speculative decoding, and agent module distillation could mitigate this but are not explored.
 
-    \item \textbf{Structure-aware tools.} The negative result for structure-aware tools (RQ4) is limited to FinanceBench, which uses well-chunked documents. These tools may prove valuable on documents with richer hierarchical structure, which we leave to future investigation.
+    \item \textbf{Structure-aware tools.} The dataset-dependent benefit of structure tools (RQ4) is limited to our evaluation datasets.
+    Documents with richer hierarchical structure (\eg, legal contracts, technical manuals, multi-chapter reports) may show stronger benefits, which we leave to future investigation.
 
-    \item \textbf{Latency.} The 4--5$\times$ latency overhead limits applicability to latency-sensitive scenarios. Techniques such as agent module optimization, speculative decoding, or parallel tool execution could mitigate this but are not explored here.
+    \item \textbf{Evaluation calibration.} The evaluation tool's miscalibration on FinanceBench suggests that domain-specific calibration or learned evaluation thresholds may be necessary for optimal performance across diverse domains.
+
+    \item \textbf{Statistical power.} While our $n = 200$ evaluation with bootstrap significance testing provides rigorous evidence for the 2WikiMultiHopQA result ($p < 0.001$), improvements on HotpotQA and MuSiQue do not reach significance against Loop Refinement.
+    Larger-scale evaluation or more powerful statistical tests may be needed to detect smaller effect sizes on these datasets.
 \end{enumerate}

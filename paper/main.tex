@@ -10,7 +10,10 @@
 \usepackage{xcolor}
 \usepackage{subcaption}
 \usepackage{tikz}
-\usetikzlibrary{positioning, arrows.meta, calc, shapes.geometric, fit, backgrounds}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepgfplotslibrary{groupplots}
+\usetikzlibrary{positioning, arrows.meta, calc, shapes.geometric, fit, backgrounds, patterns}
 
 \bibliographystyle{elsarticle-num}
 
@@ -46,17 +49,18 @@ However, existing self-corrective RAG methods rely on fixed iterative loops with
 We propose \ours{}, a framework that replaces fixed-loop refinement with a ReAct-based agent equipped with six specialized tools---passage search, query decomposition, quality evaluation, passage inspection, document structure browsing, and terminology mapping.
 The agent autonomously reasons about retrieval quality and selects appropriate tools in a Thought--Action--Observation loop, enabling adaptive refinement depth proportional to question complexity.
 The entire pipeline is implemented as a DSPy declarative program, enabling automatic prompt optimization through BootstrapFewShot and MIPROv2.
-Experiments on four datasets (HotpotQA, 2WikiMultiHopQA, MuSiQue, and FinanceBench) demonstrate that \ours{} consistently outperforms fixed-loop and single-pass baselines on complex multi-hop questions, achieving F1 improvements of +0.069 on 2WikiMultiHopQA and +0.051 on MuSiQue.
-Furthermore, DSPy's typed signatures alone improve F1 by 0.1--0.2 over manual prompt engineering, with additional gains from automatic optimization.
-Comprehensive ablation studies reveal that the evaluation tool functions as a quality gate mechanism and that the agent spontaneously develops structured retrieval protocols.
+Experiments on four datasets ($n = 200$; HotpotQA, 2WikiMultiHopQA, MuSiQue, and FinanceBench) with bootstrap significance testing demonstrate that \ours{} achieves statistically significant F1 improvement of +0.089 on 2WikiMultiHopQA ($p < 0.001$), with consistent positive trends on MuSiQue (+0.039).
+Cross-model validation with gpt-5-mini reveals a model--pipeline interaction effect where reasoning-oriented models exhibit refusal asymmetry in agentic pipelines, providing evidence for model-aware pipeline selection.
+DSPy's typed signatures alone improve F1 by 0.075--0.190 on three of four datasets over manual prompt engineering, with automatic optimization yielding further gains.
+Comprehensive ablation studies confirm that the evaluation tool functions as a quality gate mechanism, structure-aware tools provide dataset-dependent benefits, and the agent spontaneously develops structured retrieval protocols.
 \end{abstract}
 
 \begin{highlights}
 \item TARA: ReAct agent with six tools for autonomous retrieval refinement
-\item Complexity-adaptive gains: F1 +0.051--0.069 on complex multi-hop datasets
-\item DSPy typed signatures boost F1 by 0.1--0.2 over manual prompt engineering
-\item Comprehensive ablation reveals evaluation tool as quality gate mechanism
-\item Evaluated on four datasets including enterprise financial documents
+\item Statistically significant F1 +0.089 on 2WikiMultiHopQA ($p < 0.001$, $n = 200$)
+\item Cross-model validation reveals model--pipeline interaction effect (refusal asymmetry)
+\item DSPy typed signatures boost F1 by 0.075--0.190 over manual prompt engineering
+\item Comprehensive ablation with bootstrap significance testing across four datasets
 \end{highlights}
 
 \begin{keyword}
@@ -129,6 +133,30 @@ self-corrective retrieval
 %% ====================================================================
 %% References
 %% ====================================================================
+
+%% ====================================================================
+%% Required Elsevier/KBS Elements
+%% ====================================================================
+
+\section*{CRediT authorship contribution statement}
+
+\textbf{Ruo Lee}: Conceptualization, Methodology, Software, Validation, Formal analysis, Investigation, Data curation, Writing -- original draft, Writing -- review \& editing, Visualization.
+% TODO: 지도교수 확정 후 추가
+% \textbf{교수명}: Supervision, Writing -- review \& editing.
+
+\section*{Declaration of competing interest}
+
+The authors declare that they have no known competing financial interests or personal relationships that could have appeared to influence the work reported in this paper.
+
+\section*{Data availability}
+
+All multi-hop QA datasets (HotpotQA, 2WikiMultiHopQA, MuSiQue) are publicly available. FinanceBench is available under CC-BY-NC-4.0.
+Code and experiment configurations are available at \url{[anonymized for review]}.
+
+\section*{Declaration of generative AI and AI-assisted technologies in the writing process}
+
+During the preparation of this work, the author used Claude (Anthropic) for code development assistance and manuscript drafting support.
+After using this tool, the author reviewed and edited the content as needed and takes full responsibility for the content of the publication.
 
 \bibliography{references}
 
