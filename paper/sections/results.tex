@@ -278,35 +278,36 @@ The test set sizes ($N$) differ from RQ1 because 50 examples per dataset are res
 \cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7} \cmidrule(lr){8-9}
 \textbf{Variant} & EM & F1 & EM & F1 & EM & F1 & EM & F1 & $N$ \\
 \midrule
-Manual Prompt       & .400 & .575 & .308 & .501 & .331 & .465 & .000 & .246 & -- \\
-DSPy Unopt          & .508 & .650 & .477 & .601 & .354 & .456 & \textbf{.200} & \textbf{.436} & -- \\
-DSPy + Bootstrap    & \textbf{.538} & \textbf{.681} & \textbf{.554} & \textbf{.647} & .454 & .533 & .188 & .421 & 130/80 \\
-DSPy + MIPROv2      & .508 & .663 & .423 & .549 & \textbf{.431} & \textbf{.525} & .175 & .410 & 130/80 \\
+Manual Prompt       & .408 & .587 & .308 & .476 & .338 & .466 & .013 & .255 & -- \\
+DSPy Unopt          & .508 & .658 & .485 & .602 & .300 & .396 & .188 & .419 & -- \\
+DSPy + Bootstrap    & \textbf{.508} & \textbf{.664} & \textbf{.554} & \textbf{.646} & \textbf{.469} & \textbf{.544} & \textbf{.200} & \textbf{.431} & 130/80 \\
+DSPy + MIPROv2      & .500 & .655 & .400 & .528 & .423 & .503 & .175 & .409 & 130/80 \\
 \midrule
-\multicolumn{1}{r}{\textit{$\Delta$ Manual$\to$Unopt}} & $+.108$ & $+.075$ & $+.169$ & $+.100$ & $+.023$ & $-.009$ & $+.200$ & $+.190$ & \\
-\multicolumn{1}{r}{\textit{$\Delta$ Manual$\to$Best}} & $+.138$ & $+.106$ & $+.246$ & $+.146$ & $+.100$ & $+.068$ & $+.200$ & $+.190$ & \\
+\multicolumn{1}{r}{\textit{$\Delta$ Manual$\to$Unopt}} & $+.100$ & $+.071$ & $+.177$ & $+.126$ & $-.038$ & $-.070$ & $+.175$ & $+.164$ & \\
+\multicolumn{1}{r}{\textit{$\Delta$ Manual$\to$Best}} & $+.100$ & $+.077$ & $+.246$ & $+.170$ & $+.131$ & $+.078$ & $+.187$ & $+.176$ & \\
 \bottomrule
 \end{tabular}
 }% end resizebox
 \end{table*}
 
 \paragraph{Structural benefit: Manual $\to$ DSPy Unopt}
-Replacing hand-crafted JSON prompt templates with DSPy typed Signatures yields substantial improvements \emph{without any optimization}: F1 increases of $+0.075$ (HotpotQA), $+0.100$ (2WikiMultiHopQA), and $+0.190$ (FinanceBench).
-The FinanceBench improvement is particularly dramatic: from F1 0.246 to 0.436, with EM increasing from 0.000 (no exact matches) to 0.200.
-The Manual prompt's EM of 0.000 on FinanceBench illustrates the fragility of hand-crafted prompts---even partially correct answers never exactly match the reference format, while DSPy's typed output fields enforce structural consistency.
-MuSiQue is the exception, where Unopt slightly underperforms Manual ($-0.009$ F1), suggesting that the manual prompt's task-specific instructions were already well-tuned for this dataset.
+Replacing hand-crafted JSON prompt templates with DSPy typed Signatures yields substantial improvements \emph{without any optimization} on three datasets: F1 increases of $+0.071$ (HotpotQA), $+0.126$ (2WikiMultiHopQA), and $+0.164$ (FinanceBench).
+The FinanceBench improvement is particularly notable: from F1 0.255 to 0.419, with EM increasing from 0.013 to 0.188.
+MuSiQue is the exception, where Unopt substantially underperforms Manual ($-0.070$ F1), suggesting that DSPy's structured output constraints can conflict with question patterns that benefit from free-form generation.
+This dataset-dependent variance highlights that the structural benefit is not universal but depends on alignment between typed Signature constraints and task characteristics.
 
 \paragraph{Optimization benefit: Unopt $\to$ Bootstrap/MIPROv2}
 Automatic optimization provides additional gains, but the effect is \emph{dataset-dependent}:
 
 \begin{itemize}
-    \item \textbf{BootstrapFewShot} excels on structured multi-hop tasks: best F1 on HotpotQA (0.681, $+0.031$ over Unopt) and 2WikiMultiHopQA (0.647, $+0.046$). Successful execution traces as few-shot examples help the model recognize multi-hop retrieval patterns.
+    \item \textbf{BootstrapFewShot} is the most consistently effective optimizer, achieving the best F1 on all four datasets: HotpotQA (0.664, $+0.006$ over Unopt), 2WikiMultiHopQA (0.646, $+0.044$), MuSiQue (0.544, $+0.148$), and FinanceBench (0.431, $+0.012$). The large MuSiQue gain ($+0.148$) demonstrates that few-shot examples from successful execution traces can recover performance lost by the Unopt variant's rigid structure.
 
-    \item \textbf{MIPROv2} excels on complex reasoning: best F1 on MuSiQue (0.525, $+0.069$ over Unopt). The jointly optimized instructions and demonstrations appear to facilitate deeper reasoning chains.
+    \item \textbf{MIPROv2} provides strong gains on MuSiQue (0.503, $+0.107$ over Unopt) but underperforms Bootstrap on the remaining datasets. The jointly optimized instructions appear most beneficial for complex reasoning chains.
 
-    \item \textbf{Over-optimization risk}: On FinanceBench, both optimizers \emph{underperform} Unopt (Bootstrap 0.421, MIPROv2 0.410 vs.\ Unopt 0.436), suggesting over-optimization on a small training set (50 examples from 150 total). This is consistent with the general machine learning principle that smaller datasets are more susceptible to overfitting during optimization.
+    \item \textbf{Optimization rescues structural mismatch}: On MuSiQue, where Unopt underperforms Manual, both optimizers substantially surpass Manual (Bootstrap $+0.078$, MIPROv2 $+0.037$ F1), demonstrating that automatic optimization can compensate for suboptimal Signature--task alignment.
 \end{itemize}
 
 \paragraph{Key finding}
-DSPy provides a two-level contribution: (1) the \emph{structural benefit} of typed Signatures alone is the single largest improvement in our experiments (F1 $+0.075$--$0.190$ on three of four datasets), and (2) automatic optimization provides additional dataset-dependent gains (BootstrapFewShot is most consistently effective, achieving the overall best F1 on 3/4 datasets).
-The total improvement from Manual to best DSPy variant ranges from $+0.068$ to $+0.190$ F1, supporting the practical value of declarative LM programming for RAG systems.
+DSPy provides a two-level contribution: (1) the \emph{structural benefit} of typed Signatures yields F1 improvements of $+0.071$--$0.164$ on three of four datasets, and (2) automatic optimization provides additional gains, with BootstrapFewShot achieving the best F1 on all four datasets.
+Critically, optimization can rescue structural mismatch: on MuSiQue, where Unopt underperforms Manual, Bootstrap still achieves the overall best F1 ($+0.078$ over Manual).
+The total improvement from Manual to best DSPy variant ranges from $+0.077$ to $+0.176$ F1, supporting the practical value of declarative LM programming for RAG systems.

@@ -168,7 +168,7 @@ Three observations emerge from the consolidated view:
     \item \textbf{Agentic reasoning outperforms fixed loops}: the for-loop variant consistently underperforms the full agent on multi-hop datasets (2Wiki: $-0.116$, MuSiQue: $-0.050$), demonstrating the value of autonomous tool selection over predetermined iteration.
     FinanceBench is the sole exception (Loop 0.400 vs.\ Agent 0.411), consistent with the retrieval space saturation effect.
 
-    \item \textbf{MuSiQue Manual prompt anomaly}: the Manual prompt achieves 0.481 on MuSiQue, exceeding the Full system (0.449).
-    We attribute this to the Manual variant's simpler pipeline (no agent overhead) combined with manually tuned prompts that happen to suit MuSiQue's specific question patterns.
+    \item \textbf{MuSiQue Manual prompt anomaly}: the Manual prompt achieves 0.481 on MuSiQue, exceeding the Full system (0.449) and the DSPy Unoptimized variant (0.396 in RQ5).
+    This pattern---where DSPy's typed Signature constraints underperform free-form manual prompts---is consistent across both the ablation and RQ5 experiments for MuSiQue, suggesting a structural mismatch between Signature constraints and MuSiQue's question patterns.
     However, Manual collapses on FinanceBench (0.256, lowest overall), highlighting its fragility across domains.
 \end{enumerate}

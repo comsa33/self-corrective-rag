@@ -1,0 +1,28 @@
+# W1 Synergy Analysis: Loop + Manual (4th cell of 2x2 factorial)
+# Factor 1: Refinement method (Loop vs Agent)
+# Factor 2: Module implementation (DSPy vs Manual)
+#
+# Existing cells:
+#   Loop + DSPy    = RQ1 Loop results
+#   Agent + DSPy   = RQ1 Agentic results
+#   Agent + Manual = RQ5 Manual Prompt results
+# Missing cell:
+#   Loop + Manual  = THIS EXPERIMENT
+
+name: "Synergy: Loop + Manual"
+description: >
+  Loop pipeline with manual prompts (enable_dspy=false).
+  Fourth cell for 2x2 Agent×DSPy factorial synergy analysis.
+
+train_size: 0
+val_size: 0
+
+variants:
+  - name: Loop Manual
+    pipeline: loop
+    experiment:
+      enable_dspy: false
+      enable_iteration: true
+      enable_accumulation: true
+      enable_4d_evaluation: true
+      enable_refinement: true

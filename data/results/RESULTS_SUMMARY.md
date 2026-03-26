@@ -8,12 +8,13 @@
 **Date**: 2026-03-24 ~ 2026-03-25
 **Sample size**: n=200 per dataset (FinanceBench n=150, 전체 데이터)
 
-> **Status (2026-03-25)**:
+> **Status (2026-03-26)**:
 > - Gemini: RQ1~5 + ablation × 4 datasets 전체 완료
 > - gpt-5-mini: RQ1 × 4 datasets 완료 (cross-model 검증)
 > - Bootstrap CI 통계 검증: ✅ RQ1 완료
 > - LLM-as-Judge (gpt-4.1-nano): ✅ RQ1 완료 (8 datasets × 5 pipelines = 40 files)
 > - Cross-model 분석: ✅ 완료 (Reasoning Model Refusal Asymmetry 발견)
+> - **RQ5 bug fix + rerun**: ✅ 2026-03-26 완료 (evaluate.py attribute 불일치 + decompose.py manual 분기 수정)
 
 ---
 
@@ -238,38 +239,38 @@ n=50에서 "structure tools 효과 없음" → n=200에서 **"dataset-dependent"
 
 **Question**: Does DSPy's declarative pipeline and automatic optimization improve answer quality compared to manual prompt engineering?
 
-### Results (F1)
+### Results (F1) — Updated 2026-03-26 (RQ5 Manual Prompt bug fix rerun)
 
 | Dataset | Manual | DSPy Unopt | Bootstrap | MIPROv2 | N |
 |---------|--------|-----------|-----------|---------|---|
-| HotpotQA | 0.575 | 0.650 | **0.681** | 0.663 | 130 |
-| 2WikiMultiHopQA | 0.501 | 0.601 | **0.647** | 0.549 | 130 |
-| MuSiQue | 0.465 | 0.456 | **0.533** | 0.525 | 130 |
-| FinanceBench | 0.246 | **0.436** | 0.421 | 0.410 | 80 |
+| HotpotQA | 0.587 | 0.658 | **0.664** | 0.655 | 130 |
+| 2WikiMultiHopQA | 0.476 | 0.602 | **0.646** | 0.528 | 130 |
+| MuSiQue | 0.466 | 0.396 | **0.544** | 0.503 | 130 |
+| FinanceBench | 0.255 | 0.419 | **0.431** | 0.409 | 80 |
 
-### Results (EM)
+### Results (EM) — Updated 2026-03-26
 
 | Dataset | Manual | DSPy Unopt | Bootstrap | MIPROv2 |
 |---------|--------|-----------|-----------|---------|
-| HotpotQA | 0.400 | 0.508 | **0.538** | 0.508 |
-| 2WikiMultiHopQA | 0.308 | 0.477 | **0.554** | 0.423 |
-| MuSiQue | 0.331 | 0.354 | **0.454** | 0.431 |
-| FinanceBench | 0.000 | **0.200** | 0.188 | 0.175 |
+| HotpotQA | 0.408 | 0.508 | **0.508** | 0.500 |
+| 2WikiMultiHopQA | 0.308 | 0.485 | **0.554** | 0.400 |
+| MuSiQue | 0.338 | 0.300 | **0.469** | 0.423 |
+| FinanceBench | 0.013 | 0.188 | **0.200** | 0.175 |
 
-### RQ5 Key Findings
+### RQ5 Key Findings (Updated 2026-03-26)
 
-1. **Manual 항상 최하위** — DSPy declarative 방식의 우위 확실
-2. **Bootstrap 3/4 데이터셋 1위** — 가장 안정적인 최적화 방법
-3. **FinanceBench에서 Unoptimized > Bootstrap** — 소규모 corpus에서 최적화 과적합 가능성
-4. **Manual → DSPy Unopt**: 가장 큰 개선 (+0.075~+0.190 F1)
-5. **DSPy Unopt → Bootstrap**: 추가 개선 (+0.031~+0.077 F1, FinanceBench 제외)
+1. **Bootstrap 4/4 데이터셋 1위** — 가장 안정적인 최적화 방법 (기존 3/4에서 변경)
+2. **MuSiQue Unopt < Manual** (-0.070 F1) — Signature 구조가 MuSiQue 패턴과 충돌
+3. **Manual → DSPy Unopt**: 3/4 개선 (+0.071~+0.164 F1), MuSiQue는 역전
+4. **Bootstrap가 structural mismatch 보상**: MuSiQue에서 Unopt 실패해도 Bootstrap은 Manual 대비 +0.078 F1
+5. **FinanceBench Manual EM 0.013** (기존 0.000에서 변경 — bug fix 효과)
 
-### RQ5 Paper Framing
+### RQ5 Paper Framing (Updated)
 
 DSPy의 기여는 두 단계:
-1. **Structural benefit** (Manual → Unopt): Typed I/O fields + structured prompts만으로 큰 개선
-2. **Optimization benefit** (Unopt → Bootstrap): Few-shot 자동 생성으로 추가 개선
-3. FinanceBench 역전은 "소규모 corpus에서 최적화 과적합" 가능성 → Discussion에서 논의
+1. **Structural benefit** (Manual → Unopt): 3/4 dataset에서 +0.071~+0.164 F1. 단, MuSiQue에서는 역전 (-0.070)
+2. **Optimization benefit** (Unopt → Bootstrap): 모든 dataset에서 추가 개선. MuSiQue에서는 structural mismatch를 보상
+3. **Bug fix note**: evaluate.py attribute 불일치 + decompose.py manual 분기 없음 수정 후 재실험. 수치 변화 미미 (Manual F1 ±0.025 이내)
 
 ---
 

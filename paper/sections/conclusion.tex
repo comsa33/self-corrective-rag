@@ -7,7 +7,7 @@ Implemented as a DSPy declarative pipeline, the framework enables both structure
 
 Our experiments across four datasets ($n = 200$) with bootstrap significance testing and cross-model validation demonstrated three principal findings.
 First, agentic refinement provides \emph{complexity-dependent} improvements: statistically significant gains on complex multi-hop questions (F1 $+0.089$ on 2WikiMultiHopQA, $p < 0.001$) with diminishing benefits on simpler tasks and a boundary condition on small corpora (FinanceBench).
-Second, DSPy's typed Signatures alone improve F1 by 0.075--0.190 over manual prompt engineering on three of four datasets, with BootstrapFewShot providing the most consistently effective automatic optimization.
+Second, DSPy's typed Signatures improve F1 by 0.071--0.164 over manual prompt engineering on three of four datasets, with BootstrapFewShot achieving the best F1 on all four datasets and recovering performance even where Signatures alone underperform manual prompts.
 Third, cross-model validation reveals a \emph{model--pipeline interaction effect}: reasoning-oriented models (gpt-5-mini) exhibit higher refusal rates in agentic pipelines, suggesting that pipeline selection should account for the base model's reasoning characteristics.
 
 Trajectory analysis reveals emergent structured protocols (decompose--search--evaluate) that arise from the combination of typed Signatures and ReAct reasoning, without hard-coded orchestration.

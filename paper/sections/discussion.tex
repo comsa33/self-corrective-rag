@@ -127,16 +127,15 @@ This trade-off must be evaluated in context:
 
 The RQ5 results reveal an important decomposition of DSPy's contribution:
 
-The \emph{structural benefit}---replacing manual JSON prompts with typed Signatures---accounts for the majority of the improvement (F1 $+0.075$--$0.190$ on three of four datasets).
+The \emph{structural benefit}---replacing manual JSON prompts with typed Signatures---yields F1 improvements of $+0.071$--$0.164$ on three of four datasets without any optimization.
 This benefit is essentially ``free'': it requires no training data, no optimization compute, and no hyperparameter tuning.
-The typed field descriptions act as structured prompts that are more informative than hand-crafted templates, guiding the LLM to produce well-formatted, task-aligned outputs.
-The extreme case of FinanceBench (Manual EM $= 0.000$ $\to$ Unopt EM $= 0.200$) illustrates how typed output fields can rescue a completely failing prompt by enforcing structural consistency.
+However, the structural benefit is not universal: on MuSiQue, Unopt substantially underperforms Manual ($-0.070$ F1), indicating that typed Signature constraints can conflict with question patterns that benefit from free-form generation.
 
-The \emph{optimization benefit}---BootstrapFewShot and MIPROv2---provides additional dataset-dependent gains but requires training data and optimization compute.
-BootstrapFewShot is the most consistently effective optimizer, achieving best F1 on 3/4 datasets.
-However, both optimizers \emph{underperform} Unopt on FinanceBench, demonstrating an over-optimization risk when the training set is small (50 examples from 150 total).
+The \emph{optimization benefit}---BootstrapFewShot and MIPROv2---compensates for this limitation.
+BootstrapFewShot is the most consistently effective optimizer, achieving best F1 on all four datasets.
+Critically, on MuSiQue where Unopt underperforms Manual, Bootstrap still achieves the overall best F1 ($+0.078$ over Manual), demonstrating that automatic optimization can rescue structural mismatch between Signatures and task characteristics.
 
-This two-level decomposition has practical implications: teams adopting DSPy can expect immediate gains from Signatures alone, with further improvements available through targeted optimization when sufficient training data is available.
+This two-level decomposition has practical implications: teams adopting DSPy can expect immediate gains from Signatures on most tasks, and when structural mismatch occurs, automatic optimization provides a reliable recovery mechanism.
 
 % ---------------------------------------------------------------------------
 \subsection{Emergent Agent Behavior}
