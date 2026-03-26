@@ -60,6 +60,7 @@ def make_evaluate_passages(
     """Create an evaluate_passages tool closure."""
 
     is_4d = settings.experiment.enable_4d_evaluation
+    use_dspy = settings.experiment.enable_dspy
 
     def evaluate_passages(question: str, passage_ids_json: str, retry_count: int = 0) -> str:
         try:
@@ -77,7 +78,15 @@ def make_evaluate_passages(
 
             context = BasePipeline.format_passages(passages)
 
-            with dspy.context(lm=make_lm(settings.model.evaluate_model)):
+            if use_dspy:
+                with dspy.context(lm=make_lm(settings.model.evaluate_model)):
+                    eval_result = evaluator(
+                        question=question,
+                        passages=context,
+                        retry_count=retry_count,
+                        max_retry=settings.evaluation.max_retry_count,
+                    )
+            else:
                 eval_result = evaluator(
                     question=question,
                     passages=context,
@@ -85,24 +94,39 @@ def make_evaluate_passages(
                     max_retry=settings.evaluation.max_retry_count,
                 )
 
-            # Build score dict — 4D or 1D based on which signature was used
-            if is_4d:
-                score_dict = {
-                    "relevance": int(eval_result.relevance_score),
-                    "coverage": int(eval_result.coverage_score),
-                    "specificity": int(eval_result.specificity_score),
-                    "sufficiency": int(eval_result.sufficiency_score),
-                    "total": int(eval_result.total_score),
-                    "action": eval_result.action,
-                    "reasoning": eval_result.reasoning,
-                    "keywords_to_add": eval_result.keywords_to_add,
-                    "keywords_to_remove": eval_result.keywords_to_remove,
-                    "suggested_query": eval_result.suggested_query,
-                }
+            # Build score dict — branch on DSPy vs Manual attribute names
+            if use_dspy:
+                # DSPy Predict result: attributes match signature field names
+                if is_4d:
+                    score_dict = {
+                        "relevance": int(eval_result.relevance_score),
+                        "coverage": int(eval_result.coverage_score),
+                        "specificity": int(eval_result.specificity_score),
+                        "sufficiency": int(eval_result.sufficiency_score),
+                        "total": int(eval_result.total_score),
+                        "action": eval_result.action,
+                        "reasoning": eval_result.reasoning,
+                        "keywords_to_add": eval_result.keywords_to_add,
+                        "keywords_to_remove": eval_result.keywords_to_remove,
+                        "suggested_query": eval_result.suggested_query,
+                    }
+                else:
+                    score_dict = {
+                        "total": int(eval_result.total_score),
+                        "action": eval_result.action,
+                        "reasoning": eval_result.reasoning,
+                        "keywords_to_add": eval_result.keywords_to_add,
+                        "keywords_to_remove": eval_result.keywords_to_remove,
+                        "suggested_query": eval_result.suggested_query,
+                    }
             else:
-                # 1D mode: single holistic score + same refinement feedback as 4D
+                # ManualEvaluator result: dataclass with short attribute names
                 score_dict = {
-                    "total": int(eval_result.total_score),
+                    "relevance": int(eval_result.relevance),
+                    "coverage": int(eval_result.coverage),
+                    "specificity": int(eval_result.specificity),
+                    "sufficiency": int(eval_result.sufficiency),
+                    "total": int(eval_result.total),
                     "action": eval_result.action,
                     "reasoning": eval_result.reasoning,
                     "keywords_to_add": eval_result.keywords_to_add,

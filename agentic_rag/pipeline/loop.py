@@ -103,9 +103,20 @@ class LoopRAGPipeline(SelfCorrectiveMixin):
         original_keywords = set(search_keywords)
 
         # --- Multi-hop Decomposition: retrieve per sub-question ---
-        decomposer = dspy.ChainOfThought(DecomposeQuerySignature)
-        with dspy.context(lm=make_lm(settings.model.preprocess_model)):
-            decomp = decomposer(question=search_query)
+        if exp.enable_dspy:
+            decomposer = dspy.ChainOfThought(DecomposeQuerySignature)
+            with dspy.context(lm=make_lm(settings.model.preprocess_model)):
+                decomp = decomposer(question=search_query)
+        else:
+            from agentic_rag.tools.decompose import _call_lm_for_decompose
+
+            data = _call_lm_for_decompose(search_query)
+
+            class _DecompResult:
+                is_multi_hop = bool(data.get("is_multi_hop", False))
+                sub_questions = data.get("sub_questions", [search_query])
+
+            decomp = _DecompResult()
         llm_calls += 1
 
         if decomp.is_multi_hop and len(decomp.sub_questions) > 1:
@@ -215,7 +226,15 @@ class LoopRAGPipeline(SelfCorrectiveMixin):
                 eval_context = self.format_passages(accumulated_passages)
 
             if exp.enable_4d_evaluation:
-                with dspy.context(lm=make_lm(settings.model.evaluate_model)):
+                if exp.enable_dspy:
+                    with dspy.context(lm=make_lm(settings.model.evaluate_model)):
+                        eval_result = self.evaluator(
+                            question=search_query,
+                            passages=eval_context,
+                            retry_count=retry,
+                            max_retry=max_retry,
+                        )
+                else:
                     eval_result = self.evaluator(
                         question=search_query,
                         passages=eval_context,
@@ -224,11 +243,18 @@ class LoopRAGPipeline(SelfCorrectiveMixin):
                     )
                 llm_calls += 1
 
-                rel = int(eval_result.relevance_score)
-                cov = int(eval_result.coverage_score)
-                spec = int(eval_result.specificity_score)
-                suf = int(eval_result.sufficiency_score)
-                total = int(eval_result.total_score)
+                if exp.enable_dspy:
+                    rel = int(eval_result.relevance_score)
+                    cov = int(eval_result.coverage_score)
+                    spec = int(eval_result.specificity_score)
+                    suf = int(eval_result.sufficiency_score)
+                    total = int(eval_result.total_score)
+                else:
+                    rel = int(eval_result.relevance)
+                    cov = int(eval_result.coverage)
+                    spec = int(eval_result.specificity)
+                    suf = int(eval_result.sufficiency)
+                    total = int(eval_result.total)
 
                 # Guard: if total_score is 0 but sub-scores exist, recompute
                 computed = rel + cov + spec + suf
