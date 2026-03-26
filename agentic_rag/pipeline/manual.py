@@ -41,8 +41,10 @@ class EvaluateResult:
     sufficiency: int = 0
     total: int = 0
     action: str = "output"
+    reasoning: str = ""
     suggested_query: str = ""
     keywords_to_add: list[str] = field(default_factory=list)
+    keywords_to_remove: list[str] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -89,7 +91,7 @@ Passages:
 {passages}
 
 Respond with ONLY valid JSON:
-{{"relevance": N, "coverage": N, "specificity": N, "sufficiency": N, "total": N, "action": "output|refine", "suggested_query": "refined query if action=refine", "keywords_to_add": ["kw1"]}}"""
+{{"relevance": N, "coverage": N, "specificity": N, "sufficiency": N, "total": N, "action": "output|refine", "reasoning": "brief explanation", "suggested_query": "refined query if action=refine", "keywords_to_add": ["kw1"], "keywords_to_remove": ["kw2"]}}"""
 
 
 # ---------------------------------------------------------------------------
@@ -180,6 +182,8 @@ class ManualEvaluator:
             sufficiency=data.get("sufficiency", 0),
             total=data.get("total", 0),
             action=data.get("action", "output"),
+            reasoning=data.get("reasoning", ""),
             suggested_query=data.get("suggested_query", ""),
             keywords_to_add=data.get("keywords_to_add", []),
+            keywords_to_remove=data.get("keywords_to_remove", []),
         )
