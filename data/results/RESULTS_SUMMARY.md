@@ -8,13 +8,15 @@
 **Date**: 2026-03-24 ~ 2026-03-25
 **Sample size**: n=200 per dataset (FinanceBench n=150, 전체 데이터)
 
-> **Status (2026-03-26)**:
+> **Status (2026-03-27)**:
 > - Gemini: RQ1~5 + ablation × 4 datasets 전체 완료
 > - gpt-5-mini: RQ1 × 4 datasets 완료 (cross-model 검증)
 > - Bootstrap CI 통계 검증: ✅ RQ1 완료
 > - LLM-as-Judge (gpt-4.1-nano): ✅ RQ1 완료 (8 datasets × 5 pipelines = 40 files)
 > - Cross-model 분석: ✅ 완료 (Reasoning Model Refusal Asymmetry 발견)
 > - **RQ5 bug fix + rerun**: ✅ 2026-03-26 완료 (evaluate.py attribute 불일치 + decompose.py manual 분기 수정)
+> - **Ablation Manual Prompt rerun**: ✅ 2026-03-27 완료 (bug-fixed Manual Prompt)
+> - **Synergy Loop+Manual**: ✅ 2026-03-27 완료 (W1 defense — synergy negligible → Option B)
 
 ---
 
@@ -287,15 +289,48 @@ DSPy의 기여는 두 단계:
 | w/o Section Index | 0.658 | 0.602 | 0.437 | 0.413 |
 | w/o Term Index | 0.666 | **0.613** | 0.445 | 0.410 |
 | w/o Agent (for-loop) | 0.636 | 0.495 | 0.399 | 0.400 |
-| Manual Prompt | 0.608 | 0.496 | 0.481 | 0.256 |
+| Manual Prompt | 0.614 | 0.488 | 0.461 | 0.258 |
 
-### Ablation Key Findings
+### Ablation Key Findings (Updated 2026-03-27)
 
 1. **w/o Agent (for-loop)이 항상 Full보다 낮음** (FinanceBench 제외) — agent의 기여 일관
 2. **w/o Search가 가장 큰 하락** — re-retrieval이 agent의 핵심 메커니즘
 3. **Manual Prompt가 대부분 최하위** — DSPy 효과 재확인
 4. **1D Evaluation이 Full보다 약간 높음** — RQ3과 일관
-5. **MuSiQue Manual(0.481) > Full(0.449)** — 이상값, 추가 분석 필요
+5. **MuSiQue Manual(0.461) > Full(0.449)** — 격차 축소 (+0.012), Signature mismatch는 여전히 존재하나 미미
+
+---
+
+## W1 Defense: Agent×DSPy Synergy Analysis (2026-03-27)
+
+**Question**: Is there a synergistic interaction between agentic reasoning and DSPy optimization?
+
+### 2×2 Factorial Design (F1)
+
+|  | DSPy | Manual | Δ(DSPy effect) |
+|--|------|--------|----------------|
+| **Agent** | .697 / .551 / .516 / .317 | .587 / .476 / .466 / .255 | +.110 / +.075 / +.050 / +.062 |
+| **Loop** | .689 / .510 / .505 / .328 | .594 / .499 / .436 / .229 | +.095 / +.011 / +.069 / +.099 |
+
+### Synergy = (Agent+DSPy) - (Agent+Manual) - (Loop+DSPy) + (Loop+Manual)
+
+| Dataset | Synergy (F1) | Interpretation |
+|---------|-------------|----------------|
+| HotpotQA | +0.015 | Negligible |
+| 2WikiMultiHopQA | +0.064 | Small positive |
+| MuSiQue | -0.019 | Negligible |
+| FinanceBench | -0.037 | Small negative |
+
+### W1 결론: Option B (텍스트 프레이밍)
+
+Synergy가 mixed/negligible → Agent×DSPy 시너지는 통계적으로 유의하지 않음.
+
+**W1 대응 전략**: 논문에서 Agent와 DSPy를 "synergistic"이 아닌 **"complementary, independently valuable"**로 프레이밍.
+- Agent: complexity-adaptive refinement (RQ1)
+- DSPy: structural+optimization benefit (RQ5)
+- 두 기여가 orthogonal — 각각 독립적으로 가치 있음
+
+**리스크 인정**: ReAct 자체가 항상 DSPy 사용 (confound). 이 한계는 Limitations에 이미 반영.
 
 ---
 
@@ -357,5 +392,8 @@ CRAG가 F1은 높지만 **4.6배 비효율적**. Agentic + Gemini가 최적의 c
 2. [x] gpt-5-mini CRAG 강세 원인 분석 (Refusal Asymmetry 발견)
 3. [x] LLM-as-Judge 완료 (RQ1, gpt-4.1-nano, 8 dirs × 5 pipelines = 40 files)
 4. [x] LLM-as-Judge 결과 반영 — 테이블 추가 완료
-5. [ ] 결과 테이블/플롯 교체 (논문)
-6. [ ] Discussion 업데이트 (Retrieval Space Saturation + Model-Pipeline Interaction)
+5. [x] RQ5 bug fix + rerun (2026-03-26)
+6. [x] Ablation Manual Prompt rerun (2026-03-27)
+7. [x] Synergy Loop+Manual 실험 (2026-03-27) — 결과: negligible → Option B
+8. [ ] W2~W8 텍스트 대응 (실험 불필요)
+9. [ ] 지도교수 미팅 → KBS 제출
