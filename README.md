@@ -1,4 +1,4 @@
-# TARA: Complexity-Adaptive Retrieval Refinement through Tool-Augmented ReAct Agents
+# TARA: Tool-Augmented Retrieval Agents for Self-Corrective RAG
 
 [English](#overview) | [한국어](README_ko.md)
 
@@ -154,7 +154,7 @@ Pre-computed results for reviewer verification are in [`paper/supplementary/`](p
 
 ```bibtex
 @article{lee2026tara,
-  title={TARA: Complexity-Adaptive Retrieval Refinement through Tool-Augmented ReAct Agents},
+  title={TARA: Tool-Augmented Retrieval Agents for Self-Corrective RAG},
   author={Lee, Ruo},
   journal={Knowledge-Based Systems},
   year={2026},

@@ -1,4 +1,4 @@
-# TARA: 도구 강화 ReAct 에이전트를 통한 복잡도 적응형 검색 정제
+# TARA: 자기 교정 RAG를 위한 도구 강화 검색 에이전트
 
 [English](README.md) | [한국어](#개요)
 
@@ -154,7 +154,7 @@ tests/                       pytest 테스트 스위트
 
 ```bibtex
 @article{lee2026tara,
-  title={TARA: Complexity-Adaptive Retrieval Refinement through Tool-Augmented ReAct Agents},
+  title={TARA: Tool-Augmented Retrieval Agents for Self-Corrective RAG},
   author={Lee, Ruo},
   journal={Knowledge-Based Systems},
   year={2026},
