@@ -33,44 +33,21 @@
 
 *Gemini Flash Lite, n=200, paired bootstrap significance test (Bonferroni-corrected)*
 
+<p align="center">
+  <img src="assets/rq1_f1_comparison.png" alt="RQ1 F1 Comparison" width="85%">
+</p>
+
 **Key finding**: The agentic advantage is **complexity-dependent** — substantial on 4-hop questions (+0.305 F1) and diminishes on simpler tasks.
 
 ---
 
 ## Architecture
 
-```
-                    ┌─────────────────┐
-                    │   User Query    │
-                    └────────┬────────┘
-                             │
-                    ┌────────▼────────┐
-                    │  Preprocessing  │  Query rephrasing + keyword extraction
-                    └────────┬────────┘
-                             │
-                    ┌────────▼────────┐
-                    │   3-Way Router  │  → Naive / Single-Pass / Agent
-                    └────────┬────────┘
-                             │
-              ┌──────────────▼──────────────┐
-              │     ReAct Agent (DSPy)      │
-              │                             │
-              │  Thought → Action → Observe │
-              │         (loop)              │
-              │                             │
-              │  Tools:                     │
-              │  ├─ search_passages     ◄── Core
-              │  ├─ decompose_query     ◄──
-              │  ├─ evaluate_passages   ◄──
-              │  ├─ get_passage_detail  ◄──
-              │  ├─ list_document_sections  ◄── Domain-adaptive
-              │  └─ get_terminology         ◄──
-              └──────────────┬──────────────┘
-                             │
-                    ┌────────▼────────┐
-                    │    Generate     │  Final answer with citations
-                    └─────────────────┘
-```
+<p align="center">
+  <img src="assets/architecture.png" alt="TARA Architecture" width="100%">
+</p>
+
+The pipeline consists of four stages: (1) query preprocessing, (2) ReAct agentic refinement with six specialized tools, (3) passage merging, and (4) answer generation. If the agent exhausts max retries, a 3-way fallback router (Clarification / DomainExpert / Fallback) handles the remaining cases.
 
 ---
 

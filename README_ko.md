@@ -33,44 +33,21 @@
 
 *Gemini Flash Lite, n=200, paired bootstrap 유의성 검정 (Bonferroni 보정)*
 
+<p align="center">
+  <img src="assets/rq1_f1_comparison.png" alt="RQ1 F1 비교" width="85%">
+</p>
+
 **핵심 발견**: 에이전틱 이점은 **복잡도에 비례** — 4-hop 질문에서 +0.305 F1, 단순 질문에서는 미미.
 
 ---
 
 ## 아키텍처
 
-```
-                    ┌─────────────────┐
-                    │    사용자 질문    │
-                    └────────┬────────┘
-                             │
-                    ┌────────▼────────┐
-                    │    전처리        │  질문 재구성 + 키워드 추출
-                    └────────┬────────┘
-                             │
-                    ┌────────▼────────┐
-                    │   3-Way 라우터   │  → Naive / Single-Pass / Agent
-                    └────────┬────────┘
-                             │
-              ┌──────────────▼──────────────┐
-              │     ReAct 에이전트 (DSPy)     │
-              │                             │
-              │  Thought → Action → Observe │
-              │         (반복)               │
-              │                             │
-              │  도구:                       │
-              │  ├─ search_passages     ◄── 핵심 도구
-              │  ├─ decompose_query     ◄──
-              │  ├─ evaluate_passages   ◄──
-              │  ├─ get_passage_detail  ◄──
-              │  ├─ list_document_sections  ◄── 도메인 적응형
-              │  └─ get_terminology         ◄──
-              └──────────────┬──────────────┘
-                             │
-                    ┌────────▼────────┐
-                    │    답변 생성     │  인용 포함 최종 답변
-                    └─────────────────┘
-```
+<p align="center">
+  <img src="assets/architecture.png" alt="TARA 아키텍처" width="100%">
+</p>
+
+파이프라인은 4단계로 구성됩니다: (1) 질문 전처리, (2) 6개 전문 도구를 활용한 ReAct 에이전틱 정제, (3) 패시지 병합, (4) 답변 생성. 에이전트가 최대 재시도를 소진하면 3-way 폴백 라우터(Clarification / DomainExpert / Fallback)가 처리합니다.
 
 ---
 
