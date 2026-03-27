@@ -51,6 +51,7 @@ htmlcov/
 *.spl
 *.synctex.gz
 *.pdf
+!paper/main.pdf
 paper.zip
 
 # Code review graph (auto-generated)
