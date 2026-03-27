@@ -47,7 +47,7 @@
   <img src="assets/architecture.png" alt="TARA 아키텍처" width="100%">
 </p>
 
-파이프라인은 4단계로 구성됩니다: (1) 질문 전처리, (2) 6개 전문 도구를 활용한 ReAct 에이전틱 정제, (3) 패시지 병합, (4) 답변 생성. 에이전트가 최대 재시도를 소진하면 3-way 폴백 라우터(Clarification / DomainExpert / Fallback)가 처리합니다.
+파이프라인은 4단계로 구성됩니다: (1) 질문 전처리, (2) 6개 전문 도구를 활용한 ReAct 에이전틱 정제, (3) 패시지 병합, (4) 답변 생성. 패시지가 전혀 검색되지 않는 극단적 경우를 위한 3-way 폴백 라우터(Clarification / DomainExpert / Fallback)가 구현되어 있으나, 실제 실험에서는 거의 트리거되지 않습니다.
 
 ---
 
@@ -101,7 +101,7 @@ agentic_rag/
   signatures/      DSPy 시그니처 (전처리, 평가, 생성, 에이전트)
   tools/           6개 에이전트 도구 (검색, 분해, 평가, 상세조회, 구조, 용어)
   pipeline/        파이프라인 구현 (naive, crag, loop, agentic)
-  evaluation/      메트릭 (EM, F1, ROUGE-L, BERTScore), 비용 추적
+  evaluation/      메트릭 (EM, F1, LLM-as-Judge, ROUGE-L), 비용 추적
   optimization/    BootstrapFewShot, MIPROv2 래퍼
 
 configs/

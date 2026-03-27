@@ -47,7 +47,7 @@
   <img src="assets/architecture.png" alt="TARA Architecture" width="100%">
 </p>
 
-The pipeline consists of four stages: (1) query preprocessing, (2) ReAct agentic refinement with six specialized tools, (3) passage merging, and (4) answer generation. If the agent exhausts max retries, a 3-way fallback router (Clarification / DomainExpert / Fallback) handles the remaining cases.
+The pipeline consists of four stages: (1) query preprocessing, (2) ReAct agentic refinement with six specialized tools, (3) passage merging, and (4) answer generation. A 3-way fallback router (Clarification / DomainExpert / Fallback) is available for edge cases where no passages are retrieved, though it is rarely triggered in practice.
 
 ---
 
@@ -101,7 +101,7 @@ agentic_rag/
   signatures/      DSPy signatures (preprocess, evaluate, generate, agent)
   tools/           6 agent tools (search, decompose, evaluate, inspect, structure, terminology)
   pipeline/        Pipeline implementations (naive, crag, loop, agentic)
-  evaluation/      Metrics (EM, F1, ROUGE-L, BERTScore), cost tracker
+  evaluation/      Metrics (EM, F1, LLM-as-Judge, ROUGE-L), cost tracker
   optimization/    BootstrapFewShot, MIPROv2 wrappers
 
 configs/
