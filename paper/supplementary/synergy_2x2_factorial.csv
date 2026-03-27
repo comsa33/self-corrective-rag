@@ -1,0 +1,5 @@
+dataset,agent_dspy_f1,agent_manual_f1,loop_dspy_f1,loop_manual_f1,dspy_effect_agent,dspy_effect_loop,interaction_synergy
+hotpotqa,0.6576,0.5867,0.6358,0.5943,0.0709,0.0415,0.0294
+2wikimultihopqa,0.5844,0.4763,0.4947,0.4995,0.1081,-0.0048,0.1129
+musique,0.4383,0.4659,0.3985,0.4363,-0.0276,-0.0378,0.0102
+financebench,0.3859,0.255,0.3998,0.2295,0.1308,0.1703,-0.0394

@@ -1,0 +1,17 @@
+dataset,variant,n,exact_match,f1,rouge_l
+financebench,full_tools,150,0.18,0.4106,0.3862
+financebench,w_o_section_index,150,0.1533,0.3899,0.3596
+financebench,w_o_structure_tools,150,0.1533,0.3844,0.3581
+financebench,w_o_terminology,150,0.1533,0.3879,0.3587
+2wikimultihopqa,full_tools,200,0.5,0.6107,0.609
+2wikimultihopqa,w_o_section_index,200,0.505,0.621,0.6194
+2wikimultihopqa,w_o_structure_tools,200,0.485,0.597,0.5953
+2wikimultihopqa,w_o_terminology,200,0.48,0.5929,0.5912
+musique,full_tools,200,0.345,0.449,0.4481
+musique,w_o_section_index,200,0.335,0.4447,0.4437
+musique,w_o_structure_tools,200,0.32,0.4218,0.4209
+musique,w_o_terminology,200,0.335,0.4327,0.4315
+hotpotqa,full_tools,200,0.525,0.674,0.672
+hotpotqa,w_o_section_index,200,0.495,0.6561,0.6541
+hotpotqa,w_o_structure_tools,200,0.525,0.6769,0.6749
+hotpotqa,w_o_terminology,200,0.5,0.6542,0.6522

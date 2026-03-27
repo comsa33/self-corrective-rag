@@ -1,0 +1,5 @@
+dataset,n,exact_match,f1
+financebench,150,0.18,0.4106
+musique,200,0.345,0.449
+2wikimultihopqa,200,0.5,0.6107
+hotpotqa,200,0.525,0.674

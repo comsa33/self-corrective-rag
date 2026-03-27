@@ -1,0 +1,17 @@
+dataset,variant,n,exact_match,f1,rouge_l
+financebench,dspy_+_bootstrap,80,0.2,0.4305,0.4013
+financebench,dspy_+_miprov2,80,0.175,0.4086,0.382
+financebench,dspy_unoptimized,80,0.1875,0.4187,0.3953
+financebench,manual_prompt,80,0.0125,0.255,0.2271
+2wikimultihopqa,dspy_+_bootstrap,130,0.5538,0.646,0.646
+2wikimultihopqa,dspy_+_miprov2,130,0.4,0.5277,0.5277
+2wikimultihopqa,dspy_unoptimized,130,0.4846,0.6023,0.5998
+2wikimultihopqa,manual_prompt,130,0.3077,0.4763,0.4737
+hotpotqa,dspy_+_bootstrap,130,0.5077,0.6637,0.6606
+hotpotqa,dspy_+_miprov2,130,0.5,0.6553,0.6522
+hotpotqa,dspy_unoptimized,130,0.5077,0.6582,0.6551
+hotpotqa,manual_prompt,130,0.4077,0.5867,0.5867
+musique,dspy_+_bootstrap,130,0.4692,0.5443,0.5439
+musique,dspy_+_miprov2,130,0.4231,0.5028,0.5028
+musique,dspy_unoptimized,130,0.3,0.3964,0.3959
+musique,manual_prompt,130,0.3385,0.4659,0.4659
