@@ -56,3 +56,4 @@ paper.zip
 
 # Code review graph (auto-generated)
 .code-review-graph/
+.claude/scheduled_tasks.lock
