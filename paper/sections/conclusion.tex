@@ -10,7 +10,7 @@ First, agentic refinement provides \emph{complexity-dependent} improvements: sta
 Second, DSPy's typed Signatures improve F1 by 0.071--0.164 over manual prompt engineering on three of four datasets, with BootstrapFewShot achieving the best F1 on all four datasets and recovering performance even where Signatures alone underperform manual prompts.
 Third, cross-model validation reveals a \emph{model--pipeline interaction effect}: reasoning-oriented models (gpt-5-mini) exhibit higher refusal rates in agentic pipelines, suggesting that pipeline selection should account for the base model's reasoning characteristics.
 
-Trajectory analysis reveals emergent structured protocols (decompose--search--evaluate) that arise from the combination of typed Signatures and ReAct reasoning, without hard-coded orchestration.
+Trajectory analysis reveals consistent convergence on structured protocols (decompose--search--evaluate), guided by typed Signatures and ReAct reasoning, with domain-adaptive tool selection arising without explicit instruction.
 Ablation studies confirm that the evaluation tool serves as a quality gate mechanism, with 1D holistic scores proving sufficient. Structure-aware tools provide dataset-dependent benefits on complex documents, and re-retrieval emerges as the agent's most critical capability.
 
 \paragraph{Future Work}

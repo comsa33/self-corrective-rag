@@ -158,15 +158,17 @@ This independence is expected because the two contributions operate at different
 Practically, this means each contribution can be adopted independently, allowing teams to incrementally introduce agentic reasoning or DSPy optimization based on their deployment constraints.
 
 % ---------------------------------------------------------------------------
-\subsection{Emergent Agent Behavior}
+\subsection{Instruction-Guided Protocol Convergence}
 \label{subsec:emergent}
 % ---------------------------------------------------------------------------
 
-A noteworthy observation is that the ReAct agent \emph{converges on} structured retrieval protocols.
-Despite having access to six tools (four core, two domain-adaptive) with no enforced execution order, the agent consistently converges on a decompose--search--evaluate pattern across all 800+ questions in our evaluation (RQ2, \S\ref{subsec:rq2}).
+A noteworthy observation is that the ReAct agent consistently converges on structured retrieval protocols.
+Despite having access to six tools (four core, two domain-adaptive) with no enforced execution order, the agent converges on a decompose--search--evaluate pattern across all 800+ questions in our evaluation (RQ2, \S\ref{subsec:rq2}).
 
-This emergent behavior suggests that the combination of typed Signatures (providing a recommended protocol), evaluation feedback (providing quality signals), and ReAct reasoning (enabling reflective planning) creates sufficient inductive bias for structured behavior without requiring hard-coded orchestration logic.
-The progressive information disclosure pattern (search previews followed by selective full-text retrieval) and domain-adaptive tool selection (\texttt{calculate} on FinanceBench, \texttt{list\_document\_sections} on complex documents) further demonstrate the agent's capacity for sophisticated retrieval strategies that arise purely from the interaction between tools and reasoning.
+This convergence is partly \emph{instruction-guided}: the agent's Signature docstring recommends a protocol outline, providing an inductive bias toward structured behavior.
+However, the agent retains meaningful autonomy in execution: the specific tool ordering, call frequency (2--10 tools per question), and termination decisions vary substantially across questions and are not prescribed by the protocol.
+More notably, two behaviors arise without any instruction: the progressive information disclosure pattern (search previews followed by selective full-text retrieval) and domain-adaptive tool selection (\texttt{calculate} on FinanceBench, \texttt{list\_document\_sections} on complex documents).
+These suggest that the combination of typed Signatures, evaluation feedback, and ReAct reasoning creates sufficient structure for adaptive behavior without requiring hard-coded orchestration logic.
 
 % ---------------------------------------------------------------------------
 \subsection{Limitations and Future Work}
@@ -177,7 +179,7 @@ We acknowledge several limitations:
 
 \begin{enumerate}
     \item \textbf{Retrieval corpus.} We use each dataset's provided context paragraphs rather than a large-scale open-domain corpus (\eg, DPR's Wikipedia dump~\cite{karpukhin2020dense}).
-    This ensures controlled evaluation of the refinement mechanism, but limits comparison with methods evaluated on open-domain retrieval.
+    This ensures controlled evaluation of the refinement mechanism, but limits direct comparison with methods evaluated on open-domain retrieval: for instance, IRCoT~\cite{trivedi2023ircot} reports F1 $\approx 0.61$ on HotpotQA using full Wikipedia, while our closed-corpus setting yields higher absolute scores (0.658) partly because gold passages are guaranteed to be present.
     The retrieval space saturation observed on FinanceBench (\S\ref{subsec:boundary}) may not generalize to larger enterprise corpora.
 
     \item \textbf{Model--pipeline interaction.} The Reasoning Model Refusal Asymmetry (\S\ref{subsec:model_interaction}), consistent with broader findings on LLM over-refusal~\cite{cui2025orbench} and degraded abstention calibration in reasoning models~\cite{kirichenko2025abstentionbench}, demonstrates that pipeline effectiveness depends on the base model's characteristics.

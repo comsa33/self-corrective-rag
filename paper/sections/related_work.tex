@@ -81,10 +81,12 @@ Broader agent frameworks have also emerged: HuggingGPT~\cite{shen2023hugginggpt}
 Additional benchmarks such as SWE-bench~\cite{jimenez2024swebench} and WebArena~\cite{zhou2024webarena} evaluate agents in software engineering and web navigation contexts, respectively.
 
 In the RAG context, agentic approaches have emerged that use LLM agents to orchestrate retrieval~\cite{singh2025agenticrag}.
-Recent work explores multi-step retrieval agents that decompose complex queries~\cite{khot2023decomposed}, perform iterative search, and synthesize evidence from multiple sources.
-However, most existing agentic RAG systems focus on a single tool (search) with fixed orchestration logic, rather than providing a diverse tool set with autonomous tool selection.
+Search-o1~\cite{li2025searcho1} integrates agentic search into reasoning chains of large reasoning models, dynamically retrieving knowledge when the model encounters uncertainty during extended reasoning.
+PlanRAG~\cite{lee2024planrag} introduces a plan-then-retrieve strategy where the LLM first generates an analysis plan before issuing retrieval queries, targeting decision-making over structured databases.
+Earlier work explores multi-step retrieval agents that decompose complex queries~\cite{khot2023decomposed}, perform iterative search, and synthesize evidence from multiple sources.
+However, most existing agentic RAG systems focus on a single retrieval tool with fixed orchestration logic.
 
-\ours{} equips the ReAct agent with six specialized tools, enabling richer retrieval strategies that go beyond simple re-querying: query decomposition for multi-hop questions, quality evaluation for informed refinement, progressive passage inspection, and domain-specific tools for enterprise documents.
+\ours{} differs in providing a diverse tool set (four core, two domain-adaptive) with autonomous tool selection through ReAct reasoning, combined with a declarative DSPy implementation that enables automatic prompt optimization---a combination not explored in prior agentic RAG work.
 
 % ---------------------------------------------------------------------------
 \subsection{Declarative Language Model Programming}

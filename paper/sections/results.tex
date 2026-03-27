@@ -97,6 +97,8 @@ $\Delta$ vs.\ Naive      & $+.052$           & $+.206^{***}$      & $+.096^{***}
 \paragraph{2WikiMultiHopQA: strongest evidence}
 \ours{} achieves statistically significant improvement over \emph{all four baselines} on 2WikiMultiHopQA ($p < 0.001$ in each case), with the largest effect against CRAG ($\Delta = +0.329$).
 The 95\% confidence interval [$0.506, 0.648$] does not overlap with the confidence intervals of Loop [$0.433, 0.557$] or CRAG [$0.209, 0.305$], providing strong evidence that the improvement is not due to sampling variability.
+A hop-level breakdown reveals that the improvement is concentrated in 4-hop questions ($n = 50$): \ours{} achieves F1 0.628 vs.\ Loop's 0.323 ($\Delta = +0.305$), while on 2-hop questions ($n = 150$) the gap is modest ($+0.018$).
+This confirms that the agentic advantage scales with reasoning complexity---the agent's ability to decompose, search sub-questions independently, and synthesize evidence provides the greatest benefit when multiple retrieval steps are required.
 
 \paragraph{MuSiQue: significant vs.\ weaker baselines}
 Against CRAG ($+0.187$, $p < 0.001$) and Naive ($+0.096$, $p < 0.001$), the improvement is significant.
