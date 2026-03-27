@@ -110,6 +110,13 @@ All pairwise comparisons are non-significant, with confidence intervals substant
 The marginally negative delta against Loop ($-0.014$) is well within noise.
 This statistical confirmation of the null result is consistent with the retrieval space saturation hypothesis discussed in \S\ref{subsec:boundary}.
 
+\paragraph{Effect sizes and statistical power}
+To assess practical significance beyond $p$-values, we report Cohen's $d$ (paired) for each comparison.
+On 2WikiMultiHopQA, effect sizes range from small-to-medium ($d = 0.235$ vs.\ Loop and Single-Pass) to large ($d = 0.866$ vs.\ CRAG), indicating practically meaningful improvements.
+A sensitivity analysis (paired $t$-test, Bonferroni-corrected $\alpha = 0.0125$, 80\% power) indicates that our $n = 200$ design can detect effects of $d \geq 0.22$, which aligns with the observed effect on 2WikiMultiHopQA ($d = 0.235$ vs.\ Loop; achieved power $= 0.79$).
+The non-significant comparisons on HotpotQA (vs.\ Loop: $d = 0.016$) and MuSiQue (vs.\ Loop: $d = 0.087$) reflect \emph{genuinely small effects}: detecting these with 80\% power would require $n > 43{,}000$ and $n > 1{,}400$ respectively.
+This is consistent with the complexity-dependent pattern discussed in \S\ref{subsec:complexity}: the agentic advantage is substantial on complex multi-hop questions and diminishes on simpler tasks where adaptive retrieval strategies provide little additional benefit.
+
 % ---------------------------------------------------------------------------
 \subsubsection{Cross-Model Validation}
 \label{subsubsec:crossmodel}

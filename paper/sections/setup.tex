@@ -63,6 +63,10 @@ We compare \ours{} against four baselines of increasing complexity, all sharing 
 
 The key difference between Loop Refinement and \ours{} is the refinement strategy: Loop follows a predetermined retrieve--evaluate--refine sequence, while \ours{} autonomously selects tools and decides when to stop through ReAct reasoning.
 
+\paragraph{Baseline scope}
+We do not include Self-RAG~\cite{asai2024selfrag} or Adaptive-RAG~\cite{jeong2024adaptiverag} as direct baselines because they require additional trained components (Self-RAG: a fine-tuned model with reflection tokens; Adaptive-RAG: a trained complexity classifier) that would confound the comparison of refinement strategies.
+All our baselines share the same retrieval infrastructure, generation model, and closed-corpus setting to isolate the effect of refinement mechanism design.
+
 % ---------------------------------------------------------------------------
 \subsection{Evaluation Metrics}
 \label{subsec:metrics}

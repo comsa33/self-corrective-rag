@@ -54,6 +54,8 @@ Enterprise deployments on small, well-curated corpora may benefit more from simp
 % ---------------------------------------------------------------------------
 
 The cross-model experiment reveals a previously uncharacterized interaction between model architecture and pipeline design.
+Over-refusal---the tendency of safety-aligned LLMs to reject innocuous queries---is a well-documented phenomenon~\cite{cui2025orbench,zhang2025falsereject}, and recent work shows that reasoning fine-tuning degrades abstention calibration overall, making models less reliable at distinguishing answerable from unanswerable questions~\cite{kirichenko2025abstentionbench}.
+We observe a manifestation of this miscalibration in the interaction between reasoning models and agentic pipelines.
 With Gemini Flash Lite (a generation-focused model), \ours{} consistently outperforms CRAG on multi-hop datasets.
 With gpt-5-mini (a reasoning-focused model), the pattern \emph{reverses}: CRAG outperforms \ours{} on 2WikiMultiHopQA ($+0.086$ F1, $p = 0.004$).
 
@@ -91,6 +93,16 @@ The mechanism operates as follows:
     \item \textbf{Gemini in ReAct}: As a generation-focused model, Gemini is less conservative in its evidentiary standards.
     It refuses only 14\% of the time in the agentic pipeline, allowing \ours{} to outperform CRAG (which, with Gemini, refuses 34\% due to CRAG's stricter binary evaluation triggering more ``incorrect'' classifications).
 \end{itemize}
+
+\paragraph{Qualitative evidence}
+Trajectory analysis of divergent cases illustrates the mechanism concretely.
+On 2WikiMultiHopQA, we identify 19 questions where gpt-5-mini refuses but Gemini answers---and Gemini is correct on 16 of these (84\%).
+In a representative case, both models identify the relevant directors and retrieve birth date information for one; the evaluation tool assigns scores of 74 (gpt-5-mini) and 100 (Gemini), both above the quality threshold of 40.
+Gemini answers correctly, but gpt-5-mini responds: ``\emph{Cannot determine. Monte Hellman was born in 1932; [the other director's] birth year is not provided.}''
+The reasoning model applies a stricter evidentiary standard---requiring \emph{both} birth dates to be explicitly stated---while the generation model infers the answer from available evidence.
+This pattern, where the model overrides the evaluation tool's ``output'' recommendation based on its own implicit quality judgment, recurs across the divergent cases.
+In 3 of 19 cases, Gemini's answer was incorrect, suggesting that the stricter standard occasionally prevents errors---but at a disproportionate cost, as the remaining 16 cases represent lost correct answers.
+While the sample is small ($n = 19$), the consistency of the mechanism across cases parallels the miscalibrated abstention behavior documented in broader LLM evaluations~\cite{kirichenko2025abstentionbench}.
 
 \paragraph{Implications}
 This finding has two practical implications.
@@ -137,13 +149,21 @@ Critically, on MuSiQue where Unopt underperforms Manual, Bootstrap still achieve
 
 This two-level decomposition has practical implications: teams adopting DSPy can expect immediate gains from Signatures on most tasks, and when structural mismatch occurs, automatic optimization provides a reliable recovery mechanism.
 
+\paragraph{Complementary contributions}
+A natural question is whether the agentic reasoning (C1) and DSPy integration (C4) produce synergistic effects or provide independent value.
+To test this, we conduct a $2 \times 2$ factorial analysis crossing pipeline type (Agentic vs.\ Loop) with prompt strategy (DSPy vs.\ Manual), computing the interaction term: $\text{Synergy} = F1_{\text{Agent+DSPy}} - F1_{\text{Agent+Manual}} - F1_{\text{Loop+DSPy}} + F1_{\text{Loop+Manual}}$.
+The interaction is near zero across all datasets ($+0.015$, $+0.064$, $-0.019$, $-0.037$ for HotpotQA, 2WikiMultiHopQA, MuSiQue, and FinanceBench respectively; all $|\text{interaction}| < 0.065$), indicating \emph{no meaningful synergistic or antagonistic interaction}.
+The DSPy structural benefit is present in both pipelines: $+0.095$--$0.110$ F1 for Agentic, $+0.011$--$0.099$ for Loop (excluding the MuSiQue anomaly where Manual outperforms DSPy Unopt).
+This independence is expected because the two contributions operate at different abstraction layers: DSPy optimizes \emph{prompt-level} representations (Signature types, few-shot examples), while agentic reasoning optimizes \emph{runtime execution paths} (tool selection, iteration decisions).
+Practically, this means each contribution can be adopted independently, allowing teams to incrementally introduce agentic reasoning or DSPy optimization based on their deployment constraints.
+
 % ---------------------------------------------------------------------------
 \subsection{Emergent Agent Behavior}
 \label{subsec:emergent}
 % ---------------------------------------------------------------------------
 
 A noteworthy observation is that the ReAct agent \emph{converges on} structured retrieval protocols.
-Despite having access to six core tools with no enforced execution order, the agent consistently converges on a decompose--search--evaluate pattern across all 800+ questions in our evaluation (RQ2, \S\ref{subsec:rq2}).
+Despite having access to six tools (four core, two domain-adaptive) with no enforced execution order, the agent consistently converges on a decompose--search--evaluate pattern across all 800+ questions in our evaluation (RQ2, \S\ref{subsec:rq2}).
 
 This emergent behavior suggests that the combination of typed Signatures (providing a recommended protocol), evaluation feedback (providing quality signals), and ReAct reasoning (enabling reflective planning) creates sufficient inductive bias for structured behavior without requiring hard-coded orchestration logic.
 The progressive information disclosure pattern (search previews followed by selective full-text retrieval) and domain-adaptive tool selection (\texttt{calculate} on FinanceBench, \texttt{list\_document\_sections} on complex documents) further demonstrate the agent's capacity for sophisticated retrieval strategies that arise purely from the interaction between tools and reasoning.
@@ -160,8 +180,9 @@ We acknowledge several limitations:
     This ensures controlled evaluation of the refinement mechanism, but limits comparison with methods evaluated on open-domain retrieval.
     The retrieval space saturation observed on FinanceBench (\S\ref{subsec:boundary}) may not generalize to larger enterprise corpora.
 
-    \item \textbf{Model--pipeline interaction.} The Reasoning Model Refusal Asymmetry (\S\ref{subsec:model_interaction}) demonstrates that pipeline effectiveness depends on the base model's reasoning characteristics.
-    Our cross-model validation covers two models (Gemini Flash Lite and gpt-5-mini); broader validation across model families (\eg, open-source models such as LLaMA~\cite{touvron2023llama}) and model sizes would strengthen the generalizability claims.
+    \item \textbf{Model--pipeline interaction.} The Reasoning Model Refusal Asymmetry (\S\ref{subsec:model_interaction}), consistent with broader findings on LLM over-refusal~\cite{cui2025orbench} and degraded abstention calibration in reasoning models~\cite{kirichenko2025abstentionbench}, demonstrates that pipeline effectiveness depends on the base model's characteristics.
+    Our cross-model validation covers two model families (Gemini Flash Lite and gpt-5-mini); we cannot isolate whether the observed refusal asymmetry stems from reasoning-specific fine-tuning or other model-family differences.
+    Broader validation across open-source models (\eg, LLaMA~\cite{touvron2023llama}, DeepSeek-R1) and model sizes would strengthen generalizability.
 
     \item \textbf{Latency.} The 4--5$\times$ latency overhead limits applicability to latency-sensitive scenarios.
     Techniques such as parallel tool execution, speculative decoding, and agent module distillation could mitigate this but are not explored.
@@ -171,6 +192,7 @@ We acknowledge several limitations:
 
     \item \textbf{Evaluation calibration.} The evaluation tool's miscalibration on FinanceBench suggests that domain-specific calibration or learned evaluation thresholds may be necessary for optimal performance across diverse domains.
 
-    \item \textbf{Statistical power.} While our $n = 200$ evaluation with bootstrap significance testing provides rigorous evidence for the 2WikiMultiHopQA result ($p < 0.001$), improvements on HotpotQA and MuSiQue do not reach significance against Loop Refinement.
-    Larger-scale evaluation or more powerful statistical tests may be needed to detect smaller effect sizes on these datasets.
+    \item \textbf{Statistical power.} A sensitivity analysis shows that our $n = 200$ design can detect effects of $d \geq 0.22$ at 80\% power (Bonferroni-corrected $\alpha = 0.0125$), which is sufficient for the primary 2WikiMultiHopQA result ($d = 0.235$).
+    The non-significant HotpotQA ($d = 0.016$) and MuSiQue ($d = 0.087$) comparisons represent genuinely small effects that would require $n > 43{,}000$ and $n > 1{,}400$ to detect, consistent with the complexity-dependent improvement pattern.
+    Our sample size follows the evaluation scale of comparable RAG studies~\cite{yan2024crag,asai2024selfrag}, though larger-scale evaluation could further refine effect size estimates.
 \end{enumerate}

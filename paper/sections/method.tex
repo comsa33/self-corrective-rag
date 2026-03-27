@@ -69,7 +69,8 @@ The signature's docstring serves as a structured protocol, guiding the agent thr
 \subsubsection{Tool Set}
 \label{subsubsec:tools}
 
-The agent has access to six tools, each implemented as a closure over shared pipeline components (retriever, indexer, evaluator):
+The agent has access to six tools, each implemented as a closure over shared pipeline components (retriever, indexer, evaluator).
+The first four are \emph{core tools} invoked on virtually every question; the remaining two are \emph{domain-adaptive auxiliary tools} whose utility depends on corpus characteristics (see RQ4 in \S\ref{subsec:rq4}):
 
 \begin{enumerate}
     \item \textbf{\texttt{search\_passages}$(q, \mathcal{K})$}: Executes hybrid retrieval (FAISS + BM25 with RRF fusion) and returns passage previews (first 200 characters) to conserve context. This is the primary retrieval tool, called on average 3--4 times per question.
