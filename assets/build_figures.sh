@@ -52,9 +52,12 @@ TEXEOF
     fi
 }
 
-# Build key figures
+# Build all figures
 build_figure "architecture"
 build_figure "rq1_f1_comparison"
+build_figure "pipeline_comparison"
+build_figure "react_example"
+build_figure "tool_usage_heatmap"
 
 # Cleanup
 rm -rf "$TMP_DIR"
