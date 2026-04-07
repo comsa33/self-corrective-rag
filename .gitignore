@@ -54,6 +54,19 @@ htmlcov/
 !paper/main.pdf
 paper.zip
 
+# Claude Code (project-specific config)
+.claude/
+
+# Paper source (private repo: comsa33/self-corrective-rag-paper)
+paper/
+paper-review/
+overleaf-final.zip
+
+# Internal docs (not for public)
+REFACTORING.md
+docs/KBS_GUIDELINES.md
+docs/PAPER_PLAN.md
+docs/Q1_READINESS_ASSESSMENT.md
+
 # Code review graph (auto-generated)
 .code-review-graph/
-.claude/scheduled_tasks.lock
