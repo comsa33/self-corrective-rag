@@ -24,6 +24,10 @@ RESULTS_DIR = DATA_DIR / "results"
 # Model-name prefix routing a request to Ollama Cloud (see make_lm).
 OLLAMA_CLOUD_PREFIX = "ollama_cloud/"
 
+# Floor on max_tokens for reasoning models, which spend part of the budget on
+# hidden reasoning. DSPy enforces this same floor for the gpt-5 family.
+REASONING_MIN_MAX_TOKENS = 16000
+
 
 class ModelSettings(BaseSettings):
     """LLM and embedding model configuration."""
@@ -44,7 +48,11 @@ class ModelSettings(BaseSettings):
 
     # LLM parameters
     temperature: float = 0.0
-    max_tokens: int = 4096
+    max_tokens: int = Field(4096, alias="LLM_MAX_TOKENS")
+    # Reasoning budget for reasoning-capable models. "default" leaves the
+    # provider's own setting alone, which some models need in order to emit a
+    # complete structured response.
+    reasoning_effort: str = Field("low", alias="LLM_REASONING_EFFORT")
     num_retries: int = Field(3, alias="LLM_NUM_RETRIES")
 
 
@@ -184,14 +192,27 @@ def make_lm(model: str, **kwargs):
     # gpt-5 reasoning models don't support temperature; drop unsupported params
     litellm.drop_params = True
 
+    # max_tokens must be passed explicitly. Without it the provider default
+    # applies, and a provider with a small default truncates the response
+    # mid-structure — which surfaces as unparsable tool calls rather than as
+    # an obvious error.
     defaults = {
         "temperature": settings.model.temperature,
         "num_retries": settings.model.num_retries,
+        "max_tokens": settings.model.max_tokens,
     }
-    # gpt-5 reasoning models: set low reasoning effort for fair comparison
+    # Reasoning models: hold effort at "low" so every model is compared at a
+    # similar compute budget. Left at its default, gpt-oss spends thousands of
+    # reasoning tokens on a single preprocessing call and truncates mid-answer.
     model_lower = model.lower()
-    if "gpt-5" in model_lower and "reasoning_effort" not in kwargs:
-        defaults["reasoning_effort"] = "low"
+    is_reasoning_model = "gpt-5" in model_lower or "gpt-oss" in model_lower
+    if is_reasoning_model:
+        if "reasoning_effort" not in kwargs and settings.model.reasoning_effort != "default":
+            defaults["reasoning_effort"] = settings.model.reasoning_effort
+        # Reasoning tokens are drawn from the same budget as the answer, so a
+        # limit sized for ordinary completions truncates mid-structure. DSPy
+        # also rejects anything under 16000 for the gpt-5 family outright.
+        defaults["max_tokens"] = max(settings.model.max_tokens, REASONING_MIN_MAX_TOKENS)
 
     # Ollama Cloud is reached through its OpenAI-compatible endpoint so the
     # API key travels as a bearer token. Written as "ollama_cloud/<model>"
