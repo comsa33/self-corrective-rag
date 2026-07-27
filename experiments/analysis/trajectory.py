@@ -110,10 +110,73 @@ class TrajectoryAnalyzer:
             "max": int(np.max(lengths)),
         }
 
+    def pattern_distribution(self) -> dict[str, float]:
+        """Frequency of the three dominant behavioral patterns.
+
+        Classifies each trajectory into one of the patterns reported in the
+        paper, using the number of decomposition and evaluation calls:
+
+          - ``decompose_search_evaluate``: decomposition followed by a single
+            evaluation pass (canonical multi-hop strategy).
+          - ``search_evaluate``: no decomposition, single evaluation pass
+            (single-hop questions).
+          - ``decompose_search_evaluate_refine``: two or more evaluation calls,
+            i.e. the self-corrective loop actually re-entered refinement.
+          - ``other``: no evaluation call recorded.
+
+        Returns proportions in [0, 1] plus the mean evaluation-call count,
+        which quantifies how often the refinement loop is exercised at all.
+        """
+        counts: Counter = Counter()
+        eval_calls: list[int] = []
+
+        for traj in self._trajectories:
+            n_eval = sum(1 for t in traj if "evaluate" in t)
+            n_decompose = sum(1 for t in traj if "decompose" in t)
+            eval_calls.append(n_eval)
+
+            if n_eval >= 2:
+                counts["decompose_search_evaluate_refine"] += 1
+            elif n_eval == 1 and n_decompose >= 1:
+                counts["decompose_search_evaluate"] += 1
+            elif n_eval == 1:
+                counts["search_evaluate"] += 1
+            else:
+                counts["other"] += 1
+
+        total = len(self._trajectories)
+        if not total:
+            return {}
+
+        dist = {
+            name: counts[name] / total
+            for name in (
+                "decompose_search_evaluate",
+                "search_evaluate",
+                "decompose_search_evaluate_refine",
+                "other",
+            )
+        }
+        dist["mean_evaluate_calls"] = float(np.mean(eval_calls))
+        dist["n"] = total
+        return dist
+
     def print_summary(self) -> None:
         """Print trajectory analysis summary."""
         logger.info(f"Total trajectories: {len(self._trajectories)}")
         logger.info(f"Avg trajectory length: {self.avg_trajectory_length:.1f}")
+
+        patterns = self.pattern_distribution()
+        if patterns:
+            logger.info("\n--- Behavioral Pattern Distribution ---")
+            for name in (
+                "decompose_search_evaluate",
+                "search_evaluate",
+                "decompose_search_evaluate_refine",
+                "other",
+            ):
+                logger.info(f"  {name}: {100 * patterns[name]:.1f}%")
+            logger.info(f"  mean evaluate calls/question: {patterns['mean_evaluate_calls']:.2f}")
 
         dist = self.trajectory_length_distribution()
         if dist:
