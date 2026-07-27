@@ -45,21 +45,24 @@ class SignificanceAnalyzer:
                 for line in f:
                     items.append(json.loads(line.strip()))
 
-            valid = [r for r in items if "error" not in r]
+            # Keep each record's position in the original file. Numbering the
+            # surviving records instead would renumber everything after a
+            # failure, so the positional fallback below would pair different
+            # questions in exactly the case it exists to cover.
+            valid = [(position, r) for position, r in enumerate(items) if "error" not in r]
             if not valid:
                 continue
 
-            pipeline = valid[0].get("pipeline", jsonl_path.stem)
+            pipeline = valid[0][1].get("pipeline", jsonl_path.stem)
             em_scores = []
             f1_scores = []
             ids = []
 
-            for position, r in enumerate(valid):
+            for position, r in valid:
                 pred = r.get("prediction", "")
                 ref = r.get("reference", "")
-                # Question id anchors the pairing. Falling back to position is
-                # only correct for older result files that predate the id field
-                # and contain no failures.
+                # Question id anchors the pairing; position is the fallback for
+                # result files written before the id field existed.
                 ids.append(str(r.get("id", position)))
                 em_scores.append(exact_match(pred, ref))
                 f1_scores.append(token_f1(pred, ref))

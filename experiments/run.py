@@ -394,6 +394,10 @@ def run_ablation(
     variants = load_ablation_configs()
 
     if variant_names:
+        available = [v.name for v in variants]
+        unknown = set(variant_names) - set(available)
+        if unknown:
+            raise ValueError(f"Unknown variant(s) {sorted(unknown)}. Available: {available}")
         variants = [v for v in variants if v.name in variant_names]
 
     logger.info(f"Running ablation study: {len(variants)} variants")

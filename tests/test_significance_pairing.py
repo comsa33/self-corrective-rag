@@ -66,6 +66,39 @@ def test_pairing_is_order_independent(tmp_path):
     assert result["loop_refinement"]["delta"] == 0.0
 
 
+def _write_legacy_run(directory, pipeline, rows):
+    """Write results without an id field, as older result files were."""
+    path = directory / f"{pipeline}.jsonl"
+    with open(path, "w", encoding="utf-8") as f:
+        for prediction, reference, failed in rows:
+            record = {"pipeline": pipeline, "prediction": prediction, "reference": reference}
+            if failed:
+                record["error"] = "provider failure"
+            f.write(json.dumps(record) + "\n")
+
+
+def test_legacy_files_fall_back_to_original_position(tmp_path):
+    """Without ids, the fallback must be the position in the file as written.
+
+    Numbering only the surviving records would renumber everything after a
+    failure, reintroducing the misalignment in the one case the fallback exists
+    to handle.
+    """
+    # Baseline answers all six. The comparison pipeline failed on index 2,
+    # so its surviving records are indices 0,1,3,4,5 of the original file.
+    base_rows = [("hit" if i % 2 == 0 else "miss", "hit", False) for i in range(6)]
+    comp_rows = [(p, r, i == 2) for i, (p, r, _) in enumerate(base_rows)]
+
+    _write_legacy_run(tmp_path, "agentic_(react)", base_rows)
+    _write_legacy_run(tmp_path, "loop_refinement", comp_rows)
+
+    analyzer = SignificanceAnalyzer.from_results_dir(tmp_path)
+    result = analyzer.pairwise_tests(baseline="agentic_(react)", metric="f1")
+
+    # Both pipelines answered identically on every question they both answered.
+    assert result["loop_refinement"]["delta"] == 0.0
+
+
 def test_identical_runs_report_no_difference(tmp_path):
     """The ordinary complete-data case still behaves as before."""
     rows_a = [(f"q{i}", "hit", "hit") for i in range(8)]
