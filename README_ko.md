@@ -155,7 +155,7 @@ tests/                       pytest 테스트 스위트
 ```bibtex
 @article{lee2026tara,
   title={TARA: Tool-Augmented Retrieval Agents for Self-Corrective RAG},
-  author={Lee, Ruo},
+  author={Lee, Ruo and Oh, Taeyeon},
   journal={Knowledge-Based Systems},
   year={2026},
   note={Under review}

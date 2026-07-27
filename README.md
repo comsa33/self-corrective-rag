@@ -155,7 +155,7 @@ Pre-computed results for reviewer verification are in [`paper/supplementary/`](p
 ```bibtex
 @article{lee2026tara,
   title={TARA: Tool-Augmented Retrieval Agents for Self-Corrective RAG},
-  author={Lee, Ruo},
+  author={Lee, Ruo and Oh, Taeyeon},
   journal={Knowledge-Based Systems},
   year={2026},
   note={Under review}
