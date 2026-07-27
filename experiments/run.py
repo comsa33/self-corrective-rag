@@ -275,9 +275,25 @@ def run_experiment(
     sample_size: int | None = None,
     request_delay: float = 0.0,
     compute_llm_judge: bool = False,
+    variant_names: list[str] | None = None,
 ) -> dict[str, list[dict]]:
-    """Run an experiment defined by a YAML config file."""
+    """Run an experiment defined by a YAML config file.
+
+    Args:
+        variant_names: Run only these variants. Pipelines differ by an order
+            of magnitude in LLM calls per question, so splitting the expensive
+            ones into their own process lets a run finish in the time of its
+            slowest pipeline rather than their sum.
+    """
     exp = load_experiment_config(config_path)
+
+    if variant_names:
+        available = [v.name for v in exp.variants]
+        unknown = set(variant_names) - set(available)
+        if unknown:
+            raise ValueError(f"Unknown variant(s) {sorted(unknown)}. Available: {available}")
+        exp.variants = [v for v in exp.variants if v.name in variant_names]
+
     logger.info(f"Running experiment: {exp.name}")
     logger.info(f"  Description: {exp.description}")
     logger.info(f"  Variants: {len(exp.variants)}")
@@ -504,7 +520,7 @@ def main():
         "--variants",
         nargs="*",
         default=None,
-        help="Specific ablation variant names to run",
+        help="Run only these variant names (works with --config and --ablation)",
     )
     parser.add_argument(
         "--delay",
@@ -525,7 +541,9 @@ def main():
     elif args.ablation:
         run_ablation(args.dataset, args.sample, args.variants, args.delay, args.llm_judge)
     elif args.config:
-        run_experiment(args.config, args.dataset, args.sample, args.delay, args.llm_judge)
+        run_experiment(
+            args.config, args.dataset, args.sample, args.delay, args.llm_judge, args.variants
+        )
     else:
         parser.print_help()
 
