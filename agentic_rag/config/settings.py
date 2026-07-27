@@ -21,6 +21,9 @@ PROCESSED_DIR = DATA_DIR / "processed"
 INDEX_DIR = DATA_DIR / "indices"
 RESULTS_DIR = DATA_DIR / "results"
 
+# Model-name prefix routing a request to Ollama Cloud (see make_lm).
+OLLAMA_CLOUD_PREFIX = "ollama_cloud/"
+
 
 class ModelSettings(BaseSettings):
     """LLM and embedding model configuration."""
@@ -140,6 +143,13 @@ class Settings(BaseSettings):
 
     # API keys
     openai_api_key: str = Field("", alias="OPENAI_API_KEY")
+    ollama_api_key: str = Field("", alias="OLLAMA_API_KEY")
+    ollama_api_base: str = Field("https://ollama.com/v1", alias="OLLAMA_API_BASE")
+
+    # Disable the LLM response cache. Required whenever latency is measured:
+    # at temperature=0 a rerun returns cached completions in milliseconds,
+    # which deflates latency without changing any answer.
+    disable_llm_cache: bool = Field(False, alias="DISABLE_LLM_CACHE")
 
     # Sub-settings
     model: ModelSettings = Field(default_factory=ModelSettings)
@@ -154,7 +164,7 @@ class Settings(BaseSettings):
     raw_dir: Path = RAW_DIR
     processed_dir: Path = PROCESSED_DIR
     index_dir: Path = INDEX_DIR
-    results_dir: Path = RESULTS_DIR
+    results_dir: Path = Field(RESULTS_DIR, alias="RESULTS_DIR")
 
 
 # ---------------------------------------------------------------------------
@@ -182,6 +192,14 @@ def make_lm(model: str, **kwargs):
     model_lower = model.lower()
     if "gpt-5" in model_lower and "reasoning_effort" not in kwargs:
         defaults["reasoning_effort"] = "low"
+
+    # Ollama Cloud is reached through its OpenAI-compatible endpoint so the
+    # API key travels as a bearer token. Written as "ollama_cloud/<model>"
+    # to stay distinct from litellm's own local-Ollama provider.
+    if model.startswith(OLLAMA_CLOUD_PREFIX):
+        defaults.setdefault("api_base", settings.ollama_api_base)
+        defaults.setdefault("api_key", settings.ollama_api_key)
+        model = f"openai/{model[len(OLLAMA_CLOUD_PREFIX) :]}"
 
     defaults.update(kwargs)
     return dspy.LM(model, **defaults)
