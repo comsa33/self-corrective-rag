@@ -33,12 +33,27 @@ from agentic_rag.evaluation.metrics import llm_judge_correctness
 from experiments.common import setup_experiment
 
 
+def _judge_suffix(judge_model: str | None) -> str:
+    """Filename suffix identifying which judge produced a set of verdicts.
+
+    Falls back to plain "_judged" when no model is given, so files written by
+    earlier runs keep their names.
+    """
+    if not judge_model:
+        return "_judged"
+    tag = judge_model.split("/")[-1].replace(":", "-").replace(".", "-")
+    return f"_judged_{tag}"
+
+
 def judge_jsonl(jsonl_path: Path, delay: float = 0.0, judge_model: str | None = None) -> dict:
     """Run LLM-as-Judge on a single JSONL file.
 
     Returns summary dict with judge accuracy.
     """
-    output_path = jsonl_path.with_name(jsonl_path.stem + "_judged.jsonl")
+    # Tag the output with the judge model. Multiple judges are run over the
+    # same results to check that conclusions survive a change of judge, and a
+    # shared filename would make each run silently overwrite the last.
+    output_path = jsonl_path.with_name(jsonl_path.stem + _judge_suffix(judge_model) + ".jsonl")
 
     # Load existing results
     items = []
@@ -225,7 +240,9 @@ def main():
         summary_dir = Path(args.path) if Path(args.path).is_dir() else Path(args.path).parent
     else:
         summary_dir = project_root / "data" / "results"
-    summary_path = summary_dir / "llm_judge_summary.json"
+    summary_path = summary_dir / f"llm_judge_summary{_judge_suffix(args.judge_model)}.json".replace(
+        "_judged", ""
+    )
     with open(summary_path, "w") as f:
         json.dump(results, f, indent=2, ensure_ascii=False)
     print(f"\nSummary saved to: {summary_path}")
