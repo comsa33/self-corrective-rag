@@ -72,6 +72,16 @@ def _judged_path(base: Path, stem: str, judge_model: str | None, ext: str) -> Pa
     return base / f"{stem}{_judge_suffix(judge_model)}{ext}"
 
 
+def _key(item: dict) -> tuple[str, str]:
+    """Identity of a judged row.
+
+    A results file can hold the same question once per pipeline, so the id on
+    its own is not unique within a file — the judge panel carries 200 rows over
+    184 ids. Pairing it with the pipeline keeps those rows distinct.
+    """
+    return (str(item.get("pipeline", "")), str(item["id"]))
+
+
 def judge_jsonl(jsonl_path: Path, delay: float = 0.0, judge_model: str | None = None) -> dict:
     """Run LLM-as-Judge on a single JSONL file.
 
@@ -92,22 +102,31 @@ def judge_jsonl(jsonl_path: Path, delay: float = 0.0, judge_model: str | None = 
     # failed completion is not a judgement — drop it so this run redoes it. That
     # is what makes a larger ceiling recoverable: rerun with more room and only
     # the bad verdicts are re-scored, everything else is skipped.
-    judged, retry = {}, 0
+    #
+    # Keyed on (pipeline, id): a file may hold the same question once per
+    # pipeline, so id alone collapses distinct rows into one. The judge panel is
+    # exactly that shape — 200 rows over 184 ids — and keying on id would drop 16
+    # of them on the first resume.
+    judged, kept, retry = {}, [], 0
     if output_path.exists():
         with open(output_path, encoding="utf-8") as f:
             for line in f:
-                item = json.loads(line.strip())
+                if not line.strip():
+                    continue
+                item = json.loads(line)
                 if item.get("judge_status", "ok") != "ok":
                     retry += 1
                     continue
-                judged[item["id"]] = item
+                judged[_key(item)] = item
+                kept.append(item)
     if retry:
         logger.warning(f"[{jsonl_path.name}] {retry} verdicts were not usable — re-judging them")
         # Rewrite without them before appending, or the file would carry both the
         # discarded verdict and its replacement and stop satisfying "one row per
-        # question".
+        # question". Written from the row list, not the lookup, so rows sharing an
+        # id survive.
         with open(output_path, "w", encoding="utf-8") as f:
-            for item in judged.values():
+            for item in kept:
                 f.write(json.dumps(item, ensure_ascii=False) + "\n")
 
     logger.info(
@@ -118,7 +137,7 @@ def judge_jsonl(jsonl_path: Path, delay: float = 0.0, judge_model: str | None = 
 
     if len(judged) >= len(items):
         logger.info(f"[{jsonl_path.name}] Already complete, skipping")
-        scores = [judged[item["id"]]["llm_judge"] for item in items if item["id"] in judged]
+        scores = [judged[_key(i)]["llm_judge"] for i in items if _key(i) in judged]
         return {
             "file": jsonl_path.name,
             "n": len(items),
@@ -130,8 +149,8 @@ def judge_jsonl(jsonl_path: Path, delay: float = 0.0, judge_model: str | None = 
     scores = []
     with open(output_path, "a", encoding="utf-8") as out:
         for i, item in enumerate(items):
-            if item["id"] in judged:
-                scores.append(judged[item["id"]]["llm_judge"])
+            if _key(item) in judged:
+                scores.append(judged[_key(item)]["llm_judge"])
                 continue
 
             prediction = item.get("prediction", "")
@@ -185,8 +204,8 @@ def judge_jsonl(jsonl_path: Path, delay: float = 0.0, judge_model: str | None = 
     logger.info(f"[{jsonl_path.name}] Done: judge_accuracy={accuracy:.3f}, unusable={unusable}")
     if unusable:
         logger.warning(
-            f"[{jsonl_path.name}] {unusable} verdicts still unusable — "
-            f"rerun with a larger LLM_MAX_TOKENS to re-score just those"
+            f"[{jsonl_path.name}] {unusable} verdicts still unusable — rerun to re-score "
+            f"just those; raise LLM_MAX_TOKENS first if they are truncated rather than unparsed"
         )
 
     return {

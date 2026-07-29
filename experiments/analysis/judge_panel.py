@@ -75,6 +75,11 @@ def main() -> None:
     }
     for path in sorted(args.panel_dir.glob("panel200_judged_*.jsonl")):
         name = path.stem.removeprefix("panel200_judged_").rsplit("_", 1)[0]
+        # The baseline is read from the run that produced the reported numbers.
+        # Scoring the panel with it again is a useful reproducibility check, but
+        # listing both would report the same judge twice.
+        if name.replace("-", ".") == BASELINE or name == BASELINE.replace(".", "-"):
+            continue
         judges[name] = load_verdicts(str(path))
 
     # Only items both annotators settled: a judge should not be scored against a
