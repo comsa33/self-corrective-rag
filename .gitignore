@@ -21,8 +21,15 @@ venv/
 data/raw/
 data/processed/
 data/indices/
-data/results/
 data/optimization/
+# One results tree per model so runs never overwrite each other:
+# results/=Gemini, results-openweight/=gpt-oss, results-glm/=glm, results-latency/=timings
+data/results/
+data/results-*/
+# Human annotation sheets — the blank sheet and the filled labels behind the
+# judge/human kappa. Release as supplementary material, not repo history.
+data/human_eval/
+human_eval.csv
 
 # Jupyter
 .ipynb_checkpoints/
@@ -54,8 +61,9 @@ htmlcov/
 !paper/main.pdf
 paper.zip
 
-# Claude Code (project-specific config)
+# Agent tooling state (project-specific config, not source)
 .claude/
+.omc/
 
 # Paper source (private repo: comsa33/self-corrective-rag-paper)
 paper/
