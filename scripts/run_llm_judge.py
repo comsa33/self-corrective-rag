@@ -19,6 +19,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 import time
@@ -33,8 +34,16 @@ from agentic_rag.evaluation.metrics import llm_judge_correctness
 from experiments.common import setup_experiment
 
 
-def _judge_suffix(judge_model: str | None) -> str:
+def _judge_suffix(judge_model: str | None, *, legacy: bool = False) -> str:
     """Filename suffix identifying which judge produced a set of verdicts.
+
+    The readable part drops the provider prefix and flattens ":" and "." so the
+    name survives a filesystem, which means distinct models can flatten to the
+    same tag — "openai/qwen3-5" and "ollama_cloud/qwen3.5" both become
+    "qwen3-5". Two judges sharing a suffix is worse than an ugly name: the
+    second run resumes from the first one's checkpoint, skips every item it
+    thinks is done, and overwrites its summary. A short digest of the full
+    model string is appended so the suffix is unique even when the tag is not.
 
     Falls back to plain "_judged" when no model is given, so files written by
     earlier runs keep their names.
@@ -42,7 +51,25 @@ def _judge_suffix(judge_model: str | None) -> str:
     if not judge_model:
         return "_judged"
     tag = judge_model.split("/")[-1].replace(":", "-").replace(".", "-")
-    return f"_judged_{tag}"
+    if legacy:
+        return f"_judged_{tag}"
+    digest = hashlib.sha256(judge_model.encode()).hexdigest()[:6]
+    return f"_judged_{tag}_{digest}"
+
+
+def _judged_path(base: Path, stem: str, judge_model: str | None, ext: str) -> Path:
+    """Artifact path for this judge, reusing a digest-less file already on disk.
+
+    The digest was added after a first round of judging had been written, and
+    those verdicts cost real API calls. Renaming them is not safe either: the
+    summaries never recorded the model string, so the digest for an existing
+    file cannot be recomputed. Preferring an existing legacy name keeps that
+    round addressable while every new judge gets a collision-free one.
+    """
+    legacy = base / f"{stem}{_judge_suffix(judge_model, legacy=True)}{ext}"
+    if legacy.exists():
+        return legacy
+    return base / f"{stem}{_judge_suffix(judge_model)}{ext}"
 
 
 def judge_jsonl(jsonl_path: Path, delay: float = 0.0, judge_model: str | None = None) -> dict:
@@ -53,7 +80,7 @@ def judge_jsonl(jsonl_path: Path, delay: float = 0.0, judge_model: str | None = 
     # Tag the output with the judge model. Multiple judges are run over the
     # same results to check that conclusions survive a change of judge, and a
     # shared filename would make each run silently overwrite the last.
-    output_path = jsonl_path.with_name(jsonl_path.stem + _judge_suffix(judge_model) + ".jsonl")
+    output_path = _judged_path(jsonl_path.parent, jsonl_path.stem, judge_model, ".jsonl")
 
     # Load existing results
     items = []
@@ -240,9 +267,17 @@ def main():
         summary_dir = Path(args.path) if Path(args.path).is_dir() else Path(args.path).parent
     else:
         summary_dir = project_root / "data" / "results"
-    summary_path = summary_dir / f"llm_judge_summary{_judge_suffix(args.judge_model)}.json".replace(
-        "_judged", ""
-    )
+
+    # The summary is named after the judge too, minus the "_judged" marker that
+    # only makes sense on per-file verdicts. Same legacy preference as
+    # _judged_path so an earlier round's summary keeps its name.
+    def summary_name(*, legacy: bool) -> str:
+        tag = _judge_suffix(args.judge_model, legacy=legacy).removeprefix("_judged")
+        return f"llm_judge_summary{tag}.json"
+
+    summary_path = summary_dir / summary_name(legacy=True)
+    if not summary_path.exists():
+        summary_path = summary_dir / summary_name(legacy=False)
     with open(summary_path, "w") as f:
         json.dump(results, f, indent=2, ensure_ascii=False)
     print(f"\nSummary saved to: {summary_path}")
