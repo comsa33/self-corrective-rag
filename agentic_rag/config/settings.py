@@ -32,10 +32,15 @@ REASONING_MIN_MAX_TOKENS = 16000
 # expensively: the model draws answer and hidden reasoning from one budget, so
 # it truncates mid-answer while the run still reports success. glm-5.2 was run
 # for a full dataset at max_tokens=4096 before the truncation warnings were
-# noticed, and the damage fell unevenly across pipelines. Because a model is
-# selected by environment variable, LLM_REASONING_MODELS overrides this list so
-# that adding one never requires editing code here.
-REASONING_MODEL_MARKERS = ("gpt-5", "gpt-oss", "glm")
+# noticed, and the damage fell unevenly across pipelines. deepseek-v4-flash then
+# repeated it as a judge, truncating 2 of its first 14 verdicts.
+#
+# Prefer listing a model that turns out not to need it: max_tokens is a ceiling,
+# so raising it for an ordinary model changes nothing, while leaving a reasoning
+# model out corrupts the run. Because a model is selected by environment
+# variable, LLM_REASONING_MODELS overrides this list so that adding one never
+# requires editing code here.
+REASONING_MODEL_MARKERS = ("gpt-5", "gpt-oss", "glm", "deepseek")
 
 
 class ModelSettings(BaseSettings):
