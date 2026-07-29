@@ -28,6 +28,15 @@ OLLAMA_CLOUD_PREFIX = "ollama_cloud/"
 # hidden reasoning. DSPy enforces this same floor for the gpt-5 family.
 REASONING_MIN_MAX_TOKENS = 16000
 
+# Substrings identifying a reasoning model. Missing an entry fails silently and
+# expensively: the model draws answer and hidden reasoning from one budget, so
+# it truncates mid-answer while the run still reports success. glm-5.2 was run
+# for a full dataset at max_tokens=4096 before the truncation warnings were
+# noticed, and the damage fell unevenly across pipelines. Because a model is
+# selected by environment variable, LLM_REASONING_MODELS overrides this list so
+# that adding one never requires editing code here.
+REASONING_MODEL_MARKERS = ("gpt-5", "gpt-oss", "glm")
+
 
 class ModelSettings(BaseSettings):
     """LLM and embedding model configuration."""
@@ -54,6 +63,19 @@ class ModelSettings(BaseSettings):
     # complete structured response.
     reasoning_effort: str = Field("low", alias="LLM_REASONING_EFFORT")
     num_retries: int = Field(3, alias="LLM_NUM_RETRIES")
+    # Comma-separated substrings replacing REASONING_MODEL_MARKERS. Lets a new
+    # reasoning model be added alongside the *_MODEL variables that select it,
+    # instead of in code that is easy to forget.
+    reasoning_models: str = Field("", alias="LLM_REASONING_MODELS")
+
+    def is_reasoning_model(self, model: str) -> bool:
+        """Whether `model` draws its answer and hidden reasoning from one budget."""
+        markers = (
+            tuple(m.strip().lower() for m in self.reasoning_models.split(",") if m.strip())
+            or REASONING_MODEL_MARKERS
+        )
+        model_lower = model.lower()
+        return any(marker in model_lower for marker in markers)
 
 
 class RetrievalSettings(BaseSettings):
@@ -204,9 +226,7 @@ def make_lm(model: str, **kwargs):
     # Reasoning models: hold effort at "low" so every model is compared at a
     # similar compute budget. Left at its default, gpt-oss spends thousands of
     # reasoning tokens on a single preprocessing call and truncates mid-answer.
-    model_lower = model.lower()
-    is_reasoning_model = "gpt-5" in model_lower or "gpt-oss" in model_lower
-    if is_reasoning_model:
+    if settings.model.is_reasoning_model(model):
         if "reasoning_effort" not in kwargs and settings.model.reasoning_effort != "default":
             defaults["reasoning_effort"] = settings.model.reasoning_effort
         # Reasoning tokens are drawn from the same budget as the answer, so a
