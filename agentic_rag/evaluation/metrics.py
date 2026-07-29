@@ -220,7 +220,8 @@ def llm_judge_correctness(
     reference: str,
     question: str = "",
     judge_model: str | None = None,
-) -> float:
+    with_status: bool = False,
+) -> float | tuple[float, str]:
     """LLM-based correctness evaluation (LLM-as-Judge).
 
     Uses the specified judge_model (or evaluate_model by default) to judge
@@ -230,6 +231,10 @@ def llm_judge_correctness(
     Args:
         judge_model: Override model for judging (e.g., "openai/gpt-4.1-nano").
                      If None, uses settings.model.evaluate_model.
+        with_status: Also return why the verdict ended — "ok", "truncated",
+                     "unparsed" or "error". Only "ok" is a real judgement;
+                     the rest score 0.0 for backwards compatibility and must
+                     not be counted as the judge calling the answer wrong.
 
     This is the standard approach used in recent agentic RAG papers
     (Test-Time Strategies 2026, Search-o1) as a complement to EM/F1.
@@ -258,18 +263,43 @@ def llm_judge_correctness(
 
     evaluator = dspy.Predict(CorrectnessJudge)
     model = judge_model or settings.model.evaluate_model
+    lm = make_lm(model)
 
+    verdict, status = None, "ok"
     try:
-        with dspy.context(lm=make_lm(model)):
+        with dspy.context(lm=lm):
             result = evaluator(
                 question=question,
                 reference_answer=reference,
                 predicted_answer=prediction,
             )
-        return 1.0 if result.is_correct else 0.0
+        verdict = result.is_correct
     except Exception as e:
         logger.warning(f"LLM judge failed: {e}")
-        return 0.0
+        status = "error"
+
+    # A judge whose completion hit max_tokens returns no usable verdict — the
+    # field parses to None, which is falsy, so scoring it directly would record
+    # a silent "incorrect". Truncation is not random: longer, more complex
+    # answers draw more hidden reasoning and truncate more often, so those
+    # silent zeros would land unevenly across pipelines. Report the status and
+    # let the caller decide, rather than letting a cut-off response masquerade
+    # as a judgement.
+    if _finish_reason(lm) == "length":
+        status = "truncated"
+    elif verdict is None and status == "ok":
+        status = "unparsed"
+
+    score = 1.0 if verdict else 0.0
+    return (score, status) if with_status else score
+
+
+def _finish_reason(lm) -> str | None:
+    """Why the judge's last completion stopped, or None if unavailable."""
+    try:
+        return lm.history[-1]["response"].choices[0].finish_reason
+    except Exception:
+        return None
 
 
 def llm_judge_batch(

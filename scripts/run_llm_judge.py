@@ -88,13 +88,27 @@ def judge_jsonl(jsonl_path: Path, delay: float = 0.0, judge_model: str | None = 
         for line in f:
             items.append(json.loads(line.strip()))
 
-    # Load checkpoint (already judged)
-    judged = {}
+    # Load checkpoint (already judged). A verdict that came from a truncated or
+    # failed completion is not a judgement — drop it so this run redoes it. That
+    # is what makes a larger ceiling recoverable: rerun with more room and only
+    # the bad verdicts are re-scored, everything else is skipped.
+    judged, retry = {}, 0
     if output_path.exists():
         with open(output_path, encoding="utf-8") as f:
             for line in f:
                 item = json.loads(line.strip())
+                if item.get("judge_status", "ok") != "ok":
+                    retry += 1
+                    continue
                 judged[item["id"]] = item
+    if retry:
+        logger.warning(f"[{jsonl_path.name}] {retry} verdicts were not usable — re-judging them")
+        # Rewrite without them before appending, or the file would carry both the
+        # discarded verdict and its replacement and stop satisfying "one row per
+        # question".
+        with open(output_path, "w", encoding="utf-8") as f:
+            for item in judged.values():
+                f.write(json.dumps(item, ensure_ascii=False) + "\n")
 
     logger.info(
         f"[{jsonl_path.name}] {len(items)} items, "
@@ -125,22 +139,29 @@ def judge_jsonl(jsonl_path: Path, delay: float = 0.0, judge_model: str | None = 
             question = item.get("question", "")
 
             try:
-                score = llm_judge_correctness(
-                    prediction, reference, question, judge_model=judge_model
+                score, status = llm_judge_correctness(
+                    prediction, reference, question, judge_model=judge_model, with_status=True
                 )
             except Exception as e:
                 logger.warning(f"  [{i + 1}/{len(items)}] Error: {e}")
-                score = 0.0
+                score, status = 0.0, "error"
 
+            if status != "ok":
+                logger.warning(
+                    f"  [{i + 1}/{len(items)}] verdict unusable ({status}) — id={item['id']}"
+                )
             scores.append(score)
 
-            # Write judged item
+            # judge_status records why the verdict ended. Anything but "ok" is
+            # not a judgement, and a later run re-scores it rather than trusting
+            # the 0.0 that a truncated completion would otherwise leave behind.
             judged_item = {
                 "id": item["id"],
                 "question": question,
                 "reference": reference,
                 "prediction": prediction,
                 "llm_judge": score,
+                "judge_status": status,
                 "pipeline": item.get("pipeline", ""),
             }
             out.write(json.dumps(judged_item, ensure_ascii=False) + "\n")
@@ -154,12 +175,25 @@ def judge_jsonl(jsonl_path: Path, delay: float = 0.0, judge_model: str | None = 
                 time.sleep(delay)
 
     accuracy = sum(scores) / len(scores) if scores else 0.0
-    logger.info(f"[{jsonl_path.name}] Done: judge_accuracy={accuracy:.3f}")
+    # Count from the file rather than this run: earlier passes may have left
+    # unusable verdicts behind, and what matters is whether any remain.
+    unusable = 0
+    with open(output_path, encoding="utf-8") as f:
+        for line in f:
+            if line.strip() and json.loads(line).get("judge_status", "ok") != "ok":
+                unusable += 1
+    logger.info(f"[{jsonl_path.name}] Done: judge_accuracy={accuracy:.3f}, unusable={unusable}")
+    if unusable:
+        logger.warning(
+            f"[{jsonl_path.name}] {unusable} verdicts still unusable — "
+            f"rerun with a larger LLM_MAX_TOKENS to re-score just those"
+        )
 
     return {
         "file": jsonl_path.name,
         "n": len(items),
         "judge_accuracy": accuracy,
+        "unusable": unusable,
         "status": "complete",
     }
 
