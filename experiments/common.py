@@ -272,6 +272,17 @@ def save_results(
     references = [r.get("reference", "") for r in valid]
     questions = [r.get("question", "") for r in valid]
 
+    # Every field here has cost this project a day at some point, because the
+    # run that produced a number could not be told apart from a run that would
+    # produce a different one:
+    #   max_passages  — only the accumulating pipelines apply it, so baselines
+    #                   carried 50 passages against the proposed method's 30 in
+    #                   every published run, and nothing on disk said so.
+    #   enabled_tools — RQ1 ran four tools where RQ3/RQ4 ran all of them, which
+    #                   is the real reason Table 3 and Table 11 disagree.
+    #   max_tokens    — a limit too low for a reasoning model truncates answers
+    #                   silently; one model lost a whole dataset to it.
+    #   model names   — previously recoverable only from the directory name.
     summary = {
         "experiment": experiment_name,
         "timestamp": timestamp,
@@ -283,6 +294,18 @@ def save_results(
             "top_k": settings.retrieval.top_k,
             "hybrid_weight": settings.retrieval.hybrid_weight,
             "seed": settings.experiment.seed,
+            "max_passages": settings.retrieval.max_passages,
+            "query_method": settings.retrieval.query_method,
+            "enabled_tools": settings.agent.enabled_tools,
+            "agent_max_iterations": settings.agent.max_iterations,
+            "max_tokens": settings.model.max_tokens,
+            "temperature": settings.model.temperature,
+            "models": {
+                "preprocess": settings.model.preprocess_model,
+                "evaluate": settings.model.evaluate_model,
+                "generate": settings.model.generate_model,
+                "agent": settings.model.agent_model,
+            },
         },
     }
 
