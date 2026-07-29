@@ -76,5 +76,8 @@ docs/KBS_GUIDELINES.md
 docs/PAPER_PLAN.md
 docs/Q1_READINESS_ASSESSMENT.md
 
+# Presentation exports (not part of the public code release)
+*.pptx
+
 # Code review graph (auto-generated)
 .code-review-graph/
