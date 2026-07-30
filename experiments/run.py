@@ -61,6 +61,7 @@ from experiments.common import (
     print_comparison_table,
     run_pipeline_on_dataset,
     save_results,
+    settings_snapshot,
     setup_experiment,
 )
 
@@ -110,14 +111,20 @@ def _run_variant(
     if variant.optimization and trainset:
         _apply_optimization(variant.optimization, pipeline, trainset)
 
+    # Snapshot while this variant's settings are in force. save_results runs
+    # after every variant has finished, so reading the globals there would
+    # record the last variant's settings for all of them.
+    used = settings_snapshot()
+
     slug = variant.name.lower().replace(" ", "_").replace("/", "_")
-    return run_pipeline_on_dataset(
+    results = run_pipeline_on_dataset(
         pipeline,
         dataset,
         slug,
         request_delay=request_delay,
         checkpoint_dir=checkpoint_dir,
     )
+    return results, used
 
 
 def _collect_training_data(
@@ -336,6 +343,7 @@ def run_experiment(
         )
 
     all_results: dict[str, list[dict]] = {}
+    used_settings: dict[str, dict] = {}
     config_stem = Path(config_path).stem
     checkpoint_base = (
         settings.results_dir / "checkpoints" / f"{config_stem}_{dataset_name}_{_model_tag()}"
@@ -343,7 +351,7 @@ def run_experiment(
     for variant in exp.variants:
         logger.info(f"  Running variant: {variant.name}")
         slug = variant.name.lower().replace(" ", "_").replace("/", "_")
-        results = _run_variant(
+        results, used = _run_variant(
             variant,
             test_data,
             retriever,
@@ -353,6 +361,7 @@ def run_experiment(
             checkpoint_dir=checkpoint_base / slug,
         )
         all_results[variant.name] = results
+        used_settings[variant.name] = used
 
     # Report & save — all variants share one run directory
     print_comparison_table(
@@ -375,6 +384,7 @@ def run_experiment(
             {"experiment": exp.name, "dataset": dataset_name, "variant": name},
             run_dir=run_dir,
             compute_llm_judge=compute_llm_judge,
+            settings_used=used_settings.get(name),
         )
 
     return all_results
@@ -407,13 +417,14 @@ def run_ablation(
     retriever, indexer = load_retriever(dataset_name=dataset_name)
 
     all_results: dict[str, list[dict]] = {}
+    used_settings: dict[str, dict] = {}
     checkpoint_base = (
         settings.results_dir / "checkpoints" / f"ablation_{dataset_name}_{_model_tag()}"
     )
     for variant in variants:
         logger.info(f"  Running ablation variant: {variant.name}")
         slug = variant.name.lower().replace(" ", "_").replace("/", "_")
-        results = _run_variant(
+        results, used = _run_variant(
             variant,
             dataset,
             retriever,
@@ -422,6 +433,7 @@ def run_ablation(
             checkpoint_dir=checkpoint_base / slug,
         )
         all_results[variant.name] = results
+        used_settings[variant.name] = used
 
     print_comparison_table(
         all_results,
@@ -440,6 +452,7 @@ def run_ablation(
             {"experiment": "ablation", "dataset": dataset_name, "variant": name},
             run_dir=run_dir,
             compute_llm_judge=compute_llm_judge,
+            settings_used=used_settings.get(name),
         )
 
     return all_results

@@ -69,3 +69,20 @@ def test_summary_reflects_the_values_actually_in_force(tmp_path: Path):
         assert recorded["max_passages"] == 7
     finally:
         settings.retrieval.top_k, settings.retrieval.max_passages = original
+
+
+def test_a_passed_snapshot_wins_over_the_current_globals(tmp_path: Path):
+    """The sweep depends on this and it silently did not hold.
+
+    Variants run one after another, then every result is saved at the end, so
+    reading the globals at save time stamped the last variant's settings onto
+    all of them — six variants across two conditions all claimed top_k=50. The
+    caller therefore snapshots while its variant is running and passes that.
+    """
+    snapshot = dict(common.settings_snapshot(), top_k=5, max_passages=5)
+    rows = [{"id": "q1", "prediction": "a", "reference": "a", "question": "q"}]
+    common.save_results(rows, "probe", run_dir=tmp_path, settings_used=snapshot)
+
+    recorded = json.loads((tmp_path / "probe_summary.json").read_text(encoding="utf-8"))["settings"]
+    assert (recorded["top_k"], recorded["max_passages"]) == (5, 5)
+    assert settings.retrieval.top_k != 5, "globals should be untouched by the snapshot"
