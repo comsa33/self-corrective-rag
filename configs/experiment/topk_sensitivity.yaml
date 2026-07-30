@@ -1,0 +1,136 @@
+# FinanceBench retrieval-space sensitivity.
+#
+# Section 7.2 explains the proposed method's loss on FinanceBench as "retrieval
+# space saturation": with only 211 passages, the initial retrieval already
+# surfaces most of what matters, so iterative search has little left to find.
+# The evidence offered is circumstantial — the top pipelines score within 0.019
+# F1 of each other — and two other explanations are listed beside it. This sweep
+# turns the claim into a prediction that can fail: shrink what the initial
+# retrieval covers and the agent should regain an advantage over the fixed loop.
+#
+# The number that makes the mechanism concrete is absent from the paper.
+# top_k=50 over 211 passages is 23.7% of the corpus in one shot, against 1.4%
+# on 2WikiMultiHopQA and 0.1% on HotpotQA.
+#
+# top_k alone is the wrong knob, twice over:
+#   - max_passages caps the final context at 30, so any top_k above 30 gives the
+#     accumulating pipelines an identical experiment.
+#   - Naive RAG never applies that cap, so raising top_k changes only its
+#     condition, which would read as "more passages favour Naive" when it is
+#     really an inconsistency in how the cap is applied.
+# Both parameters therefore move together, and the (30,30) point doubles as the
+# controlled comparison the published runs never had: there, Naive sees 30
+# passages like everything else.
+#
+# Tools match the published RQ1 runs — search, decompose, evaluate, calculate —
+# confirmed from action_history rather than from the config comment, which says
+# to override enabled_tools for FinanceBench and was not followed. The anchor
+# (50,30) reproduces the published condition, so it also measures how well those
+# FinanceBench numbers reproduce at all.
+#
+# CRAG is excluded: 45 LLM calls per question would be over half the cost, and
+# it is being demoted from the primary comparison anyway.
+#
+# Usage:
+#   RESULTS_DIR=data/results-topk uv run python experiments/run.py \
+#     --config configs/experiment/topk_sensitivity.yaml --dataset financebench
+#
+#   # smoke first — machinery and magnitude, not the -0.014 itself, which n=20
+#   # cannot resolve
+#   RESULTS_DIR=data/results-topk uv run python experiments/run.py \
+#     --config configs/experiment/topk_sensitivity.yaml --dataset financebench \
+#     --sample 20 --variants "Naive k50" "Loop k50" "Agentic k50" \
+#                            "Naive k30" "Loop k30" "Agentic k30"
+
+name: "FinanceBench retrieval-space sensitivity"
+description: >
+  Vary how much of the FinanceBench corpus the initial retrieval covers, to test
+  whether the proposed method's loss there is explained by retrieval space
+  saturation, and to compare the pipelines once they all see the same amount.
+
+variants:
+  # --- (5, 5): 2.4% of the corpus -------------------------------------------
+  - name: Naive k5
+    pipeline: naive
+    retrieval: { top_k: 5, max_passages: 5 }
+
+  - name: Loop k5
+    pipeline: loop
+    experiment: { enable_agent_routing: false }
+    retrieval: { top_k: 5, max_passages: 5 }
+
+  - name: Agentic k5
+    pipeline: agentic
+    experiment: { enable_agentic_refinement: true, enable_agent_routing: false }
+    retrieval: { top_k: 5, max_passages: 5 }
+    agent:
+      enabled_tools: [search, decompose, evaluate, calculate]
+
+  # --- (10, 10): 4.7% ------------------------------------------------------
+  - name: Naive k10
+    pipeline: naive
+    retrieval: { top_k: 10, max_passages: 10 }
+
+  - name: Loop k10
+    pipeline: loop
+    experiment: { enable_agent_routing: false }
+    retrieval: { top_k: 10, max_passages: 10 }
+
+  - name: Agentic k10
+    pipeline: agentic
+    experiment: { enable_agentic_refinement: true, enable_agent_routing: false }
+    retrieval: { top_k: 10, max_passages: 10 }
+    agent:
+      enabled_tools: [search, decompose, evaluate, calculate]
+
+  # --- (20, 20): 9.5% ------------------------------------------------------
+  - name: Naive k20
+    pipeline: naive
+    retrieval: { top_k: 20, max_passages: 20 }
+
+  - name: Loop k20
+    pipeline: loop
+    experiment: { enable_agent_routing: false }
+    retrieval: { top_k: 20, max_passages: 20 }
+
+  - name: Agentic k20
+    pipeline: agentic
+    experiment: { enable_agentic_refinement: true, enable_agent_routing: false }
+    retrieval: { top_k: 20, max_passages: 20 }
+    agent:
+      enabled_tools: [search, decompose, evaluate, calculate]
+
+  # --- (30, 30): 14.2%, and the controlled comparison ----------------------
+  - name: Naive k30
+    pipeline: naive
+    retrieval: { top_k: 30, max_passages: 30 }
+
+  - name: Loop k30
+    pipeline: loop
+    experiment: { enable_agent_routing: false }
+    retrieval: { top_k: 30, max_passages: 30 }
+
+  - name: Agentic k30
+    pipeline: agentic
+    experiment: { enable_agentic_refinement: true, enable_agent_routing: false }
+    retrieval: { top_k: 30, max_passages: 30 }
+    agent:
+      enabled_tools: [search, decompose, evaluate, calculate]
+
+  # --- (50, 30): the published condition, uncontrolled ---------------------
+  # Naive takes 50 here and the others 30, exactly as in the paper's runs.
+  - name: Naive k50
+    pipeline: naive
+    retrieval: { top_k: 50, max_passages: 30 }
+
+  - name: Loop k50
+    pipeline: loop
+    experiment: { enable_agent_routing: false }
+    retrieval: { top_k: 50, max_passages: 30 }
+
+  - name: Agentic k50
+    pipeline: agentic
+    experiment: { enable_agentic_refinement: true, enable_agent_routing: false }
+    retrieval: { top_k: 50, max_passages: 30 }
+    agent:
+      enabled_tools: [search, decompose, evaluate, calculate]

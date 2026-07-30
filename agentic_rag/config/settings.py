@@ -21,6 +21,27 @@ PROCESSED_DIR = DATA_DIR / "processed"
 INDEX_DIR = DATA_DIR / "indices"
 RESULTS_DIR = DATA_DIR / "results"
 
+# Model-name prefix routing a request to Ollama Cloud (see make_lm).
+OLLAMA_CLOUD_PREFIX = "ollama_cloud/"
+
+# Floor on max_tokens for reasoning models, which spend part of the budget on
+# hidden reasoning. DSPy enforces this same floor for the gpt-5 family.
+REASONING_MIN_MAX_TOKENS = 16000
+
+# Substrings identifying a reasoning model. Missing an entry fails silently and
+# expensively: the model draws answer and hidden reasoning from one budget, so
+# it truncates mid-answer while the run still reports success. glm-5.2 was run
+# for a full dataset at max_tokens=4096 before the truncation warnings were
+# noticed, and the damage fell unevenly across pipelines. deepseek-v4-flash then
+# repeated it as a judge, truncating 2 of its first 14 verdicts.
+#
+# Prefer listing a model that turns out not to need it: max_tokens is a ceiling,
+# so raising it for an ordinary model changes nothing, while leaving a reasoning
+# model out corrupts the run. Because a model is selected by environment
+# variable, LLM_REASONING_MODELS overrides this list so that adding one never
+# requires editing code here.
+REASONING_MODEL_MARKERS = ("gpt-5", "gpt-oss", "glm", "deepseek")
+
 
 class ModelSettings(BaseSettings):
     """LLM and embedding model configuration."""
@@ -41,8 +62,25 @@ class ModelSettings(BaseSettings):
 
     # LLM parameters
     temperature: float = 0.0
-    max_tokens: int = 4096
+    max_tokens: int = Field(4096, alias="LLM_MAX_TOKENS")
+    # Reasoning budget for reasoning-capable models. "default" leaves the
+    # provider's own setting alone, which some models need in order to emit a
+    # complete structured response.
+    reasoning_effort: str = Field("low", alias="LLM_REASONING_EFFORT")
     num_retries: int = Field(3, alias="LLM_NUM_RETRIES")
+    # Comma-separated substrings replacing REASONING_MODEL_MARKERS. Lets a new
+    # reasoning model be added alongside the *_MODEL variables that select it,
+    # instead of in code that is easy to forget.
+    reasoning_models: str = Field("", alias="LLM_REASONING_MODELS")
+
+    def is_reasoning_model(self, model: str) -> bool:
+        """Whether `model` draws its answer and hidden reasoning from one budget."""
+        markers = (
+            tuple(m.strip().lower() for m in self.reasoning_models.split(",") if m.strip())
+            or REASONING_MODEL_MARKERS
+        )
+        model_lower = model.lower()
+        return any(marker in model_lower for marker in markers)
 
 
 class RetrievalSettings(BaseSettings):
@@ -140,6 +178,13 @@ class Settings(BaseSettings):
 
     # API keys
     openai_api_key: str = Field("", alias="OPENAI_API_KEY")
+    ollama_api_key: str = Field("", alias="OLLAMA_API_KEY")
+    ollama_api_base: str = Field("https://ollama.com/v1", alias="OLLAMA_API_BASE")
+
+    # Disable the LLM response cache. Required whenever latency is measured:
+    # at temperature=0 a rerun returns cached completions in milliseconds,
+    # which deflates latency without changing any answer.
+    disable_llm_cache: bool = Field(False, alias="DISABLE_LLM_CACHE")
 
     # Sub-settings
     model: ModelSettings = Field(default_factory=ModelSettings)
@@ -154,7 +199,7 @@ class Settings(BaseSettings):
     raw_dir: Path = RAW_DIR
     processed_dir: Path = PROCESSED_DIR
     index_dir: Path = INDEX_DIR
-    results_dir: Path = RESULTS_DIR
+    results_dir: Path = Field(RESULTS_DIR, alias="RESULTS_DIR")
 
 
 # ---------------------------------------------------------------------------
@@ -174,14 +219,33 @@ def make_lm(model: str, **kwargs):
     # gpt-5 reasoning models don't support temperature; drop unsupported params
     litellm.drop_params = True
 
+    # max_tokens must be passed explicitly. Without it the provider default
+    # applies, and a provider with a small default truncates the response
+    # mid-structure — which surfaces as unparsable tool calls rather than as
+    # an obvious error.
     defaults = {
         "temperature": settings.model.temperature,
         "num_retries": settings.model.num_retries,
+        "max_tokens": settings.model.max_tokens,
     }
-    # gpt-5 reasoning models: set low reasoning effort for fair comparison
-    model_lower = model.lower()
-    if "gpt-5" in model_lower and "reasoning_effort" not in kwargs:
-        defaults["reasoning_effort"] = "low"
+    # Reasoning models: hold effort at "low" so every model is compared at a
+    # similar compute budget. Left at its default, gpt-oss spends thousands of
+    # reasoning tokens on a single preprocessing call and truncates mid-answer.
+    if settings.model.is_reasoning_model(model):
+        if "reasoning_effort" not in kwargs and settings.model.reasoning_effort != "default":
+            defaults["reasoning_effort"] = settings.model.reasoning_effort
+        # Reasoning tokens are drawn from the same budget as the answer, so a
+        # limit sized for ordinary completions truncates mid-structure. DSPy
+        # also rejects anything under 16000 for the gpt-5 family outright.
+        defaults["max_tokens"] = max(settings.model.max_tokens, REASONING_MIN_MAX_TOKENS)
+
+    # Ollama Cloud is reached through its OpenAI-compatible endpoint so the
+    # API key travels as a bearer token. Written as "ollama_cloud/<model>"
+    # to stay distinct from litellm's own local-Ollama provider.
+    if model.startswith(OLLAMA_CLOUD_PREFIX):
+        defaults.setdefault("api_base", settings.ollama_api_base)
+        defaults.setdefault("api_key", settings.ollama_api_key)
+        model = f"openai/{model[len(OLLAMA_CLOUD_PREFIX) :]}"
 
     defaults.update(kwargs)
     return dspy.LM(model, **defaults)

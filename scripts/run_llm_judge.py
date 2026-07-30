@@ -19,6 +19,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 import time
@@ -33,12 +34,63 @@ from agentic_rag.evaluation.metrics import llm_judge_correctness
 from experiments.common import setup_experiment
 
 
+def _judge_suffix(judge_model: str | None, *, legacy: bool = False) -> str:
+    """Filename suffix identifying which judge produced a set of verdicts.
+
+    The readable part drops the provider prefix and flattens ":" and "." so the
+    name survives a filesystem, which means distinct models can flatten to the
+    same tag — "openai/qwen3-5" and "ollama_cloud/qwen3.5" both become
+    "qwen3-5". Two judges sharing a suffix is worse than an ugly name: the
+    second run resumes from the first one's checkpoint, skips every item it
+    thinks is done, and overwrites its summary. A short digest of the full
+    model string is appended so the suffix is unique even when the tag is not.
+
+    Falls back to plain "_judged" when no model is given, so files written by
+    earlier runs keep their names.
+    """
+    if not judge_model:
+        return "_judged"
+    tag = judge_model.split("/")[-1].replace(":", "-").replace(".", "-")
+    if legacy:
+        return f"_judged_{tag}"
+    digest = hashlib.sha256(judge_model.encode()).hexdigest()[:6]
+    return f"_judged_{tag}_{digest}"
+
+
+def _judged_path(base: Path, stem: str, judge_model: str | None, ext: str) -> Path:
+    """Artifact path for this judge, reusing a digest-less file already on disk.
+
+    The digest was added after a first round of judging had been written, and
+    those verdicts cost real API calls. Renaming them is not safe either: the
+    summaries never recorded the model string, so the digest for an existing
+    file cannot be recomputed. Preferring an existing legacy name keeps that
+    round addressable while every new judge gets a collision-free one.
+    """
+    legacy = base / f"{stem}{_judge_suffix(judge_model, legacy=True)}{ext}"
+    if legacy.exists():
+        return legacy
+    return base / f"{stem}{_judge_suffix(judge_model)}{ext}"
+
+
+def _key(item: dict) -> tuple[str, str]:
+    """Identity of a judged row.
+
+    A results file can hold the same question once per pipeline, so the id on
+    its own is not unique within a file — the judge panel carries 200 rows over
+    184 ids. Pairing it with the pipeline keeps those rows distinct.
+    """
+    return (str(item.get("pipeline", "")), str(item["id"]))
+
+
 def judge_jsonl(jsonl_path: Path, delay: float = 0.0, judge_model: str | None = None) -> dict:
     """Run LLM-as-Judge on a single JSONL file.
 
     Returns summary dict with judge accuracy.
     """
-    output_path = jsonl_path.with_name(jsonl_path.stem + "_judged.jsonl")
+    # Tag the output with the judge model. Multiple judges are run over the
+    # same results to check that conclusions survive a change of judge, and a
+    # shared filename would make each run silently overwrite the last.
+    output_path = _judged_path(jsonl_path.parent, jsonl_path.stem, judge_model, ".jsonl")
 
     # Load existing results
     items = []
@@ -46,13 +98,36 @@ def judge_jsonl(jsonl_path: Path, delay: float = 0.0, judge_model: str | None = 
         for line in f:
             items.append(json.loads(line.strip()))
 
-    # Load checkpoint (already judged)
-    judged = {}
+    # Load checkpoint (already judged). A verdict that came from a truncated or
+    # failed completion is not a judgement — drop it so this run redoes it. That
+    # is what makes a larger ceiling recoverable: rerun with more room and only
+    # the bad verdicts are re-scored, everything else is skipped.
+    #
+    # Keyed on (pipeline, id): a file may hold the same question once per
+    # pipeline, so id alone collapses distinct rows into one. The judge panel is
+    # exactly that shape — 200 rows over 184 ids — and keying on id would drop 16
+    # of them on the first resume.
+    judged, kept, retry = {}, [], 0
     if output_path.exists():
         with open(output_path, encoding="utf-8") as f:
             for line in f:
-                item = json.loads(line.strip())
-                judged[item["id"]] = item
+                if not line.strip():
+                    continue
+                item = json.loads(line)
+                if item.get("judge_status", "ok") != "ok":
+                    retry += 1
+                    continue
+                judged[_key(item)] = item
+                kept.append(item)
+    if retry:
+        logger.warning(f"[{jsonl_path.name}] {retry} verdicts were not usable — re-judging them")
+        # Rewrite without them before appending, or the file would carry both the
+        # discarded verdict and its replacement and stop satisfying "one row per
+        # question". Written from the row list, not the lookup, so rows sharing an
+        # id survive.
+        with open(output_path, "w", encoding="utf-8") as f:
+            for item in kept:
+                f.write(json.dumps(item, ensure_ascii=False) + "\n")
 
     logger.info(
         f"[{jsonl_path.name}] {len(items)} items, "
@@ -62,7 +137,7 @@ def judge_jsonl(jsonl_path: Path, delay: float = 0.0, judge_model: str | None = 
 
     if len(judged) >= len(items):
         logger.info(f"[{jsonl_path.name}] Already complete, skipping")
-        scores = [judged[item["id"]]["llm_judge"] for item in items if item["id"] in judged]
+        scores = [judged[_key(i)]["llm_judge"] for i in items if _key(i) in judged]
         return {
             "file": jsonl_path.name,
             "n": len(items),
@@ -74,8 +149,8 @@ def judge_jsonl(jsonl_path: Path, delay: float = 0.0, judge_model: str | None = 
     scores = []
     with open(output_path, "a", encoding="utf-8") as out:
         for i, item in enumerate(items):
-            if item["id"] in judged:
-                scores.append(judged[item["id"]]["llm_judge"])
+            if _key(item) in judged:
+                scores.append(judged[_key(item)]["llm_judge"])
                 continue
 
             prediction = item.get("prediction", "")
@@ -83,22 +158,29 @@ def judge_jsonl(jsonl_path: Path, delay: float = 0.0, judge_model: str | None = 
             question = item.get("question", "")
 
             try:
-                score = llm_judge_correctness(
-                    prediction, reference, question, judge_model=judge_model
+                score, status = llm_judge_correctness(
+                    prediction, reference, question, judge_model=judge_model, with_status=True
                 )
             except Exception as e:
                 logger.warning(f"  [{i + 1}/{len(items)}] Error: {e}")
-                score = 0.0
+                score, status = 0.0, "error"
 
+            if status != "ok":
+                logger.warning(
+                    f"  [{i + 1}/{len(items)}] verdict unusable ({status}) — id={item['id']}"
+                )
             scores.append(score)
 
-            # Write judged item
+            # judge_status records why the verdict ended. Anything but "ok" is
+            # not a judgement, and a later run re-scores it rather than trusting
+            # the 0.0 that a truncated completion would otherwise leave behind.
             judged_item = {
                 "id": item["id"],
                 "question": question,
                 "reference": reference,
                 "prediction": prediction,
                 "llm_judge": score,
+                "judge_status": status,
                 "pipeline": item.get("pipeline", ""),
             }
             out.write(json.dumps(judged_item, ensure_ascii=False) + "\n")
@@ -112,12 +194,25 @@ def judge_jsonl(jsonl_path: Path, delay: float = 0.0, judge_model: str | None = 
                 time.sleep(delay)
 
     accuracy = sum(scores) / len(scores) if scores else 0.0
-    logger.info(f"[{jsonl_path.name}] Done: judge_accuracy={accuracy:.3f}")
+    # Count from the file rather than this run: earlier passes may have left
+    # unusable verdicts behind, and what matters is whether any remain.
+    unusable = 0
+    with open(output_path, encoding="utf-8") as f:
+        for line in f:
+            if line.strip() and json.loads(line).get("judge_status", "ok") != "ok":
+                unusable += 1
+    logger.info(f"[{jsonl_path.name}] Done: judge_accuracy={accuracy:.3f}, unusable={unusable}")
+    if unusable:
+        logger.warning(
+            f"[{jsonl_path.name}] {unusable} verdicts still unusable — rerun to re-score "
+            f"just those; raise LLM_MAX_TOKENS first if they are truncated rather than unparsed"
+        )
 
     return {
         "file": jsonl_path.name,
         "n": len(items),
         "judge_accuracy": accuracy,
+        "unusable": unusable,
         "status": "complete",
     }
 
@@ -225,7 +320,17 @@ def main():
         summary_dir = Path(args.path) if Path(args.path).is_dir() else Path(args.path).parent
     else:
         summary_dir = project_root / "data" / "results"
-    summary_path = summary_dir / "llm_judge_summary.json"
+
+    # The summary is named after the judge too, minus the "_judged" marker that
+    # only makes sense on per-file verdicts. Same legacy preference as
+    # _judged_path so an earlier round's summary keeps its name.
+    def summary_name(*, legacy: bool) -> str:
+        tag = _judge_suffix(args.judge_model, legacy=legacy).removeprefix("_judged")
+        return f"llm_judge_summary{tag}.json"
+
+    summary_path = summary_dir / summary_name(legacy=True)
+    if not summary_path.exists():
+        summary_path = summary_dir / summary_name(legacy=False)
     with open(summary_path, "w") as f:
         json.dump(results, f, indent=2, ensure_ascii=False)
     print(f"\nSummary saved to: {summary_path}")

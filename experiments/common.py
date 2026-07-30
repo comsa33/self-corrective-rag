@@ -35,6 +35,13 @@ def setup_experiment(seed: int | None = None) -> None:
     random.seed(seed)
     np.random.seed(seed)
 
+    # Turn the response cache off before any LM is built. At temperature=0 a
+    # rerun would otherwise replay cached completions in milliseconds, which
+    # leaves accuracy intact but makes measured latency meaningless.
+    if settings.disable_llm_cache:
+        dspy.configure_cache(enable_disk_cache=False, enable_memory_cache=False)
+        logger.info("LLM response cache disabled (latency measurement mode)")
+
     # Configure DSPy LM — API keys are read from environment variables
     # (OPENAI_API_KEY, GEMINI_API_KEY, etc.) by litellm automatically.
     # make_lm centralizes retry/timeout settings.
@@ -101,20 +108,31 @@ def run_pipeline_on_dataset(
     pipeline_name: str = "pipeline",
     request_delay: float = 0.0,
     checkpoint_dir: Path | None = None,
+    max_item_retries: int = 2,
+    retry_backoff: float = 30.0,
 ) -> list[dict]:
     """Run a pipeline on a dataset and collect results.
 
+    Resumption is keyed on question id rather than position, and only items
+    that completed successfully are treated as done. An item that failed —
+    typically a provider rate limit — is retried on the next run instead of
+    being frozen into the results as a permanent gap.
+
     Args:
         request_delay: Seconds to wait between items (for API rate limiting).
-        checkpoint_dir: If provided, saves incremental results every 10 items
-            to ``checkpoint_dir/<pipeline_name>_checkpoint.jsonl``.
-            On crash, existing checkpoint can be loaded to resume.
+        checkpoint_dir: If provided, writes results after every item to
+            ``checkpoint_dir/<pipeline_name>_checkpoint.jsonl``. Rerunning the
+            same command resumes from that file.
+        max_item_retries: Extra attempts per item before recording an error.
+        retry_backoff: Base seconds to wait before retrying an item; doubles
+            with each attempt so a rate-limited run backs off rather than
+            burning its remaining quota.
 
     Returns list of result dicts with predictions and metadata.
     """
-    results = []
+    results: list[dict] = []
     checkpoint_path = None
-    start_idx = 0
+    done_ids: set[str] = set()
 
     # Resume from checkpoint if exists
     if checkpoint_dir is not None:
@@ -123,30 +141,51 @@ def run_pipeline_on_dataset(
         checkpoint_path = checkpoint_dir / f"{pipeline_name}_checkpoint.jsonl"
 
         if checkpoint_path.exists():
+            n_retry = 0
             with open(checkpoint_path, encoding="utf-8") as f:
                 for line in f:
-                    results.append(json.loads(line.strip()))
-            start_idx = len(results)
+                    if not line.strip():
+                        continue
+                    record = json.loads(line)
+                    # Failed items are dropped so this run retries them.
+                    if "error" in record:
+                        n_retry += 1
+                        continue
+                    results.append(record)
+                    done_ids.add(str(record.get("id")))
             logger.info(
-                f"[{pipeline_name}] Resumed from checkpoint: {start_idx}/{len(dataset)} done"
+                f"[{pipeline_name}] Resumed from checkpoint: "
+                f"{len(done_ids)}/{len(dataset)} done, {n_retry} to retry"
             )
 
+    def _save_checkpoint() -> None:
+        """Write the checkpoint atomically so an interrupt cannot truncate it."""
+        if checkpoint_path is None:
+            return
+        tmp_path = checkpoint_path.with_suffix(".jsonl.tmp")
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            for r in results:
+                f.write(json.dumps(r, ensure_ascii=False, default=str) + "\n")
+        tmp_path.replace(checkpoint_path)
+
+    processed = 0
     for i, item in enumerate(dataset):
-        if i < start_idx:
+        item_id = str(item.get("id", i))
+        if item_id in done_ids:
             continue
-        if i > 0 and request_delay > 0:
+        if processed > 0 and request_delay > 0:
             time.sleep(request_delay)
         question = item["question"]
         reference = item.get("answer", "")
 
-        start = time.perf_counter()
-        try:
-            result = pipeline.run(question)
-            latency = time.perf_counter() - start
-
-            results.append(
-                {
-                    "id": item.get("id", str(i)),
+        record: dict = {}
+        for attempt in range(max_item_retries + 1):
+            start = time.perf_counter()
+            try:
+                result = pipeline.run(question)
+                latency = time.perf_counter() - start
+                record = {
+                    "id": item_id,
                     "question": question,
                     "reference": reference,
                     "all_references": item.get("all_answers", [reference]),
@@ -165,34 +204,41 @@ def run_pipeline_on_dataset(
                     "tool_score_trace": result.tool_score_trace,
                     "question_difficulty": _extract_question_difficulty(item),
                 }
-            )
-        except Exception as e:
-            logger.error(f"Error on item {i}: {e}")
-            results.append(
-                {
-                    "id": item.get("id", str(i)),
+                done_ids.add(item_id)
+                break
+            except Exception as e:
+                if attempt < max_item_retries:
+                    wait = retry_backoff * (2**attempt)
+                    logger.warning(
+                        f"[{pipeline_name}] Item {i} ({item_id}) failed "
+                        f"(attempt {attempt + 1}/{max_item_retries + 1}): {e}. "
+                        f"Retrying in {wait:.0f}s"
+                    )
+                    time.sleep(wait)
+                    continue
+                logger.error(f"Error on item {i} ({item_id}): {e}")
+                record = {
+                    "id": item_id,
                     "question": question,
                     "reference": reference,
                     "prediction": "",
                     "error": str(e),
                     "pipeline": pipeline_name,
                 }
-            )
 
-        if (i + 1) % 10 == 0:
-            logger.info(f"[{pipeline_name}] {i + 1}/{len(dataset)} done")
-            # Incremental checkpoint save
-            if checkpoint_path is not None:
-                with open(checkpoint_path, "w", encoding="utf-8") as f:
-                    for r in results:
-                        f.write(json.dumps(r, ensure_ascii=False, default=str) + "\n")
-                logger.debug(f"[{pipeline_name}] Checkpoint saved: {len(results)} items")
+        results.append(record)
+        processed += 1
+        _save_checkpoint()
 
-    # Final checkpoint save
-    if checkpoint_path is not None:
-        with open(checkpoint_path, "w", encoding="utf-8") as f:
-            for r in results:
-                f.write(json.dumps(r, ensure_ascii=False, default=str) + "\n")
+        if processed % 10 == 0:
+            logger.info(f"[{pipeline_name}] {len(done_ids)}/{len(dataset)} done")
+
+    n_failed = sum(1 for r in results if "error" in r)
+    if n_failed:
+        logger.warning(
+            f"[{pipeline_name}] {n_failed} item(s) still failing. "
+            f"Rerun the same command to retry only those."
+        )
 
     return results
 
@@ -200,6 +246,47 @@ def run_pipeline_on_dataset(
 # ---------------------------------------------------------------------------
 # Result saving & reporting
 # ---------------------------------------------------------------------------
+def settings_snapshot() -> dict:
+    """The settings that decide a run's numbers, as they stand right now.
+
+    Every field here has cost this project a day at some point, because the run
+    that produced a number could not be told apart from a run that would produce
+    a different one:
+      max_passages  - only the accumulating pipelines apply it, so baselines
+                      carried 50 passages against the proposed method's 30 in
+                      every published run, and nothing on disk said so.
+      enabled_tools - RQ1 ran four tools where RQ3/RQ4 ran all of them, which is
+                      the real reason Table 3 and Table 11 disagree.
+      max_tokens    - a limit too low for a reasoning model truncates answers
+                      silently; one model lost a whole dataset to it.
+      model names   - previously recoverable only from the directory name.
+
+    Callers running a sweep must take this while the variant is running.
+    `save_results` is called after every variant has finished, so reading the
+    global settings there records the last variant's values for all of them --
+    which is how the max_passages difference stayed invisible in the first place.
+    """
+    return {
+        "quality_threshold": settings.evaluation.quality_threshold,
+        "max_retry": settings.evaluation.max_retry_count,
+        "top_k": settings.retrieval.top_k,
+        "hybrid_weight": settings.retrieval.hybrid_weight,
+        "seed": settings.experiment.seed,
+        "max_passages": settings.retrieval.max_passages,
+        "query_method": settings.retrieval.query_method,
+        "enabled_tools": settings.agent.enabled_tools,
+        "agent_max_iterations": settings.agent.max_iterations,
+        "max_tokens": settings.model.max_tokens,
+        "temperature": settings.model.temperature,
+        "models": {
+            "preprocess": settings.model.preprocess_model,
+            "evaluate": settings.model.evaluate_model,
+            "generate": settings.model.generate_model,
+            "agent": settings.model.agent_model,
+        },
+    }
+
+
 def save_results(
     results: list[dict],
     experiment_name: str,
@@ -207,6 +294,7 @@ def save_results(
     *,
     run_dir: Path | None = None,
     compute_llm_judge: bool = False,
+    settings_used: dict | None = None,
 ) -> Path:
     """Save experiment results to data/results/<run_dir>/."""
     timestamp = time.strftime("%Y%m%d_%H%M%S")
@@ -231,13 +319,7 @@ def save_results(
         "timestamp": timestamp,
         "total_items": len(results),
         "errors": sum(1 for r in results if "error" in r),
-        "settings": {
-            "quality_threshold": settings.evaluation.quality_threshold,
-            "max_retry": settings.evaluation.max_retry_count,
-            "top_k": settings.retrieval.top_k,
-            "hybrid_weight": settings.retrieval.hybrid_weight,
-            "seed": settings.experiment.seed,
-        },
+        "settings": settings_used or settings_snapshot(),
     }
 
     if predictions and references:

@@ -45,23 +45,32 @@ class SignificanceAnalyzer:
                 for line in f:
                     items.append(json.loads(line.strip()))
 
-            valid = [r for r in items if "error" not in r]
+            # Keep each record's position in the original file. Numbering the
+            # surviving records instead would renumber everything after a
+            # failure, so the positional fallback below would pair different
+            # questions in exactly the case it exists to cover.
+            valid = [(position, r) for position, r in enumerate(items) if "error" not in r]
             if not valid:
                 continue
 
-            pipeline = valid[0].get("pipeline", jsonl_path.stem)
+            pipeline = valid[0][1].get("pipeline", jsonl_path.stem)
             em_scores = []
             f1_scores = []
+            ids = []
 
-            for r in valid:
+            for position, r in valid:
                 pred = r.get("prediction", "")
                 ref = r.get("reference", "")
+                # Question id anchors the pairing; position is the fallback for
+                # result files written before the id field existed.
+                ids.append(str(r.get("id", position)))
                 em_scores.append(exact_match(pred, ref))
                 f1_scores.append(token_f1(pred, ref))
 
             pipeline_scores[pipeline] = {
                 "em": em_scores,
                 "f1": f1_scores,
+                "ids": ids,
             }
 
         return cls(pipeline_scores)
@@ -132,8 +141,11 @@ class SignificanceAnalyzer:
             logger.warning(f"Baseline '{baseline}' not found in results")
             return {}
 
-        base_scores = np.array(self.scores[baseline].get(metric, []))
-        base_em = np.array(self.scores[baseline].get("em", []))
+        base = self.scores[baseline]
+        base_ids = base.get("ids", [])
+        base_position = {qid: i for i, qid in enumerate(base_ids)}
+        base_scores = np.array(base.get(metric, []))
+        base_em = np.array(base.get("em", []))
         rng = np.random.default_rng(seed)
         results = {}
 
@@ -146,13 +158,26 @@ class SignificanceAnalyzer:
 
             comp_scores = np.array(metrics.get(metric, []))
             comp_em = np.array(metrics.get("em", []))
-            n = min(len(base_scores), len(comp_scores))
+            comp_position = {qid: i for i, qid in enumerate(metrics.get("ids", []))}
+
+            # Pair on question id. Slicing by position would compare different
+            # questions to each other as soon as one pipeline dropped an item,
+            # which is exactly what a paired test must not do.
+            common = [qid for qid in base_ids if qid in comp_position]
+            n = len(common)
 
             if n < 5:
                 continue
+            if n < len(base_scores) or n < len(comp_scores):
+                logger.warning(
+                    f"{baseline} vs {pipeline}: pairing on {n} shared questions "
+                    f"({len(base_scores)} vs {len(comp_scores)} available)"
+                )
 
-            b = base_scores[:n]
-            c = comp_scores[:n]
+            base_idx = [base_position[qid] for qid in common]
+            comp_idx = [comp_position[qid] for qid in common]
+            b = base_scores[base_idx]
+            c = comp_scores[comp_idx]
             diff = b - c
 
             # --- Cohen's d effect size ---
@@ -183,9 +208,9 @@ class SignificanceAnalyzer:
 
             # --- McNemar's test (for EM, binary) ---
             mcnemar_p = None
-            if len(base_em) >= n and len(comp_em) >= n:
-                be = base_em[:n]
-                ce = comp_em[:n]
+            if len(base_em) and len(comp_em):
+                be = base_em[base_idx]
+                ce = comp_em[comp_idx]
                 # b=1,c=0 (baseline correct, comp wrong) and b=0,c=1
                 b10 = int(np.sum((be == 1) & (ce == 0)))
                 b01 = int(np.sum((be == 0) & (ce == 1)))
