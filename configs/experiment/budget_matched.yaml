@@ -9,8 +9,15 @@
 #                       (exactly 10 calls) -- Loop brought up to TARA's cost
 #   Agentic (ReAct)     TARA as published, ~10 calls/question (gpt-5-mini,
 #                       2Wiki 9.9; see supplementary/context_budget.csv)
-#   Agentic (budget=4)  TARA brought down to the loop's cost by capping ReAct
-#                       iterations (best effort: the agent decides tool calls)
+#   Agentic (budget=6)  TARA brought down towards the loop's cost by capping
+#                       ReAct iterations (best effort: the agent decides tool
+#                       calls). 6, not 4: with one iteration the pipeline still
+#                       makes preprocess + reasoning + extraction + at least one
+#                       tool call + the mandatory evaluation + generation, so
+#                       its structural minimum is about 6 calls where the
+#                       loop's is 4. That gap is itself a finding to report,
+#                       not something to hide by removing the mandatory
+#                       evaluation (the components stay as published).
 #
 # llm_call_budget is per question. The loop spends it exactly; the manifest
 # records both budgets and verify_campaign.py checks the rows against them.
@@ -45,12 +52,12 @@ variants:
         - evaluate
         - calculate
 
-  - name: Agentic (budget=4)
+  - name: Agentic (budget=6)
     pipeline: agentic
     experiment:
       enable_agentic_refinement: true
       enable_agent_routing: false
-      llm_call_budget: 4
+      llm_call_budget: 6
     agent:
       enabled_tools:
         - search

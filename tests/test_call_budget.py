@@ -118,7 +118,7 @@ def test_budget_matched_config_has_the_four_columns():
         "Loop (score-stop)",
         "Loop (budget=10)",
         "Agentic (ReAct)",
-        "Agentic (budget=4)",
+        "Agentic (budget=6)",
     ]
     budgets = [v.overrides.get("experiment", {}).get("llm_call_budget") for v in exp.variants]
     assert budgets == [None, 10, None, 4]
@@ -133,10 +133,10 @@ def test_manifest_controls_record_budget_and_pipeline_kind():
         "Loop (score-stop)": None,
         "Loop (budget=10)": 10,
         "Agentic (ReAct)": None,
-        "Agentic (budget=4)": 4,
+        "Agentic (budget=6)": 6,
     }
     assert controls["pipeline_by_variant"]["Loop (budget=10)"] == "loop"
-    assert controls["pipeline_by_variant"]["Agentic (budget=4)"] == "agentic"
+    assert controls["pipeline_by_variant"]["Agentic (budget=6)"] == "agentic"
     assert settings.experiment.llm_call_budget is None, "globals must be restored"
 
 

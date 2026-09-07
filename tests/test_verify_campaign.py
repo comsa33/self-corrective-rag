@@ -377,3 +377,19 @@ def test_unspent_budget_warns(tmp_path):
     checks = verify_run_dir(run)
     assert not _failed(checks)
     assert any(c.name.endswith("call budget spent") and c.status == WARN for c in checks)
+
+
+def test_pipeline_count_drift_only_warns(tmp_path):
+    rows = [_row(0), _row(1, llm_calls=6, metered_calls=4)]
+    run = _write_run(tmp_path, rows, _manifest(), _summary())
+    checks = verify_run_dir(run)
+    assert not _failed(checks)
+    assert any(
+        c.name.endswith("pipeline count drifts from metered") and c.status == WARN for c in checks
+    )
+
+
+def test_one_call_of_drift_is_tolerated(tmp_path):
+    rows = [_row(0), _row(1, llm_calls=5, metered_calls=4)]
+    checks = verify_run_dir(_write_run(tmp_path, rows, _manifest(), _summary()))
+    assert not any(c.name.endswith("drifts from metered") and c.status == WARN for c in checks)

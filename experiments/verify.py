@@ -241,6 +241,18 @@ def _rows_checks(
     add("usage metered", unmetered == 0, f"{unmetered} row(s) with no metered call")
     incomplete = sum(1 for r in valid if r.get("usage_complete") is False)
     add("usage complete", incomplete == 0, f"{incomplete} row(s) with unreported calls")
+    # The paper reports metered_calls. llm_calls is the pipeline's own
+    # estimate and is kept so a drift between the two shows where the
+    # estimate breaks (it overcounts ReAct steps at max_iters=1).
+    drift = [
+        r for r in valid if abs(int(r.get("llm_calls") or 0) - int(r.get("metered_calls") or 0)) > 1
+    ]
+    add(
+        "pipeline count drifts from metered",
+        not drift,
+        f"{len(drift)} row(s) with |llm_calls - metered_calls| > 1",
+        warn=True,
+    )
 
     if expected:
         stray = sorted(
