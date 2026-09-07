@@ -143,6 +143,12 @@ class RunManifest(BaseModel):
     # Taken from each pipeline class under that variant's settings, so the
     # "controlled for M" scope of a table is read from here, not assumed.
     max_passages_by_pipeline: dict[str, int | None] = Field(default_factory=dict)
+    # Variant name -> LLM-call budget (None = the pipeline's own stopping
+    # rule) and -> pipeline kind (naive/crag/loop/agentic). The verifier
+    # holds loop variants to their budget exactly and agentic ones loosely,
+    # because only the loop can spend a budget deterministically.
+    llm_call_budget_by_pipeline: dict[str, int | None] = Field(default_factory=dict)
+    pipeline_by_variant: dict[str, str] = Field(default_factory=dict)
     models: list[ModelSlotRecord]
     preflight: dict = Field(default_factory=lambda: {"status": "pending"})
     observed_response_models: list[str] = Field(default_factory=list)
@@ -241,10 +247,14 @@ def build_manifest(
     repeat_index: int | None = None,
     attempt: int = 1,
     max_passages_by_pipeline: dict[str, int | None] | None = None,
+    llm_call_budget_by_pipeline: dict[str, int | None] | None = None,
+    pipeline_by_variant: dict[str, str] | None = None,
 ) -> RunManifest:
     """Snapshot the process-wide settings and environment for one run."""
     return RunManifest(
         max_passages_by_pipeline=max_passages_by_pipeline or {},
+        llm_call_budget_by_pipeline=llm_call_budget_by_pipeline or {},
+        pipeline_by_variant=pipeline_by_variant or {},
         run_id=run_id,
         run_key=run_key,
         repeat_index=repeat_index,

@@ -345,6 +345,7 @@ def settings_snapshot() -> dict:
         "query_method": settings.retrieval.query_method,
         "enabled_tools": settings.agent.enabled_tools,
         "agent_max_iterations": settings.agent.max_iterations,
+        "llm_call_budget": settings.experiment.llm_call_budget,
         "max_tokens": settings.model.max_tokens,
         "temperature": settings.model.temperature,
         "models": {

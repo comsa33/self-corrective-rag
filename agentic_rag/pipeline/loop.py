@@ -23,6 +23,14 @@ from agentic_rag.pipeline.base import PipelineResult
 from agentic_rag.retriever.indexer import Passage
 from agentic_rag.signatures.decompose import DecomposeQuerySignature
 
+# Calls a loop run always makes, whatever the number of retries:
+# preprocess, decompose, the first evaluation and the final generation.
+LOOP_FIXED_CALLS = 4
+
+# Action recorded when the loop refines because budget remains, not because
+# the evaluator asked for it. Lets a trajectory analysis tell the two apart.
+BUDGET_REFINE_ACTION = "refine(budget)"
+
 
 class LoopRAGPipeline(SelfCorrectiveMixin):
     """Preprocess → For-Loop Refinement → Generate/Route.
@@ -32,7 +40,30 @@ class LoopRAGPipeline(SelfCorrectiveMixin):
 
     This is deterministic and predictable, but cannot adapt its strategy
     based on intermediate findings (unlike the agentic variant).
+
+    Budget-matched mode (`experiment.llm_call_budget`): the loop stops when
+    the budget is spent rather than when the evaluator is satisfied, so it
+    makes exactly as many LLM calls as the budget allows. Every component
+    is unchanged; only the stopping rule differs, which is what lets the
+    comparison separate "more calls" from "agentic control".
     """
+
+    @staticmethod
+    def loop_retry_budget(budget: int | None) -> int | None:
+        """Retries a budget of `budget` calls affords, or None without a budget.
+
+        Each retry adds one evaluation call on top of the fixed four
+        (preprocess, decompose, first evaluate, generate), so a budget of 10
+        means 6 retries and exactly 10 calls.
+        """
+        if budget is None:
+            return None
+        if budget < LOOP_FIXED_CALLS:
+            logger.warning(
+                f"[LoopRAG] llm_call_budget={budget} is below the {LOOP_FIXED_CALLS} fixed "
+                f"calls; running with 0 retries ({LOOP_FIXED_CALLS} calls)"
+            )
+        return max(budget - LOOP_FIXED_CALLS, 0)
 
     def run(
         self,
@@ -97,6 +128,18 @@ class LoopRAGPipeline(SelfCorrectiveMixin):
         action_history: list[str] = []
 
         max_retry = eval_cfg.max_retry_count if exp.enable_iteration else 0
+        # Budget-matched: retries are set by the budget and the loop refines
+        # until it is spent (see class docstring). Needs iteration and the
+        # evaluator, since each retry is one evaluation call.
+        budget_retries = self.loop_retry_budget(exp.llm_call_budget)
+        budget_mode = (
+            budget_retries is not None and exp.enable_iteration and exp.enable_4d_evaluation
+        )
+        if budget_mode:
+            max_retry = budget_retries
+            logger.info(
+                f"[LoopRAG] Budget mode: {exp.llm_call_budget} calls -> {max_retry} retries"
+            )
         final_action = "output"
 
         # Guard: preserve original keywords so refinement cannot remove them
@@ -267,7 +310,10 @@ class LoopRAGPipeline(SelfCorrectiveMixin):
                 # Progressive leniency: lower effective threshold on later retries
                 effective_threshold = max(eval_cfg.quality_threshold - (retry * 5), 20)
                 # Override action with programmatic progressive leniency
-                if total >= effective_threshold:
+                if budget_mode:
+                    # Spend the budget: the score never stops the loop early.
+                    action_override = BUDGET_REFINE_ACTION if retry < max_retry else "output"
+                elif total >= effective_threshold:
                     action_override = "output"
                 elif retry >= max_retry:
                     # Always generate on final retry — don't route away

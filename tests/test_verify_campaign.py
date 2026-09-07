@@ -339,3 +339,41 @@ def test_cap_never_reached_only_warns(tmp_path):
     checks = verify_run_dir(run)
     assert not _failed(checks)
     assert any(c.name.endswith("passage cap reached") and c.status == WARN for c in checks)
+
+
+# ---------------------------------------------------------------------------
+# LLM-call budget
+# ---------------------------------------------------------------------------
+def _budget_manifest(pipeline: str, budget: int) -> dict:
+    return _manifest(
+        llm_call_budget_by_pipeline={"Naive RAG": budget},
+        pipeline_by_variant={"Naive RAG": pipeline},
+    )
+
+
+def test_loop_over_budget_fails(tmp_path):
+    rows = [_row(0, llm_calls=10), _row(1, llm_calls=11)]
+    run = _write_run(tmp_path, rows, _budget_manifest("loop", 10), _summary())
+    assert "call budget" in _failed(verify_run_dir(run))
+
+
+def test_loop_on_budget_passes(tmp_path):
+    rows = [_row(0, llm_calls=10), _row(1, llm_calls=10)]
+    run = _write_run(tmp_path, rows, _budget_manifest("loop", 10), _summary())
+    assert not _failed(verify_run_dir(run))
+
+
+def test_agentic_over_budget_only_warns(tmp_path):
+    rows = [_row(0, llm_calls=4), _row(1, llm_calls=6)]
+    run = _write_run(tmp_path, rows, _budget_manifest("agentic", 4), _summary())
+    checks = verify_run_dir(run)
+    assert not _failed(checks)
+    assert any(c.name.endswith("call budget") and c.status == WARN for c in checks)
+
+
+def test_unspent_budget_warns(tmp_path):
+    rows = [_row(0, llm_calls=4), _row(1, llm_calls=5)]
+    run = _write_run(tmp_path, rows, _budget_manifest("loop", 10), _summary())
+    checks = verify_run_dir(run)
+    assert not _failed(checks)
+    assert any(c.name.endswith("call budget spent") and c.status == WARN for c in checks)

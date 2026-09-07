@@ -13,6 +13,7 @@ Every check here corresponds to a way a past run was silently wrong:
   metered calls            usage that was not captured cannot be re-measured
   usage complete           a late callback would bill one question to the next
   provenance               a resumed row was made by another process
+  passage cap / budget     the controlled scope (M, calls) a table claims
 
 `verify_run_dir` returns the checks; `scripts/verify_campaign.py` prints
 them as a table and exits non-zero when any FAIL remains.
@@ -250,6 +251,52 @@ def _rows_checks(
     if manifest is not None:
         out.extend(_provenance_checks(run, tag, valid, manifest))
         out.extend(_passage_cap_checks(run, tag, path, valid, manifest))
+        out.extend(_call_budget_checks(run, tag, path, valid, manifest))
+    return out
+
+
+# Below this share of the budget a "budget-matched" run did not match anything.
+BUDGET_SPENT_MIN_SHARE = 0.8
+
+
+def _call_budget_checks(
+    run: str, tag: str, path: Path, rows: list[dict], m: RunManifest
+) -> list[Check]:
+    """A budget-matched variant must have spent its budget and never exceeded it.
+
+    The loop pipeline spends a budget deterministically, so it is held to it
+    exactly. The agentic pipeline can only cap its iterations, since the
+    agent decides which LLM-backed tools to call, so an overrun there is
+    reported rather than failed.
+    """
+    out: list[Check] = []
+
+    def add(name, ok, detail="", *, warn=False):
+        out.append(Check(run, f"{tag}: {name}", OK if ok else (WARN if warn else FAIL), detail))
+
+    variant = _variant_of(path)
+    budget = m.llm_call_budget_by_pipeline.get(variant) if variant else None
+    if budget is None:
+        return out
+    calls = [r.get("llm_calls") for r in rows if r.get("llm_calls") is not None]
+    if not calls:
+        return out
+    strict = m.pipeline_by_variant.get(variant) != "agentic"
+    over = sum(1 for c in calls if c > budget)
+    add(
+        "call budget",
+        over == 0,
+        f"budget {budget}: {over} row(s) over, max {max(calls)}"
+        + ("" if strict else " (agentic: best-effort cap)"),
+        warn=not strict,
+    )
+    mean = sum(calls) / len(calls)
+    add(
+        "call budget spent",
+        mean >= BUDGET_SPENT_MIN_SHARE * budget,
+        f"mean {mean:.1f} of budget {budget} ({mean / budget:.0%})",
+        warn=True,
+    )
     return out
 
 

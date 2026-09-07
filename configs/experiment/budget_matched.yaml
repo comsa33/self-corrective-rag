@@ -1,0 +1,59 @@
+# Budget-matched comparison (C1): is the gain from agentic control, or from
+# spending more LLM calls?
+#
+# Four columns, so a reader can separate the stopping rule from the call
+# count:
+#   Loop (score-stop)   the loop as published: stops when the evaluator is
+#                       satisfied, ~4 calls/question
+#   Loop (budget=10)    same components, stops only when the budget is spent
+#                       (exactly 10 calls) -- Loop brought up to TARA's cost
+#   Agentic (ReAct)     TARA as published, ~10 calls/question (gpt-5-mini,
+#                       2Wiki 9.9; see supplementary/context_budget.csv)
+#   Agentic (budget=4)  TARA brought down to the loop's cost by capping ReAct
+#                       iterations (best effort: the agent decides tool calls)
+#
+# llm_call_budget is per question. The loop spends it exactly; the manifest
+# records both budgets and verify_campaign.py checks the rows against them.
+# Set the budgets per dataset from the measured mean of the agentic column.
+
+name: "Budget-matched: Loop vs Agentic at equal LLM calls"
+description: >
+  Loop refinement forced to spend the agentic pipeline's call budget, and
+  the agentic pipeline capped to the loop's, next to both as published.
+
+variants:
+  - name: Loop (score-stop)
+    pipeline: loop
+    experiment:
+      enable_agent_routing: false
+
+  - name: Loop (budget=10)
+    pipeline: loop
+    experiment:
+      enable_agent_routing: false
+      llm_call_budget: 10
+
+  - name: Agentic (ReAct)
+    pipeline: agentic
+    experiment:
+      enable_agentic_refinement: true
+      enable_agent_routing: false
+    agent:
+      enabled_tools:
+        - search
+        - decompose
+        - evaluate
+        - calculate
+
+  - name: Agentic (budget=4)
+    pipeline: agentic
+    experiment:
+      enable_agentic_refinement: true
+      enable_agent_routing: false
+      llm_call_budget: 4
+    agent:
+      enabled_tools:
+        - search
+        - decompose
+        - evaluate
+        - calculate

@@ -106,6 +106,16 @@ EXPERIMENT_CONFIGS = [
 # ---------------------------------------------------------------------------
 # Variant execution
 # ---------------------------------------------------------------------------
+_SETTINGS_SECTIONS = ("model", "retrieval", "evaluation", "experiment", "agent")
+
+# The settings as this process started (defaults + .env), before any variant
+# touched them. apply_settings only writes the keys a config mentions, so a
+# field that base.yaml does not list -- llm_call_budget, for one -- would
+# otherwise carry over from the previous variant to the next. Every variant
+# is applied on top of this baseline, never on top of its predecessor.
+_BASELINE_SETTINGS = {name: getattr(settings, name).model_dump() for name in _SETTINGS_SECTIONS}
+
+
 def _variant_settings(variant: VariantConfig) -> dict:
     """base.yaml merged with this variant's section overrides."""
     merged = load_config("configs/base.yaml").copy()
@@ -117,22 +127,46 @@ def _variant_settings(variant: VariantConfig) -> dict:
     return merged
 
 
-def _variant_passage_caps(variants: list[VariantConfig]) -> dict[str, int | None]:
-    """Passage cap of every variant, read from its pipeline class under its settings.
+def _apply_variant(variant: VariantConfig) -> None:
+    """Put the globals in exactly the state this variant runs under."""
+    apply_settings(_BASELINE_SETTINGS)
+    apply_settings(_variant_settings(variant))
 
-    Recorded in the manifest before the first question so the controlled-M
-    scope of the run is on disk even if the run is cut short.
+
+def _variant_controls(variants: list[VariantConfig]) -> dict[str, dict]:
+    """Per variant: pipeline kind, passage cap and LLM-call budget under its settings.
+
+    Recorded in the manifest before the first question so the controlled
+    scope of the run (M, call budget) is on disk even if the run is cut
+    short. The globals are restored afterwards.
     """
-    sections = ("model", "retrieval", "evaluation", "experiment", "agent")
-    before = {name: getattr(settings, name).model_dump() for name in sections}
-    caps: dict[str, int | None] = {}
+    before = {name: getattr(settings, name).model_dump() for name in _SETTINGS_SECTIONS}
+    controls: dict[str, dict] = {}
     try:
         for variant in variants:
-            apply_settings(_variant_settings(variant))
-            caps[variant.name] = variant.import_pipeline_class().passage_cap()
+            _apply_variant(variant)
+            controls[variant.name] = {
+                "pipeline": variant.pipeline,
+                "passage_cap": variant.import_pipeline_class().passage_cap(),
+                "llm_call_budget": settings.experiment.llm_call_budget,
+            }
     finally:
         apply_settings(before)  # leave the globals as they were
-    return caps
+    return controls
+
+
+def _variant_passage_caps(variants: list[VariantConfig]) -> dict[str, int | None]:
+    return {name: c["passage_cap"] for name, c in _variant_controls(variants).items()}
+
+
+def _manifest_controls(variants: list[VariantConfig]) -> dict:
+    """Keyword arguments for build_manifest describing every variant's controls."""
+    controls = _variant_controls(variants)
+    return {
+        "max_passages_by_pipeline": {n: c["passage_cap"] for n, c in controls.items()},
+        "llm_call_budget_by_pipeline": {n: c["llm_call_budget"] for n, c in controls.items()},
+        "pipeline_by_variant": {n: c["pipeline"] for n, c in controls.items()},
+    }
 
 
 def _run_variant(
@@ -151,8 +185,8 @@ def _run_variant(
     If variant.optimization is set ('bootstrap' or 'mipro'), applies the
     optimizer using pre-collected trainset before evaluating on dataset.
     """
-    # Apply variant-specific settings
-    apply_settings(_variant_settings(variant))
+    # Apply variant-specific settings on top of the process baseline
+    _apply_variant(variant)
 
     # Import and create pipeline
     pipeline_cls = variant.import_pipeline_class()
@@ -167,6 +201,8 @@ def _run_variant(
     # record the last variant's settings for all of them.
     used = settings_snapshot()
     used["passage_cap"] = pipeline_cls.passage_cap()
+    if hasattr(pipeline_cls, "effective_max_iters"):
+        used["react_max_iters"] = pipeline_cls.effective_max_iters()
 
     slug = variant.name.lower().replace(" ", "_").replace("/", "_")
     results = run_pipeline_on_dataset(
@@ -424,7 +460,7 @@ def run_experiment(
         run_key=plan.run_key,
         repeat_index=plan.repeat_index,
         attempt=plan.attempt,
-        max_passages_by_pipeline=_variant_passage_caps(exp.variants),
+        **_manifest_controls(exp.variants),
     )
     manifest.run_preflight(run_dir, get_meter())
 
@@ -510,7 +546,7 @@ def run_ablation(
         run_key=plan.run_key,
         repeat_index=plan.repeat_index,
         attempt=plan.attempt,
-        max_passages_by_pipeline=_variant_passage_caps(variants),
+        **_manifest_controls(variants),
     )
     manifest.run_preflight(run_dir, get_meter())
 

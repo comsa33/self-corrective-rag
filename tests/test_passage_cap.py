@@ -60,18 +60,19 @@ def test_cap_passages_truncates_only_when_capped(flag, monkeypatch):
 
 
 def test_manifest_records_cap_per_variant(monkeypatch):
+    """The flag comes from the environment at process start, i.e. the baseline
+    every variant is applied on top of; the manifest must reflect it."""
     from agentic_rag.config.loader import load_experiment_config
-    from experiments.run import _variant_passage_caps
+    from experiments.run import _BASELINE_SETTINGS, _variant_passage_caps
 
     exp = load_experiment_config("configs/experiment/rq1.yaml")
-    monkeypatch.setenv("RETRIEVAL_MAX_PASSAGES_ALL_PIPELINES", "true")
-    monkeypatch.setattr(settings.retrieval, "max_passages_all_pipelines", True)
+    monkeypatch.setitem(_BASELINE_SETTINGS["retrieval"], "max_passages_all_pipelines", True)
     caps = _variant_passage_caps(exp.variants)
     assert caps["Naive RAG"] == 30
     assert caps["CRAG Replica"] == 30
     assert caps["Agentic (ReAct)"] == 30
 
-    monkeypatch.setattr(settings.retrieval, "max_passages_all_pipelines", False)
+    monkeypatch.setitem(_BASELINE_SETTINGS["retrieval"], "max_passages_all_pipelines", False)
     caps = _variant_passage_caps(exp.variants)
     assert caps["Naive RAG"] is None
     assert caps["Loop Refinement"] == 30

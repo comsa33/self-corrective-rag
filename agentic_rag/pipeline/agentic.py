@@ -24,6 +24,10 @@ from agentic_rag.retriever.indexer import Passage
 from agentic_rag.signatures.agent import make_agent_signature
 from agentic_rag.tools import TOOL_REGISTRY, create_tools
 
+# Calls an agentic run always makes: preprocess, the ReAct final-output step
+# and generation. Everything else is decided by the agent.
+AGENT_FIXED_CALLS = 3
+
 
 class AgenticRAGPipeline(SelfCorrectiveMixin):
     """Preprocess → ReAct Agentic Refinement → Generate/Route.
@@ -90,6 +94,29 @@ class AgenticRAGPipeline(SelfCorrectiveMixin):
         )
         result.tool_score_trace = tool_score_trace
         return result
+
+    @classmethod
+    def effective_max_iters(cls) -> int:
+        """ReAct iterations under the configured `llm_call_budget`, if any.
+
+        Best effort: a question costs preprocess + generate + the final
+        ReAct output step (3 calls), and each iteration costs one reasoning
+        call plus at most one tool-internal LLM call (decompose, evaluate).
+        The budget therefore affords (budget - 3) // 2 iterations, never
+        fewer than one. The realised count is whatever the agent decides,
+        so it is reported from the measured `llm_calls`, not assumed.
+        """
+        configured = settings.agent.max_iterations
+        budget = settings.experiment.llm_call_budget
+        if budget is None:
+            return configured
+        allowed = max(1, (budget - AGENT_FIXED_CALLS) // 2)
+        if allowed < configured:
+            logger.info(
+                f"[AgenticRAG] Budget mode: {budget} calls -> max_iters {allowed} "
+                f"(configured {configured})"
+            )
+        return min(configured, allowed)
 
     def _run_mandatory_evaluate(
         self,
@@ -203,10 +230,11 @@ class AgenticRAGPipeline(SelfCorrectiveMixin):
             has_evaluate=has_evaluate,
         )
 
+        max_iters = self.effective_max_iters()
         react = dspy.ReAct(
             sig_cls,
             tools=tools,
-            max_iters=agent_cfg.max_iterations,
+            max_iters=max_iters,
         )
 
         logger.info(

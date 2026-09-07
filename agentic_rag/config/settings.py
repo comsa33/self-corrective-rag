@@ -175,6 +175,14 @@ class ExperimentSettings(BaseSettings):
     enable_dspy: bool = True  # C5: DSPy pipeline (vs manual prompt)
     enable_agentic_refinement: bool = False  # C1: ReAct-based agentic refinement (opt-in)
 
+    # LLM-call budget per question, for budget-matched comparisons. None keeps
+    # each pipeline's own stopping rule. With a budget the loop pipeline keeps
+    # refining until the budget is spent instead of stopping on a score, and
+    # the agentic pipeline caps its ReAct iterations (best effort, since tool
+    # calls that use the LLM are decided by the agent). See
+    # LoopRAGPipeline.loop_retry_budget / AgenticRAGPipeline.effective_max_iters.
+    llm_call_budget: int | None = Field(None, alias="EXPERIMENT_LLM_CALL_BUDGET")
+
 
 class AgentSettings(BaseSettings):
     """ReAct agent hyperparameters for agentic retrieval refinement."""
