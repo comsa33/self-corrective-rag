@@ -13,7 +13,7 @@ executable definition.
 Usage:
     from experiments.analysis.refusal_analysis import RefusalAnalyzer
 
-    analyzer = RefusalAnalyzer.from_results_dir("data/results/paper")
+    analyzer = RefusalAnalyzer.from_default_trees()
     analyzer.print_refusal_table()
     analyzer.to_csv("paper/supplementary/refusal_rates.csv")
 """
@@ -21,12 +21,13 @@ Usage:
 from __future__ import annotations
 
 import csv
-import json
 import re
 from pathlib import Path
 
 import numpy as np
 from loguru import logger
+
+from experiments.analysis.runs import DATASETS, best_f1, load_default_trees, load_runs
 
 # ---------------------------------------------------------------------------
 # Refusal marker definition (single source of truth)
@@ -59,8 +60,6 @@ REFUSAL_PATTERNS: tuple[str, ...] = (
 
 _REFUSAL_RE = re.compile("|".join(REFUSAL_PATTERNS), re.IGNORECASE)
 
-DATASETS = ("hotpotqa", "2wikimultihopqa", "musique", "financebench")
-
 
 def is_refusal(prediction: str) -> bool:
     """Return True if the prediction declines to answer."""
@@ -75,55 +74,20 @@ class RefusalAnalyzer:
         self.records = records
 
     @classmethod
-    def from_results_dir(cls, results_dir: str | Path, prefix: str = "rq1") -> RefusalAnalyzer:
-        """Load every ``{prefix}_*.jsonl`` under per-experiment subdirectories.
+    def from_results_dir(
+        cls, results_dir: str | Path, prefix: str = "rq1", model: str | None = None
+    ) -> RefusalAnalyzer:
+        """Load every ``{prefix}_*.jsonl`` under ``results_dir`` (see ``runs.load_runs``)."""
+        return cls(load_runs(results_dir, prefix=prefix, model=model))
 
-        Directory names are expected to encode dataset and model, e.g.
-        ``20260324_161133_rq1_2wikimultihopqa_n200_gemini-3.1-flash-lite``.
-        """
-        results_dir = Path(results_dir)
-        records: list[dict] = []
-
-        for subdir in sorted(results_dir.iterdir()):
-            if not subdir.is_dir() or f"_{prefix}_" not in subdir.name:
-                continue
-            dataset = next((d for d in DATASETS if d in subdir.name), None)
-            if dataset is None:
-                logger.warning(f"Skipping (dataset not recognized): {subdir.name}")
-                continue
-            model = "gpt-5-mini" if "gpt-5-mini" in subdir.name else "gemini-flash-lite"
-
-            for jsonl_path in sorted(subdir.glob(f"{prefix}_*.jsonl")):
-                if jsonl_path.name.endswith("_judged.jsonl"):
-                    continue
-                rows = [
-                    json.loads(line)
-                    for line in jsonl_path.read_text(encoding="utf-8").splitlines()
-                    if line.strip()
-                ]
-                records.append(
-                    {
-                        "model": model,
-                        "dataset": dataset,
-                        "pipeline": jsonl_path.stem[len(prefix) + 1 :],
-                        "rows": [r for r in rows if "error" not in r],
-                    }
-                )
-
-        logger.info(f"Loaded {len(records)} pipeline runs from {results_dir}")
-        return cls(records)
+    @classmethod
+    def from_default_trees(cls, prefix: str = "rq1") -> RefusalAnalyzer:
+        """Load the three model trees behind the paper's tables."""
+        return cls(load_default_trees(prefix=prefix))
 
     # ------------------------------------------------------------------
     # Metrics
     # ------------------------------------------------------------------
-    @staticmethod
-    def _best_f1(prediction: str, row: dict) -> float:
-        """Token F1 against the best-matching reference answer."""
-        from agentic_rag.evaluation.metrics import token_f1
-
-        references = row.get("all_references") or [row.get("reference", "")]
-        return max(token_f1(prediction, ref) for ref in references if ref is not None)
-
     def compute(self) -> list[dict]:
         """Compute refusal rate and conditioned F1 for every run."""
         out: list[dict] = []
@@ -143,15 +107,11 @@ class RefusalAnalyzer:
                     "total": len(scored),
                     "refusals": len(refused),
                     "refusal_rate": round(len(refused) / len(scored), 4),
-                    "f1_all": round(float(np.mean([self._best_f1(p, r) for p, r in scored])), 4),
-                    "f1_non_refused": round(
-                        float(np.mean([self._best_f1(p, r) for p, r in answered])), 4
-                    )
+                    "f1_all": round(float(np.mean([best_f1(p, r) for p, r in scored])), 4),
+                    "f1_non_refused": round(float(np.mean([best_f1(p, r) for p, r in answered])), 4)
                     if answered
                     else None,
-                    "f1_refused": round(
-                        float(np.mean([self._best_f1(p, r) for p, r in refused])), 4
-                    )
+                    "f1_refused": round(float(np.mean([best_f1(p, r) for p, r in refused])), 4)
                     if refused
                     else None,
                 }
@@ -209,11 +169,19 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Refusal rate analysis")
-    parser.add_argument("--results-dir", default="data/results/paper")
+    parser.add_argument(
+        "--results-dir",
+        default=None,
+        help="One result tree; default is all three model trees (runs.DEFAULT_TREES)",
+    )
+    parser.add_argument("--model", default=None, help="Model label for a flat-layout tree")
     parser.add_argument("--csv", default=None, help="Optional CSV output path")
     args = parser.parse_args()
 
-    analyzer = RefusalAnalyzer.from_results_dir(args.results_dir)
+    if args.results_dir:
+        analyzer = RefusalAnalyzer.from_results_dir(args.results_dir, model=args.model)
+    else:
+        analyzer = RefusalAnalyzer.from_default_trees()
     analyzer.print_refusal_table()
     if args.csv:
         analyzer.to_csv(args.csv)
