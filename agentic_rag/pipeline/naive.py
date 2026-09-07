@@ -50,9 +50,10 @@ class NaiveRAGPipeline(BasePipeline):
             method=query_method,
         )
         passage_ids = [pid for pid, _score in search_results]
-        passages = self.indexer.get_passages(passage_ids)
+        retrieved = self.indexer.get_passages(passage_ids)
+        passages = self.cap_passages(retrieved)
 
-        logger.info(f"[NaiveRAG] Retrieved {len(passages)} passages")
+        logger.info(f"[NaiveRAG] Retrieved {len(retrieved)} passages, using {len(passages)}")
 
         # 2. Generate
         context = self.format_passages(passages)
@@ -70,8 +71,14 @@ class NaiveRAGPipeline(BasePipeline):
             footnotes=gen_result.footnotes,
             recommended_questions=gen_result.recommended_questions,
             passages_used=passages,
-            total_passages_retrieved=len(passages),
+            total_passages_retrieved=len(retrieved),
             retry_count=0,
             action_history=["output"],
             llm_calls=1,
         )
+
+    @classmethod
+    def passage_cap(cls) -> int | None:
+        """Uncapped (all top_k) unless the controlled-M flag is on."""
+        r = settings.retrieval
+        return r.max_passages if r.max_passages_all_pipelines else None

@@ -127,9 +127,10 @@ class CRAGReplicaPipeline(BasePipeline):
         # ==============================================================
         search_results = self.retriever.search(query=question, top_k=top_k)
         passage_ids = [pid for pid, _ in search_results]
-        passages = self.indexer.get_passages(passage_ids)
+        retrieved = self.indexer.get_passages(passage_ids)
+        passages = self.cap_passages(retrieved)
 
-        logger.info(f"[CRAG] Retrieved {len(passages)} passages")
+        logger.info(f"[CRAG] Retrieved {len(retrieved)} passages, using {len(passages)}")
 
         # ==============================================================
         # Step 2: Retrieval Evaluation (binary judgment)
@@ -202,7 +203,7 @@ class CRAGReplicaPipeline(BasePipeline):
             footnotes=gen_result.footnotes,
             recommended_questions=gen_result.recommended_questions,
             passages_used=passages,
-            total_passages_retrieved=len(passages),
+            total_passages_retrieved=len(retrieved),
             retry_count=0,  # CRAG is always single-pass
             evaluation_scores=eval_scores,
             action_history=action_history,
@@ -259,4 +260,10 @@ class CRAGReplicaPipeline(BasePipeline):
             query=new_query,
             exclude_ids=exclude_ids or set(),
         )
-        return self.indexer.get_passages([pid for pid, _ in search_results])
+        return self.cap_passages(self.indexer.get_passages([pid for pid, _ in search_results]))
+
+    @classmethod
+    def passage_cap(cls) -> int | None:
+        """Uncapped (all top_k) unless the controlled-M flag is on."""
+        r = settings.retrieval
+        return r.max_passages if r.max_passages_all_pipelines else None

@@ -341,6 +341,7 @@ def settings_snapshot() -> dict:
         "hybrid_weight": settings.retrieval.hybrid_weight,
         "seed": settings.experiment.seed,
         "max_passages": settings.retrieval.max_passages,
+        "max_passages_all_pipelines": settings.retrieval.max_passages_all_pipelines,
         "query_method": settings.retrieval.query_method,
         "enabled_tools": settings.agent.enabled_tools,
         "agent_max_iterations": settings.agent.max_iterations,

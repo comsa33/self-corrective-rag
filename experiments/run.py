@@ -106,6 +106,35 @@ EXPERIMENT_CONFIGS = [
 # ---------------------------------------------------------------------------
 # Variant execution
 # ---------------------------------------------------------------------------
+def _variant_settings(variant: VariantConfig) -> dict:
+    """base.yaml merged with this variant's section overrides."""
+    merged = load_config("configs/base.yaml").copy()
+    for section, overrides in variant.overrides.items():
+        if section in merged:
+            merged[section] = {**merged.get(section, {}), **overrides}
+        else:
+            merged[section] = overrides
+    return merged
+
+
+def _variant_passage_caps(variants: list[VariantConfig]) -> dict[str, int | None]:
+    """Passage cap of every variant, read from its pipeline class under its settings.
+
+    Recorded in the manifest before the first question so the controlled-M
+    scope of the run is on disk even if the run is cut short.
+    """
+    sections = ("model", "retrieval", "evaluation", "experiment", "agent")
+    before = {name: getattr(settings, name).model_dump() for name in sections}
+    caps: dict[str, int | None] = {}
+    try:
+        for variant in variants:
+            apply_settings(_variant_settings(variant))
+            caps[variant.name] = variant.import_pipeline_class().passage_cap()
+    finally:
+        apply_settings(before)  # leave the globals as they were
+    return caps
+
+
 def _run_variant(
     variant: VariantConfig,
     dataset: list[dict],
@@ -123,14 +152,7 @@ def _run_variant(
     optimizer using pre-collected trainset before evaluating on dataset.
     """
     # Apply variant-specific settings
-    base_cfg = load_config("configs/base.yaml")
-    merged = base_cfg.copy()
-    for section, overrides in variant.overrides.items():
-        if section in merged:
-            merged[section] = {**merged.get(section, {}), **overrides}
-        else:
-            merged[section] = overrides
-    apply_settings(merged)
+    apply_settings(_variant_settings(variant))
 
     # Import and create pipeline
     pipeline_cls = variant.import_pipeline_class()
@@ -144,6 +166,7 @@ def _run_variant(
     # after every variant has finished, so reading the globals there would
     # record the last variant's settings for all of them.
     used = settings_snapshot()
+    used["passage_cap"] = pipeline_cls.passage_cap()
 
     slug = variant.name.lower().replace(" ", "_").replace("/", "_")
     results = run_pipeline_on_dataset(
@@ -401,6 +424,7 @@ def run_experiment(
         run_key=plan.run_key,
         repeat_index=plan.repeat_index,
         attempt=plan.attempt,
+        max_passages_by_pipeline=_variant_passage_caps(exp.variants),
     )
     manifest.run_preflight(run_dir, get_meter())
 
@@ -486,6 +510,7 @@ def run_ablation(
         run_key=plan.run_key,
         repeat_index=plan.repeat_index,
         attempt=plan.attempt,
+        max_passages_by_pipeline=_variant_passage_caps(variants),
     )
     manifest.run_preflight(run_dir, get_meter())
 

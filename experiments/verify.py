@@ -35,7 +35,14 @@ WARN = "WARN"
 OK = "OK"
 
 # Keys `summary.json` must carry so a table can be rebuilt from disk alone.
-REQUIRED_SUMMARY_SETTINGS = ("max_passages", "enabled_tools", "models", "seed", "top_k")
+REQUIRED_SUMMARY_SETTINGS = (
+    "max_passages",
+    "passage_cap",
+    "enabled_tools",
+    "models",
+    "seed",
+    "top_k",
+)
 
 
 @dataclass
@@ -242,6 +249,52 @@ def _rows_checks(
 
     if manifest is not None:
         out.extend(_provenance_checks(run, tag, valid, manifest))
+        out.extend(_passage_cap_checks(run, tag, path, valid, manifest))
+    return out
+
+
+def _variant_of(path: Path) -> str | None:
+    """Variant name of a result file, from its summary.json."""
+    summary_path = path.with_name(f"{path.stem}_summary.json")
+    if not summary_path.exists():
+        return None
+    try:
+        return json.loads(summary_path.read_text(encoding="utf-8")).get("extra", {}).get("variant")
+    except json.JSONDecodeError:
+        return None
+
+
+def _passage_cap_checks(
+    run: str, tag: str, path: Path, rows: list[dict], m: RunManifest
+) -> list[Check]:
+    """Every row must respect the passage cap the manifest declares for its variant.
+
+    This is the mechanical basis of the paper's "controlled for M" scope: a
+    capped pipeline may never hand the generator more than M passages, and
+    an uncapped one must have used everything it retrieved.
+    """
+    out: list[Check] = []
+
+    def add(name, ok, detail="", *, warn=False):
+        out.append(Check(run, f"{tag}: {name}", OK if ok else (WARN if warn else FAIL), detail))
+
+    variant = _variant_of(path)
+    if variant is None or variant not in m.max_passages_by_pipeline:
+        add("passage cap", False, f"no cap declared for variant {variant!r}", warn=True)
+        return out
+    cap = m.max_passages_by_pipeline[variant]
+    used = [r.get("passages_used") for r in rows if r.get("passages_used") is not None]
+    if not used:
+        return out
+    if cap is None:
+        truncated = sum(
+            1 for r in rows if r.get("passages_used") != r.get("total_passages_retrieved")
+        )
+        add("passage cap", truncated == 0, f"uncapped, but {truncated} row(s) used < retrieved")
+    else:
+        over = sum(1 for u in used if u > cap)
+        add("passage cap", over == 0, f"cap {cap}: {over} row(s) over, max used {max(used)}")
+        add("passage cap reached", max(used) >= cap, f"cap {cap} never reached", warn=True)
     return out
 
 

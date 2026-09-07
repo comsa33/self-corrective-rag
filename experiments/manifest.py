@@ -139,6 +139,10 @@ class RunManifest(BaseModel):
     retrieval: dict
     evaluation: dict
     agent: dict
+    # Variant name -> passages the generator may see (None = all retrieved).
+    # Taken from each pipeline class under that variant's settings, so the
+    # "controlled for M" scope of a table is read from here, not assumed.
+    max_passages_by_pipeline: dict[str, int | None] = Field(default_factory=dict)
     models: list[ModelSlotRecord]
     preflight: dict = Field(default_factory=lambda: {"status": "pending"})
     observed_response_models: list[str] = Field(default_factory=list)
@@ -236,9 +240,11 @@ def build_manifest(
     run_key: str = "",
     repeat_index: int | None = None,
     attempt: int = 1,
+    max_passages_by_pipeline: dict[str, int | None] | None = None,
 ) -> RunManifest:
     """Snapshot the process-wide settings and environment for one run."""
     return RunManifest(
+        max_passages_by_pipeline=max_passages_by_pipeline or {},
         run_id=run_id,
         run_key=run_key,
         repeat_index=repeat_index,
@@ -270,6 +276,7 @@ def build_manifest(
             "query_method": settings.retrieval.query_method,
             "hybrid_weight": settings.retrieval.hybrid_weight,
             "max_passages": settings.retrieval.max_passages,
+            "max_passages_all_pipelines": settings.retrieval.max_passages_all_pipelines,
         },
         evaluation={
             "quality_threshold": settings.evaluation.quality_threshold,

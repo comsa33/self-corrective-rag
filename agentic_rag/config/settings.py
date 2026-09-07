@@ -110,6 +110,13 @@ class RetrievalSettings(BaseSettings):
 
     # Passage accumulation
     max_passages: int = 30  # FIFO eviction above this
+    # Apply max_passages to the single-shot baselines (naive, CRAG-style)
+    # too. Off by default: the March 2026 runs handed those pipelines all
+    # top_k=50 passages while the accumulating ones were capped at 30, and
+    # that difference is preserved as the "uncontrolled" condition. On, every
+    # pipeline sees the same M and the comparison is controlled for context
+    # budget (see BasePipeline.passage_cap).
+    max_passages_all_pipelines: bool = False
 
 
 class EvaluationSettings(BaseSettings):

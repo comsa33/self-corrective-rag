@@ -10,6 +10,7 @@ import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
+from agentic_rag.config.settings import settings
 from agentic_rag.retriever.hybrid import HybridRetriever
 from agentic_rag.retriever.indexer import DocumentIndexer, Passage
 
@@ -65,6 +66,28 @@ class BasePipeline(ABC):
     def run(self, question: str, **kwargs) -> PipelineResult:
         """Execute the pipeline on a single question."""
         ...
+
+    # ------------------------------------------------------------------
+    # Context budget
+    # ------------------------------------------------------------------
+    @classmethod
+    def passage_cap(cls) -> int | None:
+        """Largest number of passages this pipeline hands to the generator.
+
+        The accumulating pipelines (loop, agentic) always evict down to
+        `max_passages`. Single-shot baselines override this: they are
+        uncapped unless `max_passages_all_pipelines` is on. The run manifest
+        records the answer per pipeline, and the verifier holds every result
+        row to it, so the paper's "controlled for M" claim is checked rather
+        than asserted.
+        """
+        return settings.retrieval.max_passages
+
+    @classmethod
+    def cap_passages(cls, passages: list[Passage]) -> list[Passage]:
+        """Truncate ranked passages to this pipeline's cap, if it has one."""
+        cap = cls.passage_cap()
+        return passages if cap is None else passages[:cap]
 
     def run_timed(self, question: str, **kwargs) -> PipelineResult:
         """Run with automatic latency tracking."""

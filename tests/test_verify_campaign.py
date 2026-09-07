@@ -31,6 +31,8 @@ def _row(i: int, **overrides) -> dict:
         reference="a",
         prediction="a",
         pipeline="naive_rag",
+        passages_used=50,
+        total_passages_retrieved=50,
         llm_calls=1,
         latency_seconds=3.2,
         metered_calls=1,
@@ -69,6 +71,7 @@ def _manifest(**overrides) -> dict:
         "evaluation": {},
         "agent": {},
         "models": [{**slot, "slot": s} for s in ("preprocess", "evaluate", "generate", "agent")],
+        "max_passages_by_pipeline": {"Naive RAG": None},
         "preflight": {"status": "ok", "mismatches": [], "unpinned": []},
         "observed_response_models": [SNAPSHOT],
     }
@@ -87,11 +90,13 @@ def _write_run(tmp_path: Path, rows: list[dict], manifest: dict | None, summary:
     return tmp_path
 
 
-def _summary() -> dict:
+def _summary(variant: str = "Naive RAG") -> dict:
     return {
+        "extra": {"variant": variant},
         "metrics": {"f1": 0.5},
         "settings": {
             "max_passages": 30,
+            "passage_cap": None,
             "enabled_tools": ["search"],
             "models": {},
             "seed": 42,
@@ -302,3 +307,35 @@ def test_uneven_n_across_repeats_fails(tmp_path):
 
 def test_single_run_is_not_a_repeat_set(tmp_path):
     assert verify_repeat_set(_repeat_dirs(tmp_path, [1])) == []
+
+
+# ---------------------------------------------------------------------------
+# Passage cap (controlled-M scope)
+# ---------------------------------------------------------------------------
+def test_capped_variant_must_not_exceed_cap(tmp_path):
+    m = _manifest(max_passages_by_pipeline={"Naive RAG": 30})
+    rows = [_row(0, passages_used=30), _row(1, passages_used=31)]
+    run = _write_run(tmp_path, rows, m, _summary())
+    assert "passage cap" in _failed(verify_run_dir(run))
+
+
+def test_capped_variant_within_cap_passes(tmp_path):
+    m = _manifest(max_passages_by_pipeline={"Naive RAG": 30})
+    rows = [_row(0, passages_used=30), _row(1, passages_used=30)]
+    run = _write_run(tmp_path, rows, m, _summary())
+    assert not _failed(verify_run_dir(run))
+
+
+def test_uncapped_variant_must_use_everything_retrieved(tmp_path):
+    rows = [_row(0), _row(1, passages_used=30, total_passages_retrieved=50)]
+    run = _write_run(tmp_path, rows, _manifest(), _summary())
+    assert "passage cap" in _failed(verify_run_dir(run))
+
+
+def test_cap_never_reached_only_warns(tmp_path):
+    m = _manifest(max_passages_by_pipeline={"Naive RAG": 30})
+    rows = [_row(0, passages_used=12), _row(1, passages_used=9)]
+    run = _write_run(tmp_path, rows, m, _summary())
+    checks = verify_run_dir(run)
+    assert not _failed(checks)
+    assert any(c.name.endswith("passage cap reached") and c.status == WARN for c in checks)
