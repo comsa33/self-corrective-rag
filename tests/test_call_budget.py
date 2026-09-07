@@ -121,7 +121,7 @@ def test_budget_matched_config_has_the_four_columns():
         "Agentic (budget=6)",
     ]
     budgets = [v.overrides.get("experiment", {}).get("llm_call_budget") for v in exp.variants]
-    assert budgets == [None, 10, None, 4]
+    assert budgets == [None, 10, None, 6]
 
 
 def test_manifest_controls_record_budget_and_pipeline_kind():
