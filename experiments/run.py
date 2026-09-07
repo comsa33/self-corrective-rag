@@ -55,7 +55,19 @@ def _model_tag() -> str:
     return name
 
 
+def _new_run_dir(stem: str, dataset_name: str, n: int) -> Path:
+    """Result directory for one run: ``<stamp>_<stem>_<dataset>_n<N>_<model>``.
+
+    The stamp is taken when the run starts, so the directory name is also
+    the run id recorded in its manifest.
+    """
+    run_timestamp = time.strftime("%Y%m%d_%H%M%S")
+    n_label = f"n{n}" if n else ""
+    return settings.results_dir / f"{run_timestamp}_{stem}_{dataset_name}_{n_label}_{_model_tag()}"
+
+
 from experiments.common import (
+    get_meter,
     load_dataset,
     load_retriever,
     print_comparison_table,
@@ -64,6 +76,7 @@ from experiments.common import (
     settings_snapshot,
     setup_experiment,
 )
+from experiments.manifest import build_manifest
 
 console = Console()
 
@@ -348,6 +361,22 @@ def run_experiment(
     checkpoint_base = (
         settings.results_dir / "checkpoints" / f"{config_stem}_{dataset_name}_{_model_tag()}"
     )
+
+    # The run directory exists before the first question is asked, so the
+    # manifest can be written and the model snapshot checked up front. A run
+    # that would produce numbers under the wrong snapshot stops here.
+    run_dir = _new_run_dir(config_stem, dataset_name, len(test_data))
+    manifest = build_manifest(
+        run_id=run_dir.name,
+        experiment=exp.name,
+        dataset=dataset_name,
+        n=len(test_data),
+        variants=[v.name for v in exp.variants],
+        config_path=config_path,
+        sample_size=sample_size,
+    )
+    manifest.run_preflight(run_dir, get_meter())
+
     for variant in exp.variants:
         logger.info(f"  Running variant: {variant.name}")
         slug = variant.name.lower().replace(" ", "_").replace("/", "_")
@@ -369,13 +398,6 @@ def run_experiment(
         title=f"{exp.name} ({dataset_name})",
         compute_llm_judge=compute_llm_judge,
     )
-    run_timestamp = time.strftime("%Y%m%d_%H%M%S")
-    config_stem = Path(config_path).stem
-    n_label = f"n{len(test_data)}" if test_data else ""
-    model = _model_tag()
-    run_dir = (
-        settings.results_dir / f"{run_timestamp}_{config_stem}_{dataset_name}_{n_label}_{model}"
-    )
     for name, results in all_results.items():
         slug = name.lower().replace(" ", "_").replace("/", "_")
         save_results(
@@ -386,6 +408,7 @@ def run_experiment(
             compute_llm_judge=compute_llm_judge,
             settings_used=used_settings.get(name),
         )
+    manifest.finish_run(run_dir, get_meter())
 
     return all_results
 
@@ -421,6 +444,17 @@ def run_ablation(
     checkpoint_base = (
         settings.results_dir / "checkpoints" / f"ablation_{dataset_name}_{_model_tag()}"
     )
+    run_dir = _new_run_dir("ablation", dataset_name, len(dataset))
+    manifest = build_manifest(
+        run_id=run_dir.name,
+        experiment="ablation",
+        dataset=dataset_name,
+        n=len(dataset),
+        variants=[v.name for v in variants],
+        sample_size=sample_size,
+    )
+    manifest.run_preflight(run_dir, get_meter())
+
     for variant in variants:
         logger.info(f"  Running ablation variant: {variant.name}")
         slug = variant.name.lower().replace(" ", "_").replace("/", "_")
@@ -440,10 +474,6 @@ def run_ablation(
         title=f"Ablation Study ({dataset_name})",
         compute_llm_judge=compute_llm_judge,
     )
-    run_timestamp = time.strftime("%Y%m%d_%H%M%S")
-    n_label = f"n{len(dataset)}" if dataset else ""
-    model = _model_tag()
-    run_dir = settings.results_dir / f"{run_timestamp}_ablation_{dataset_name}_{n_label}_{model}"
     for name, results in all_results.items():
         slug = name.lower().replace(" ", "_").replace("/", "_")
         save_results(
@@ -454,6 +484,7 @@ def run_ablation(
             compute_llm_judge=compute_llm_judge,
             settings_used=used_settings.get(name),
         )
+    manifest.finish_run(run_dir, get_meter())
 
     return all_results
 

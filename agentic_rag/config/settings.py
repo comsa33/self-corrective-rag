@@ -72,6 +72,20 @@ class ModelSettings(BaseSettings):
     # reasoning model be added alongside the *_MODEL variables that select it,
     # instead of in code that is easy to forget.
     reasoning_models: str = Field("", alias="LLM_REASONING_MODELS")
+    # Snapshot each model string is expected to answer with, as reported in
+    # `response.model`, e.g. "azure/gpt-5-mini=gpt-5-mini-2025-08-07". A run
+    # whose first response names a different snapshot is aborted before any
+    # question is asked, because its numbers could not be placed in a table
+    # next to runs made against the declared one.
+    expected_response_models: str = Field("", alias="LLM_EXPECTED_RESPONSE_MODELS")
+
+    def expected_response_model(self, model: str) -> str | None:
+        """Declared snapshot for `model`, or None when the model is unpinned."""
+        for entry in self.expected_response_models.split(","):
+            spec, sep, snapshot = entry.strip().partition("=")
+            if sep and spec.strip() == model and snapshot.strip():
+                return snapshot.strip()
+        return None
 
     def is_reasoning_model(self, model: str) -> bool:
         """Whether `model` draws its answer and hidden reasoning from one budget."""
