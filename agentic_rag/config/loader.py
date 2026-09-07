@@ -27,6 +27,7 @@ from agentic_rag.config.settings import (
     AgentSettings,
     EvaluationSettings,
     ExperimentSettings,
+    IRCoTSettings,
     ModelSettings,
     RetrievalSettings,
     Settings,
@@ -41,7 +42,11 @@ PIPELINE_REGISTRY: dict[str, str] = {
     "crag": "agentic_rag.pipeline.crag.CRAGReplicaPipeline",
     "loop": "agentic_rag.pipeline.loop.LoopRAGPipeline",
     "agentic": "agentic_rag.pipeline.agentic.AgenticRAGPipeline",
+    "ircot": "agentic_rag.pipeline.ircot.IRCoTPipeline",
 }
+
+# YAML sections a pipeline/experiment config may override.
+CONFIG_SECTIONS = ("experiment", "model", "retrieval", "evaluation", "agent", "ircot")
 
 
 # ---------------------------------------------------------------------------
@@ -105,6 +110,7 @@ def apply_settings(config: dict[str, Any]) -> Settings:
         "evaluation": (settings.evaluation, EvaluationSettings),
         "experiment": (settings.experiment, ExperimentSettings),
         "agent": (settings.agent, AgentSettings),
+        "ircot": (settings.ircot, IRCoTSettings),
     }
 
     for section_key, (section_obj, _section_cls) in section_map.items():
@@ -192,7 +198,7 @@ def load_experiment_config(
     for v in raw.get("variants", []):
         # Build per-variant overrides from experiment/model/retrieval sections
         variant_overrides = {}
-        for section in ("experiment", "model", "retrieval", "evaluation", "agent"):
+        for section in CONFIG_SECTIONS:
             if section in v:
                 variant_overrides[section] = v[section]
 
@@ -237,7 +243,7 @@ def load_ablation_configs(
         raw = _load_yaml(yaml_path)
 
         variant_overrides = {}
-        for section in ("experiment", "model", "retrieval", "evaluation", "agent"):
+        for section in CONFIG_SECTIONS:
             if section in raw:
                 variant_overrides[section] = raw[section]
 

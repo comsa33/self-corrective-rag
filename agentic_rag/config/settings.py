@@ -196,6 +196,15 @@ class AgentSettings(BaseSettings):
     enabled_tools: list[str] | None = None
 
 
+class IRCoTSettings(BaseSettings):
+    """IRCoT (Trivedi et al., 2023) parameters; see pipeline/ircot.py for the paper's."""
+
+    model_config = SettingsConfigDict(env_prefix="IRCOT_")
+
+    max_steps: int = 8  # paper: 8 (footnote 4)
+    per_step_k: int = 8  # paper: tuned per dataset from {2, 4, 6, 8}
+
+
 class Settings(BaseSettings):
     """Root settings aggregating all sub-settings."""
 
@@ -221,6 +230,7 @@ class Settings(BaseSettings):
     evaluation: EvaluationSettings = Field(default_factory=EvaluationSettings)
     experiment: ExperimentSettings = Field(default_factory=ExperimentSettings)
     agent: AgentSettings = Field(default_factory=AgentSettings)
+    ircot: IRCoTSettings = Field(default_factory=IRCoTSettings)
 
     # Paths
     project_root: Path = PROJECT_ROOT

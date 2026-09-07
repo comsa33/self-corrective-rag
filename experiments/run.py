@@ -106,7 +106,7 @@ EXPERIMENT_CONFIGS = [
 # ---------------------------------------------------------------------------
 # Variant execution
 # ---------------------------------------------------------------------------
-_SETTINGS_SECTIONS = ("model", "retrieval", "evaluation", "experiment", "agent")
+_SETTINGS_SECTIONS = ("model", "retrieval", "evaluation", "experiment", "agent", "ircot")
 
 # The settings as this process started (defaults + .env), before any variant
 # touched them. apply_settings only writes the keys a config mentions, so a
@@ -145,10 +145,14 @@ def _variant_controls(variants: list[VariantConfig]) -> dict[str, dict]:
     try:
         for variant in variants:
             _apply_variant(variant)
+            pipeline_cls = variant.import_pipeline_class()
             controls[variant.name] = {
                 "pipeline": variant.pipeline,
-                "passage_cap": variant.import_pipeline_class().passage_cap(),
+                "passage_cap": pipeline_cls.passage_cap(),
                 "llm_call_budget": settings.experiment.llm_call_budget,
+                # External methods carry their own parameters next to the
+                # paper's, so a deviation is on record (IRCoT).
+                "params": pipeline_cls.params() if hasattr(pipeline_cls, "params") else None,
             }
     finally:
         apply_settings(before)  # leave the globals as they were
@@ -166,6 +170,9 @@ def _manifest_controls(variants: list[VariantConfig]) -> dict:
         "max_passages_by_pipeline": {n: c["passage_cap"] for n, c in controls.items()},
         "llm_call_budget_by_pipeline": {n: c["llm_call_budget"] for n, c in controls.items()},
         "pipeline_by_variant": {n: c["pipeline"] for n, c in controls.items()},
+        "ircot_params_by_pipeline": {
+            n: c["params"] for n, c in controls.items() if c["pipeline"] == "ircot"
+        },
     }
 
 
@@ -203,6 +210,8 @@ def _run_variant(
     used["passage_cap"] = pipeline_cls.passage_cap()
     if hasattr(pipeline_cls, "effective_max_iters"):
         used["react_max_iters"] = pipeline_cls.effective_max_iters()
+    if hasattr(pipeline_cls, "params"):
+        used["pipeline_params"] = pipeline_cls.params()
 
     slug = variant.name.lower().replace(" ", "_").replace("/", "_")
     results = run_pipeline_on_dataset(

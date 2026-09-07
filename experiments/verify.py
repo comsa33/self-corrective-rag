@@ -264,7 +264,27 @@ def _rows_checks(
         out.extend(_provenance_checks(run, tag, valid, manifest))
         out.extend(_passage_cap_checks(run, tag, path, valid, manifest))
         out.extend(_call_budget_checks(run, tag, path, valid, manifest))
+        out.extend(_ircot_checks(run, tag, path, valid, manifest))
     return out
+
+
+def _ircot_checks(run: str, tag: str, path: Path, rows: list[dict], m: RunManifest) -> list[Check]:
+    """An IRCoT row makes at most max_steps reasoning calls plus one generation."""
+    variant = _variant_of(path)
+    params = m.ircot_params_by_pipeline.get(variant) if variant else None
+    if not params or "max_steps" not in params:
+        return []
+    bound = int(params["max_steps"]) + 1
+    calls = [int(r.get("llm_calls") or 0) for r in rows]
+    over = sum(1 for c in calls if c > bound)
+    return [
+        Check(
+            run,
+            f"{tag}: ircot steps",
+            OK if over == 0 else FAIL,
+            f"max_steps {params['max_steps']} -> at most {bound} calls; {over} row(s) over",
+        )
+    ]
 
 
 # Below this share of the budget a "budget-matched" run did not match anything.

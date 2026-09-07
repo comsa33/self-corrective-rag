@@ -1,0 +1,24 @@
+# External method under the controlled protocol (C3): does the protocol run
+# on a retrieval-refinement method that is not ours?
+#
+# IRCoT (Trivedi et al., ACL 2023) on the same index, passage cap M and final
+# generation signature as every other pipeline. Compare against the Loop and
+# Agentic columns of rq1 on the same sample (seed 42 draws the same questions
+# for every run of a dataset); rq1.yaml itself stays as it was run in March.
+#
+# Paper defaults: max_steps 8, K tuned per dataset from {2,4,6,8}, 15
+# collected paragraphs, BM25. Ours: K=8, cap M=30 (retrieval.max_passages),
+# hybrid retriever. The run manifest records both (ircot_params_by_pipeline).
+
+name: "External: IRCoT under the controlled protocol"
+description: >
+  Interleaving Retrieval with Chain-of-Thought on the shared retriever and
+  reader, so the controlled comparison covers a method from outside this
+  codebase.
+
+variants:
+  - name: IRCoT
+    pipeline: ircot
+    ircot:
+      max_steps: 8
+      per_step_k: 8

@@ -393,3 +393,25 @@ def test_one_call_of_drift_is_tolerated(tmp_path):
     rows = [_row(0), _row(1, llm_calls=5, metered_calls=4)]
     checks = verify_run_dir(_write_run(tmp_path, rows, _manifest(), _summary()))
     assert not any(c.name.endswith("drifts from metered") and c.status == WARN for c in checks)
+
+
+# ---------------------------------------------------------------------------
+# IRCoT step bound
+# ---------------------------------------------------------------------------
+def _ircot_manifest(max_steps: int) -> dict:
+    return _manifest(
+        pipeline_by_variant={"Naive RAG": "ircot"},
+        ircot_params_by_pipeline={"Naive RAG": {"max_steps": max_steps, "per_step_k": 8}},
+    )
+
+
+def test_ircot_rows_over_the_step_bound_fail(tmp_path):
+    rows = [_row(0, llm_calls=5), _row(1, llm_calls=6)]
+    run = _write_run(tmp_path, rows, _ircot_manifest(4), _summary())
+    assert "ircot steps" in _failed(verify_run_dir(run))
+
+
+def test_ircot_rows_within_the_step_bound_pass(tmp_path):
+    rows = [_row(0, llm_calls=5), _row(1, llm_calls=3)]
+    run = _write_run(tmp_path, rows, _ircot_manifest(4), _summary())
+    assert not _failed(verify_run_dir(run))

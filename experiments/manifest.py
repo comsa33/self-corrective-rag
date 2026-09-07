@@ -149,6 +149,9 @@ class RunManifest(BaseModel):
     # because only the loop can spend a budget deterministically.
     llm_call_budget_by_pipeline: dict[str, int | None] = Field(default_factory=dict)
     pipeline_by_variant: dict[str, str] = Field(default_factory=dict)
+    # IRCoT variants: our parameters next to the paper's (max_steps,
+    # per_step_k, max_paragraphs, retriever, reader).
+    ircot_params_by_pipeline: dict[str, dict] = Field(default_factory=dict)
     models: list[ModelSlotRecord]
     preflight: dict = Field(default_factory=lambda: {"status": "pending"})
     observed_response_models: list[str] = Field(default_factory=list)
@@ -249,12 +252,14 @@ def build_manifest(
     max_passages_by_pipeline: dict[str, int | None] | None = None,
     llm_call_budget_by_pipeline: dict[str, int | None] | None = None,
     pipeline_by_variant: dict[str, str] | None = None,
+    ircot_params_by_pipeline: dict[str, dict] | None = None,
 ) -> RunManifest:
     """Snapshot the process-wide settings and environment for one run."""
     return RunManifest(
         max_passages_by_pipeline=max_passages_by_pipeline or {},
         llm_call_budget_by_pipeline=llm_call_budget_by_pipeline or {},
         pipeline_by_variant=pipeline_by_variant or {},
+        ircot_params_by_pipeline=ircot_params_by_pipeline or {},
         run_id=run_id,
         run_key=run_key,
         repeat_index=repeat_index,

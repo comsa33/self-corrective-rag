@@ -346,6 +346,8 @@ def settings_snapshot() -> dict:
         "enabled_tools": settings.agent.enabled_tools,
         "agent_max_iterations": settings.agent.max_iterations,
         "llm_call_budget": settings.experiment.llm_call_budget,
+        "ircot_max_steps": settings.ircot.max_steps,
+        "ircot_per_step_k": settings.ircot.per_step_k,
         "max_tokens": settings.model.max_tokens,
         "temperature": settings.model.temperature,
         "models": {

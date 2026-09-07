@@ -1,0 +1,8 @@
+# IRCoT (Trivedi et al., ACL 2023) — interleaved retrieval and chain-of-thought,
+# re-implemented on this project's retriever and shared generation signature.
+# Defaults follow the paper where it fixes a value (max_steps 8); see
+# agentic_rag/pipeline/ircot.py for every deviation and its reason.
+pipeline: ircot
+ircot:
+  max_steps: 8
+  per_step_k: 8
