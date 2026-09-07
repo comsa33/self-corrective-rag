@@ -12,12 +12,14 @@ Results are auto-logged for inclusion in the paper.
 from __future__ import annotations
 
 import json
+import threading
 import time
 from collections import defaultdict
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from litellm.integrations.custom_logger import CustomLogger
 from loguru import logger
 
 # ---------------------------------------------------------------------------
@@ -254,3 +256,175 @@ class CostTracker:
         """Clear all records."""
         self.records.clear()
         self._stage_timers.clear()
+
+
+# ---------------------------------------------------------------------------
+# Measured usage (litellm callback)
+# ---------------------------------------------------------------------------
+# `CostTracker` above prices calls from a hand-maintained table, which is only
+# ever an estimate: it does not know about cached-prompt discounts, reasoning
+# tokens, or a provider's actual price list. `LiteLLMMeter` records what
+# litellm itself reports for every completed call -- token breakdown,
+# `response_cost`, and the model snapshot the provider answered with -- so the
+# per-question cost written to a result row is a measurement, not a guess.
+# (The estimate was 2-3x off the measured gpt-5-mini cost in September 2026.)
+#
+# litellm delivers success callbacks from a thread pool *after* the completion
+# returns, while the pre-call hook runs synchronously in the caller's thread.
+# The meter therefore tracks in-flight calls by id and offers `drain()` so a
+# caller can wait for every call it started before reading the numbers.
+
+
+@dataclass
+class MeteredCall:
+    """One completed LLM call as litellm reported it."""
+
+    call_id: str
+    model_spec: str  # model string as requested, e.g. "azure/gpt-5-mini"
+    response_model: str  # model the provider answered with, e.g. "gpt-5-mini-2025-08-07"
+    prompt_tokens: int = 0
+    cached_tokens: int = 0
+    completion_tokens: int = 0
+    reasoning_tokens: int = 0
+    cost_usd: float | None = None
+    latency_ms: float = 0.0
+    started_at: float = 0.0
+    ended_at: float = 0.0
+
+
+def _usage_field(obj, name: str) -> int:
+    value = getattr(obj, name, None) if obj is not None else None
+    return int(value or 0)
+
+
+def empty_usage() -> dict:
+    """The usage block of a result row before any call has been metered."""
+    return {
+        "metered_calls": 0,
+        "prompt_tokens": 0,
+        "cached_tokens": 0,
+        "completion_tokens": 0,
+        "reasoning_tokens": 0,
+        "total_tokens": 0,
+        "cost_usd": 0.0,
+        "calls_without_cost": 0,
+        "response_models": [],
+    }
+
+
+class LiteLLMMeter(CustomLogger):
+    """Collect measured token counts, cost and response model per LLM call.
+
+    Install once per process with `install()`. Aggregate a window of calls
+    with `mark()` before the work and `usage_since(mark)` after it.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._lock = threading.Lock()
+        self._pending: set[str] = set()
+        self.calls: list[MeteredCall] = []
+        self.failures: int = 0
+
+    # -- litellm hooks -------------------------------------------------
+    def log_pre_api_call(self, model, messages, kwargs) -> None:
+        call_id = kwargs.get("litellm_call_id")
+        if call_id:
+            with self._lock:
+                self._pending.add(call_id)
+
+    def log_success_event(self, kwargs, response_obj, start_time, end_time) -> None:
+        usage = getattr(response_obj, "usage", None)
+        prompt_details = getattr(usage, "prompt_tokens_details", None)
+        completion_details = getattr(usage, "completion_tokens_details", None)
+        cost = kwargs.get("response_cost")
+        started = start_time.timestamp() if hasattr(start_time, "timestamp") else 0.0
+        ended = end_time.timestamp() if hasattr(end_time, "timestamp") else 0.0
+        rec = MeteredCall(
+            call_id=kwargs.get("litellm_call_id") or "",
+            model_spec=str(kwargs.get("model") or ""),
+            response_model=str(getattr(response_obj, "model", "") or ""),
+            prompt_tokens=_usage_field(usage, "prompt_tokens"),
+            cached_tokens=_usage_field(prompt_details, "cached_tokens"),
+            completion_tokens=_usage_field(usage, "completion_tokens"),
+            reasoning_tokens=_usage_field(completion_details, "reasoning_tokens"),
+            cost_usd=float(cost) if cost is not None else None,
+            latency_ms=(ended - started) * 1000 if started and ended else 0.0,
+            started_at=started,
+            ended_at=ended,
+        )
+        with self._lock:
+            self.calls.append(rec)
+            self._pending.discard(rec.call_id)
+
+    def log_failure_event(self, kwargs, response_obj, start_time, end_time) -> None:
+        with self._lock:
+            self.failures += 1
+            self._pending.discard(kwargs.get("litellm_call_id") or "")
+
+    # -- lifecycle -----------------------------------------------------
+    def install(self) -> LiteLLMMeter:
+        """Register with litellm, replacing any meter installed earlier."""
+        import litellm
+
+        litellm.callbacks = [
+            cb for cb in (litellm.callbacks or []) if not isinstance(cb, LiteLLMMeter)
+        ] + [self]
+        return self
+
+    def drain(self, timeout: float = 10.0) -> bool:
+        """Wait until every call that started has been reported.
+
+        Returns False if some callback never arrived within `timeout`; the
+        numbers read afterwards are then a lower bound.
+        """
+        deadline = time.monotonic() + timeout
+        while True:
+            with self._lock:
+                if not self._pending:
+                    return True
+            if time.monotonic() >= deadline:
+                with self._lock:
+                    n = len(self._pending)
+                logger.warning(f"LiteLLMMeter: {n} call(s) never reported within {timeout}s")
+                return False
+            time.sleep(0.01)
+
+    # -- aggregation ---------------------------------------------------
+    def mark(self) -> int:
+        """Position in the call log; pass to `usage_since` to read a window."""
+        with self._lock:
+            return len(self.calls)
+
+    def usage_since(self, mark: int) -> dict:
+        """Aggregate every call recorded after `mark`."""
+        with self._lock:
+            window = self.calls[mark:]
+        return self._aggregate(window)
+
+    def usage_total(self) -> dict:
+        with self._lock:
+            window = list(self.calls)
+        return self._aggregate(window)
+
+    @property
+    def observed_models(self) -> set[str]:
+        with self._lock:
+            return {c.response_model for c in self.calls if c.response_model}
+
+    @staticmethod
+    def _aggregate(window: list[MeteredCall]) -> dict:
+        out = empty_usage()
+        for c in window:
+            out["metered_calls"] += 1
+            out["prompt_tokens"] += c.prompt_tokens
+            out["cached_tokens"] += c.cached_tokens
+            out["completion_tokens"] += c.completion_tokens
+            out["reasoning_tokens"] += c.reasoning_tokens
+            if c.cost_usd is None:
+                out["calls_without_cost"] += 1
+            else:
+                out["cost_usd"] += c.cost_usd
+        out["total_tokens"] = out["prompt_tokens"] + out["completion_tokens"]
+        out["response_models"] = sorted({c.response_model for c in window if c.response_model})
+        return out

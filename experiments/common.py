@@ -18,6 +18,7 @@ from rich.console import Console
 from rich.table import Table
 
 from agentic_rag.config.settings import make_lm, settings
+from agentic_rag.evaluation.cost_tracker import LiteLLMMeter, empty_usage
 from agentic_rag.evaluation.metrics import evaluate_batch
 from agentic_rag.pipeline.base import BasePipeline
 from agentic_rag.retriever.hybrid import HybridRetriever
@@ -25,15 +26,28 @@ from agentic_rag.retriever.indexer import DocumentIndexer
 
 console = Console()
 
+# Process-wide usage meter, installed by `setup_experiment`. Every LLM call made
+# through litellm after that point is recorded here, which is what lets a
+# result row carry the measured tokens and cost of its own question.
+_meter: LiteLLMMeter | None = None
+
+
+def get_meter() -> LiteLLMMeter | None:
+    """The installed usage meter, or None before `setup_experiment` ran."""
+    return _meter
+
 
 # ---------------------------------------------------------------------------
 # Setup
 # ---------------------------------------------------------------------------
 def setup_experiment(seed: int | None = None) -> None:
     """Initialize experiment environment with reproducible seed."""
+    global _meter
     seed = seed or settings.experiment.seed
     random.seed(seed)
     np.random.seed(seed)
+
+    _meter = LiteLLMMeter().install()
 
     # Turn the response cache off before any LM is built. At temperature=0 a
     # rerun would otherwise replay cached completions in milliseconds, which
@@ -179,11 +193,20 @@ def run_pipeline_on_dataset(
         reference = item.get("answer", "")
 
         record: dict = {}
+        meter = get_meter()
         for attempt in range(max_item_retries + 1):
+            mark = meter.mark() if meter is not None else 0
             start = time.perf_counter()
             try:
                 result = pipeline.run(question)
                 latency = time.perf_counter() - start
+                # Read the meter only after every call started by this item
+                # has reported; litellm delivers success callbacks late.
+                if meter is not None:
+                    meter.drain()
+                    usage = meter.usage_since(mark)
+                else:
+                    usage = empty_usage()
                 record = {
                     "id": item_id,
                     "question": question,
@@ -203,6 +226,11 @@ def run_pipeline_on_dataset(
                     # Mediation analysis fields
                     "tool_score_trace": result.tool_score_trace,
                     "question_difficulty": _extract_question_difficulty(item),
+                    # Measured usage of this question alone (litellm callback).
+                    # `llm_calls` above is the pipeline's own count; the two
+                    # differ when litellm retried a call or a tool call went
+                    # uncounted, so both are kept.
+                    **usage,
                 }
                 done_ids.add(item_id)
                 break
