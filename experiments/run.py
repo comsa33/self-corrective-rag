@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import argparse
 import sys
-import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -55,15 +54,30 @@ def _model_tag() -> str:
     return name
 
 
-def _new_run_dir(stem: str, dataset_name: str, n: int) -> Path:
-    """Result directory for one run: ``<stamp>_<stem>_<dataset>_n<N>_<model>``.
+def _plan(
+    stem: str,
+    dataset_name: str,
+    n: int,
+    repeat_index: int | None,
+    resume: str | None,
+    force: bool,
+) -> RunPlan:
+    """Run id, result directory and checkpoint directory for this run.
 
-    The stamp is taken when the run starts, so the directory name is also
-    the run id recorded in its manifest.
+    See `experiments.manifest.plan_run`: checkpoints are keyed by run id so
+    nothing resumes by accident, `resume` continues a named run, and a
+    finished run with the same key blocks a fresh start unless forced.
     """
-    run_timestamp = time.strftime("%Y%m%d_%H%M%S")
-    n_label = f"n{n}" if n else ""
-    return settings.results_dir / f"{run_timestamp}_{stem}_{dataset_name}_{n_label}_{_model_tag()}"
+    return plan_run(
+        settings.results_dir,
+        stem=stem,
+        dataset=dataset_name,
+        model_tag=_model_tag(),
+        n=n,
+        repeat_index=repeat_index,
+        resume=resume,
+        force=force,
+    )
 
 
 from experiments.common import (
@@ -76,7 +90,7 @@ from experiments.common import (
     settings_snapshot,
     setup_experiment,
 )
-from experiments.manifest import build_manifest
+from experiments.manifest import RunPlan, build_manifest, plan_run
 
 console = Console()
 
@@ -101,6 +115,7 @@ def _run_variant(
     trainset: list | None = None,
     checkpoint_dir: Path | None = None,
     run_id: str | None = None,
+    repeat_index: int | None = None,
 ) -> list[dict]:
     """Run a single variant: apply settings, create pipeline, execute.
 
@@ -138,6 +153,7 @@ def _run_variant(
         request_delay=request_delay,
         checkpoint_dir=checkpoint_dir,
         run_id=run_id,
+        repeat_index=repeat_index,
     )
     return results, used
 
@@ -298,6 +314,10 @@ def run_experiment(
     request_delay: float = 0.0,
     compute_llm_judge: bool = False,
     variant_names: list[str] | None = None,
+    *,
+    repeat_index: int | None = None,
+    resume: str | None = None,
+    force: bool = False,
 ) -> dict[str, list[dict]]:
     """Run an experiment defined by a YAML config file.
 
@@ -306,6 +326,10 @@ def run_experiment(
             of magnitude in LLM calls per question, so splitting the expensive
             ones into their own process lets a run finish in the time of its
             slowest pipeline rather than their sum.
+        repeat_index: k of a repeated run; goes into the run id, manifest
+            and every row, and makes the run distinct from the k-less one.
+        resume: run id of an interrupted run to continue under the same id.
+        force: start even though a finished run with the same key exists.
     """
     exp = load_experiment_config(config_path)
 
@@ -360,22 +384,23 @@ def run_experiment(
     all_results: dict[str, list[dict]] = {}
     used_settings: dict[str, dict] = {}
     config_stem = Path(config_path).stem
-    checkpoint_base = (
-        settings.results_dir / "checkpoints" / f"{config_stem}_{dataset_name}_{_model_tag()}"
-    )
 
     # The run directory exists before the first question is asked, so the
     # manifest can be written and the model snapshot checked up front. A run
     # that would produce numbers under the wrong snapshot stops here.
-    run_dir = _new_run_dir(config_stem, dataset_name, len(test_data))
+    plan = _plan(config_stem, dataset_name, len(test_data), repeat_index, resume, force)
+    run_dir = plan.run_dir
     manifest = build_manifest(
-        run_id=run_dir.name,
+        run_id=plan.run_id,
         experiment=exp.name,
         dataset=dataset_name,
         n=len(test_data),
         variants=[v.name for v in exp.variants],
         config_path=config_path,
         sample_size=sample_size,
+        run_key=plan.run_key,
+        repeat_index=plan.repeat_index,
+        attempt=plan.attempt,
     )
     manifest.run_preflight(run_dir, get_meter())
 
@@ -389,8 +414,9 @@ def run_experiment(
             indexer,
             request_delay,
             trainset=trainset if variant.optimization else None,
-            checkpoint_dir=checkpoint_base / slug,
-            run_id=run_dir.name,
+            checkpoint_dir=plan.checkpoint_dir / slug,
+            run_id=plan.run_id,
+            repeat_index=plan.repeat_index,
         )
         all_results[variant.name] = results
         used_settings[variant.name] = used
@@ -425,6 +451,10 @@ def run_ablation(
     variant_names: list[str] | None = None,
     request_delay: float = 0.0,
     compute_llm_judge: bool = False,
+    *,
+    repeat_index: int | None = None,
+    resume: str | None = None,
+    force: bool = False,
 ) -> dict[str, list[dict]]:
     """Run ablation study from configs/ablation/ directory."""
     variants = load_ablation_configs()
@@ -444,17 +474,18 @@ def run_ablation(
 
     all_results: dict[str, list[dict]] = {}
     used_settings: dict[str, dict] = {}
-    checkpoint_base = (
-        settings.results_dir / "checkpoints" / f"ablation_{dataset_name}_{_model_tag()}"
-    )
-    run_dir = _new_run_dir("ablation", dataset_name, len(dataset))
+    plan = _plan("ablation", dataset_name, len(dataset), repeat_index, resume, force)
+    run_dir = plan.run_dir
     manifest = build_manifest(
-        run_id=run_dir.name,
+        run_id=plan.run_id,
         experiment="ablation",
         dataset=dataset_name,
         n=len(dataset),
         variants=[v.name for v in variants],
         sample_size=sample_size,
+        run_key=plan.run_key,
+        repeat_index=plan.repeat_index,
+        attempt=plan.attempt,
     )
     manifest.run_preflight(run_dir, get_meter())
 
@@ -467,8 +498,9 @@ def run_ablation(
             retriever,
             indexer,
             request_delay,
-            checkpoint_dir=checkpoint_base / slug,
-            run_id=run_dir.name,
+            checkpoint_dir=plan.checkpoint_dir / slug,
+            run_id=plan.run_id,
+            repeat_index=plan.repeat_index,
         )
         all_results[variant.name] = results
         used_settings[variant.name] = used
@@ -502,6 +534,9 @@ def run_all(
     skip: list[str] | None = None,
     request_delay: float = 0.0,
     compute_llm_judge: bool = False,
+    *,
+    repeat_index: int | None = None,
+    force: bool = False,
 ) -> None:
     """Run all experiments + ablation study."""
     skip = skip or []
@@ -512,7 +547,15 @@ def run_all(
             logger.info(f"Skipping {exp_name}")
             continue
         try:
-            run_experiment(config_path, dataset_name, sample_size, request_delay, compute_llm_judge)
+            run_experiment(
+                config_path,
+                dataset_name,
+                sample_size,
+                request_delay,
+                compute_llm_judge,
+                repeat_index=repeat_index,
+                force=force,
+            )
         except Exception as e:
             logger.error(f"{exp_name} failed: {e}")
 
@@ -523,6 +566,8 @@ def run_all(
                 sample_size,
                 request_delay=request_delay,
                 compute_llm_judge=compute_llm_judge,
+                repeat_index=repeat_index,
+                force=force,
             )
         except Exception as e:
             logger.error(f"Ablation failed: {e}")
@@ -585,16 +630,59 @@ def main():
         action="store_true",
         help="Compute LLM-as-Judge correctness metric (uses evaluate_model)",
     )
+    parser.add_argument(
+        "--repeat-index",
+        type=int,
+        default=None,
+        metavar="K",
+        help="Repetition number of this run; recorded in run id, manifest and rows",
+    )
+    parser.add_argument(
+        "--resume",
+        default=None,
+        metavar="RUN_ID",
+        help="Continue an interrupted run under the same run id (checkpoints are reused)",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Start even though a finished run with the same key already exists",
+    )
 
     args = parser.parse_args()
 
     if args.run_all:
-        run_all(args.dataset, args.sample, args.skip, args.delay, args.llm_judge)
+        run_all(
+            args.dataset,
+            args.sample,
+            args.skip,
+            args.delay,
+            args.llm_judge,
+            repeat_index=args.repeat_index,
+            force=args.force,
+        )
     elif args.ablation:
-        run_ablation(args.dataset, args.sample, args.variants, args.delay, args.llm_judge)
+        run_ablation(
+            args.dataset,
+            args.sample,
+            args.variants,
+            args.delay,
+            args.llm_judge,
+            repeat_index=args.repeat_index,
+            resume=args.resume,
+            force=args.force,
+        )
     elif args.config:
         run_experiment(
-            args.config, args.dataset, args.sample, args.delay, args.llm_judge, args.variants
+            args.config,
+            args.dataset,
+            args.sample,
+            args.delay,
+            args.llm_judge,
+            args.variants,
+            repeat_index=args.repeat_index,
+            resume=args.resume,
+            force=args.force,
         )
     else:
         parser.print_help()

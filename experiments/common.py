@@ -132,6 +132,7 @@ def run_pipeline_on_dataset(
     max_item_retries: int = 2,
     retry_backoff: float = 30.0,
     run_id: str | None = None,
+    repeat_index: int | None = None,
 ) -> list[dict]:
     """Run a pipeline on a dataset and collect results.
 
@@ -163,7 +164,7 @@ def run_pipeline_on_dataset(
     results: list[dict] = []
     checkpoint_path = None
     done_ids: set[str] = set()
-    provenance = row_provenance(run_id)
+    provenance = row_provenance(run_id, repeat_index)
 
     # Resume from checkpoint if exists
     if checkpoint_dir is not None:
@@ -300,10 +301,11 @@ def run_pipeline_on_dataset(
     return results
 
 
-def row_provenance(run_id: str | None) -> dict:
+def row_provenance(run_id: str | None, repeat_index: int | None = None) -> dict:
     """The stamp every result row carries: which run, code and cache made it."""
     return {
         "run_id": run_id,
+        "repeat_index": repeat_index,
         "git_commit": git_state()["commit"],
         "llm_cache_disabled": settings.disable_llm_cache,
     }

@@ -80,6 +80,7 @@ REQUIRED_ROW_FIELDS = (
     "usage_complete",
     # provenance (row_provenance): which run, commit and cache setting made it
     "run_id",
+    "repeat_index",
     "git_commit",
     "llm_cache_disabled",
 )
@@ -113,6 +114,14 @@ class ModelSlotRecord(BaseModel):
 class RunManifest(BaseModel):
     manifest_version: int = MANIFEST_VERSION
     run_id: str
+    # What this run is a run *of*: config stem, dataset, model tag, n and
+    # repeat index. Two finished runs with the same key are duplicates, and
+    # the runner refuses to start a third unless forced.
+    run_key: str = ""
+    repeat_index: int | None = None
+    # 1 for a fresh run; incremented by each explicit --resume of the same
+    # run_id, whose earlier manifest is kept as manifest.attempt<N>.json.
+    attempt: int = 1
     created_at: str
     finished_at: str | None = None
     command: list[str]
@@ -224,10 +233,16 @@ def build_manifest(
     variants: list[str],
     config_path: str | None = None,
     sample_size: int | None = None,
+    run_key: str = "",
+    repeat_index: int | None = None,
+    attempt: int = 1,
 ) -> RunManifest:
     """Snapshot the process-wide settings and environment for one run."""
     return RunManifest(
         run_id=run_id,
+        run_key=run_key,
+        repeat_index=repeat_index,
+        attempt=attempt,
         created_at=_now(),
         command=list(sys.argv),
         config_path=config_path,
@@ -332,6 +347,118 @@ def package_versions() -> dict:
         except metadata.PackageNotFoundError:
             out[name] = None
     return out
+
+
+# ---------------------------------------------------------------------------
+# Run identity: where a run writes, and whether it may start at all
+# ---------------------------------------------------------------------------
+class DuplicateRunError(RuntimeError):
+    """A finished run with the same key already exists."""
+
+
+class RunPlan(BaseModel):
+    """Where one run writes and what it is a run of."""
+
+    run_id: str
+    run_key: str
+    run_dir: Path
+    checkpoint_dir: Path
+    repeat_index: int | None = None
+    attempt: int = 1
+    resumed: bool = False
+
+
+def make_run_key(stem: str, dataset: str, model_tag: str, n: int, repeat_index: int | None) -> str:
+    k = "" if repeat_index is None else str(repeat_index)
+    return f"{stem}|{dataset}|{model_tag}|n{n}|k{k}"
+
+
+def find_finished_runs(results_dir: Path, run_key: str) -> list[Path]:
+    """Result directories under `results_dir` whose manifest finished with `run_key`."""
+    found: list[Path] = []
+    for path in sorted(Path(results_dir).glob(f"*/{MANIFEST_FILENAME}")):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if data.get("run_key") == run_key and data.get("finished_at"):
+            found.append(path.parent)
+    return found
+
+
+def plan_run(
+    results_dir: Path,
+    *,
+    stem: str,
+    dataset: str,
+    model_tag: str,
+    n: int,
+    repeat_index: int | None = None,
+    resume: str | None = None,
+    force: bool = False,
+) -> RunPlan:
+    """Decide the run id, result directory and checkpoint directory of a run.
+
+    Checkpoints live under the run id, so a new run never silently picks up
+    another run's rows. Continuing an interrupted run is explicit: `resume`
+    names the run id, its earlier manifest is archived as
+    manifest.attempt<N>.json, and the run proceeds under the same id.
+
+    A fresh run whose key (config, dataset, model, n, repeat index) already
+    has a finished directory is refused, so a repeat is never overwritten or
+    paid for twice by accident; `force` overrides that.
+    """
+    results_dir = Path(results_dir)
+    run_key = make_run_key(stem, dataset, model_tag, n, repeat_index)
+
+    if resume:
+        run_dir = results_dir / resume
+        manifest_path = run_dir / MANIFEST_FILENAME
+        if not manifest_path.exists():
+            raise FileNotFoundError(
+                f"Cannot resume {resume!r}: no {MANIFEST_FILENAME} under {run_dir}"
+            )
+        previous = RunManifest.load(run_dir)
+        if previous.finished_at and not force:
+            raise DuplicateRunError(
+                f"Run {resume!r} already finished at {previous.finished_at}; "
+                f"pass --force to run it again"
+            )
+        if previous.run_key and previous.run_key != run_key:
+            raise ValueError(
+                f"Cannot resume {resume!r}: it is a run of {previous.run_key!r}, "
+                f"but this command describes {run_key!r}"
+            )
+        attempt = previous.attempt + 1
+        manifest_path.rename(run_dir / f"manifest.attempt{previous.attempt}.json")
+        logger.info(f"Resuming run {resume} (attempt {attempt})")
+        return RunPlan(
+            run_id=resume,
+            run_key=run_key,
+            run_dir=run_dir,
+            checkpoint_dir=results_dir / "checkpoints" / resume,
+            repeat_index=previous.repeat_index,
+            attempt=attempt,
+            resumed=True,
+        )
+
+    duplicates = find_finished_runs(results_dir, run_key)
+    if duplicates and not force:
+        raise DuplicateRunError(
+            f"A finished run of {run_key!r} already exists: "
+            f"{[d.name for d in duplicates]}. Use --repeat-index for another repetition, "
+            f"--resume <run_id> to continue one, or --force to run it again anyway."
+        )
+
+    suffix = "" if repeat_index is None else f"_k{repeat_index}"
+    run_id = f"{time.strftime('%Y%m%d_%H%M%S')}_{stem}_{dataset}_n{n}_{model_tag}{suffix}"
+    return RunPlan(
+        run_id=run_id,
+        run_key=run_key,
+        run_dir=results_dir / run_id,
+        checkpoint_dir=results_dir / "checkpoints" / run_id,
+        repeat_index=repeat_index,
+    )
 
 
 # ---------------------------------------------------------------------------

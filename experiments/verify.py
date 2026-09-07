@@ -105,6 +105,44 @@ def verify_run_dir(
     return checks
 
 
+def verify_repeat_set(run_dirs: list[str | Path]) -> list[Check]:
+    """Checks across several result directories that form repeated runs.
+
+    Runs are grouped by config, dataset and model. Within a group the
+    repeat indices must be unique and contiguous from 1 and every run must
+    have the same n, or a mean over the repeats would be computed over an
+    incomplete or uneven set.
+    """
+    groups: dict[str, list[tuple[str, RunManifest]]] = {}
+    for run_dir in run_dirs:
+        m = load_manifest_or_none(Path(run_dir))
+        if m is None or not m.run_key:
+            continue
+        base = "|".join(m.run_key.split("|")[:3])  # stem|dataset|model
+        groups.setdefault(base, []).append((Path(run_dir).name, m))
+
+    out: list[Check] = []
+    for base, members in sorted(groups.items()):
+        if len(members) < 2:
+            continue
+        label = f"repeat set {base}"
+        ks = [m.repeat_index for _, m in members]
+        missing_k = [name for name, m in members if m.repeat_index is None]
+        out.append(
+            Check(label, "repeat index present", FAIL if missing_k else OK, f"no k: {missing_k}")
+        )
+        present = sorted(k for k in ks if k is not None)
+        unique = len(set(present)) == len(present)
+        out.append(Check(label, "repeat index unique", OK if unique else FAIL, f"k={present}"))
+        contiguous = present == list(range(1, len(present) + 1))
+        out.append(
+            Check(label, "repeat index contiguous", OK if contiguous else FAIL, f"k={present}")
+        )
+        ns = sorted({m.n for _, m in members})
+        out.append(Check(label, "same n", OK if len(ns) == 1 else FAIL, f"n={ns}"))
+    return out
+
+
 def _manifest_checks(run: str, m: RunManifest, allow_dirty: bool) -> list[Check]:
     out: list[Check] = []
 

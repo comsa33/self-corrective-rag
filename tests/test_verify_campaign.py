@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from experiments.manifest import REQUIRED_ROW_FIELDS, RunManifest
-from experiments.verify import FAIL, WARN, verify_run_dir
+from experiments.verify import FAIL, WARN, verify_repeat_set, verify_run_dir
 
 SNAPSHOT = "gpt-5-mini-2025-08-07"
 RUN_ID = "run"
@@ -23,6 +23,7 @@ def _row(i: int, **overrides) -> dict:
     row = {f: None for f in REQUIRED_ROW_FIELDS}
     row.update(
         run_id=RUN_ID,
+        repeat_index=None,
         git_commit=COMMIT,
         llm_cache_disabled=True,
         id=f"q{i}",
@@ -241,3 +242,63 @@ def test_march_2026_paper_run_is_rejected():
         pytest.skip("paper results not on this machine")
     run = next(paper.glob("*_rq1_2wikimultihopqa_*"))
     assert "manifest" in _failed(verify_run_dir(run, n=200))
+
+
+# ---------------------------------------------------------------------------
+# Repeated runs checked as a set
+# ---------------------------------------------------------------------------
+def _repeat_dirs(tmp_path, ks, ns=None):
+    dirs = []
+    for i, k in enumerate(ks):
+        n = ns[i] if ns else 2
+        d = tmp_path / f"run_k{k}"
+        d.mkdir()
+        _write_run(
+            d,
+            [_row(0), _row(1)],
+            _manifest(
+                run_id=d.name,
+                run_key=f"rq1|2wikimultihopqa|gpt-5-mini|n{n}|k{k}",
+                repeat_index=k,
+                n=n,
+            ),
+            _summary(),
+        )
+        dirs.append(d)
+    return dirs
+
+
+def _set_failed(checks) -> set[str]:
+    return {c.name for c in checks if c.status == FAIL}
+
+
+def test_complete_repeat_set_passes(tmp_path):
+    assert not _set_failed(verify_repeat_set(_repeat_dirs(tmp_path, [1, 2, 3])))
+
+
+def test_gap_in_repeat_indices_fails(tmp_path):
+    assert "repeat index contiguous" in _set_failed(
+        verify_repeat_set(_repeat_dirs(tmp_path, [1, 3]))
+    )
+
+
+def test_duplicate_repeat_index_fails(tmp_path):
+    dirs = _repeat_dirs(tmp_path, [1, 2])
+    # a second directory claiming k=2
+    d = tmp_path / "run_k2_again"
+    d.mkdir()
+    _write_run(
+        d,
+        [_row(0), _row(1)],
+        _manifest(run_id=d.name, run_key="rq1|2wikimultihopqa|gpt-5-mini|n2|k2", repeat_index=2),
+        _summary(),
+    )
+    assert "repeat index unique" in _set_failed(verify_repeat_set([*dirs, d]))
+
+
+def test_uneven_n_across_repeats_fails(tmp_path):
+    assert "same n" in _set_failed(verify_repeat_set(_repeat_dirs(tmp_path, [1, 2], ns=[2, 3])))
+
+
+def test_single_run_is_not_a_repeat_set(tmp_path):
+    assert verify_repeat_set(_repeat_dirs(tmp_path, [1])) == []

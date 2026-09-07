@@ -21,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from rich.console import Console
 from rich.table import Table
 
-from experiments.verify import FAIL, OK, WARN, verify_run_dir
+from experiments.verify import FAIL, OK, WARN, verify_repeat_set, verify_run_dir
 
 STYLE = {OK: "green", WARN: "yellow", FAIL: "bold red"}
 
@@ -40,6 +40,7 @@ def main() -> int:
     all_checks = []
     for run_dir in args.run_dirs:
         all_checks.extend(verify_run_dir(run_dir, n=args.n, allow_dirty=args.allow_dirty))
+    all_checks.extend(verify_repeat_set(args.run_dirs))
 
     table = Table(title="Campaign verification")
     table.add_column("run", style="cyan", overflow="fold")
