@@ -22,7 +22,9 @@ judge_module = pytest.importorskip("scripts.run_llm_judge", reason="requires scr
 
 
 def _rows(path: Path) -> list[dict]:
-    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    return [
+        json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()
+    ]
 
 
 def test_key_separates_same_id_across_pipelines():

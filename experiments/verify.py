@@ -97,7 +97,7 @@ def verify_run_dir(
         )
 
     for path in files:
-        checks.extend(_rows_checks(run, path, target_n, expected))
+        checks.extend(_rows_checks(run, path, target_n, expected, manifest))
         checks.extend(_summary_checks(run, path))
 
     return checks
@@ -151,7 +151,13 @@ def _expected_snapshots(m: RunManifest | None) -> set[str]:
     return {r.expected_response_model for r in m.models if r.expected_response_model}
 
 
-def _rows_checks(run: str, path: Path, n: int | None, expected: set[str]) -> list[Check]:
+def _rows_checks(
+    run: str,
+    path: Path,
+    n: int | None,
+    expected: set[str],
+    manifest: RunManifest | None,
+) -> list[Check]:
     out: list[Check] = []
     tag = path.stem
 
@@ -191,6 +197,46 @@ def _rows_checks(run: str, path: Path, n: int | None, expected: set[str]) -> lis
             {m for r in valid for m in r.get("response_models", []) if m not in expected}
         )
         add("row snapshots", not stray, f"unexpected response.model in rows: {stray}")
+
+    if manifest is not None:
+        out.extend(_provenance_checks(run, tag, valid, manifest))
+    return out
+
+
+def _provenance_checks(run: str, tag: str, rows: list[dict], m: RunManifest) -> list[Check]:
+    """Rows reused from a checkpoint must have been made under this manifest's code.
+
+    A resumed run carries rows written by an earlier process. They are
+    acceptable only if that process ran the same commit with the cache off
+    and got answers from the pinned snapshot (checked with the other rows);
+    otherwise the manifest would vouch for conditions it did not produce.
+    """
+    out: list[Check] = []
+
+    def add(name, ok, detail="", *, warn=False):
+        out.append(Check(run, f"{tag}: {name}", OK if ok else (WARN if warn else FAIL), detail))
+
+    unstamped = sum(1 for r in rows if not r.get("run_id") or not r.get("git_commit"))
+    add("provenance", unstamped == 0, f"{unstamped} row(s) without run_id/git_commit stamp")
+
+    cached = sum(1 for r in rows if r.get("llm_cache_disabled") is False)
+    add("row cache", cached == 0, f"{cached} row(s) made with the response cache on")
+
+    foreign = [r for r in rows if r.get("run_id") and r.get("run_id") != m.run_id]
+    if not foreign:
+        return out
+    sources = sorted({str(r.get("run_id")) for r in foreign})
+    other_commit = sorted(
+        {str(r.get("git_commit")) for r in foreign if r.get("git_commit") != m.git.get("commit")}
+    )
+    add(
+        "resumed rows commit",
+        not other_commit,
+        f"{len(foreign)} resumed row(s) from {sources}; commits differ from manifest: "
+        f"{[c[:10] for c in other_commit]}",
+    )
+    if not other_commit:
+        add("resumed rows", False, f"{len(foreign)} row(s) resumed from {sources}", warn=True)
     return out
 
 

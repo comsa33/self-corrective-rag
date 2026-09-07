@@ -115,3 +115,39 @@ def test_resume_reports_only_successful_items_as_done(tmp_path):
     records = [json.loads(x) for x in checkpoint.read_text(encoding="utf-8").splitlines() if x]
     assert sum(1 for r in records if "error" in r) == 1
     assert len(records) == 5
+
+
+# ---------------------------------------------------------------------------
+# Provenance of resumed rows
+# ---------------------------------------------------------------------------
+def test_rows_are_stamped_with_their_own_run(tmp_path):
+    """A resumed row keeps the run_id of the process that produced it."""
+    dataset = _dataset(3)
+
+    first = FlakyPipeline(fail_questions={"question 2"}, fail_times=999)
+    run_pipeline_on_dataset(
+        first, dataset, "p", checkpoint_dir=tmp_path, run_id="run_A", max_item_retries=0
+    )
+
+    second = FlakyPipeline(fail_questions=set())
+    rows = run_pipeline_on_dataset(second, dataset, "p", checkpoint_dir=tmp_path, run_id="run_B")
+
+    by_id = {r["id"]: r for r in rows}
+    assert by_id["q0"]["run_id"] == "run_A", "reused row must keep its origin"
+    assert by_id["q1"]["run_id"] == "run_A"
+    assert by_id["q2"]["run_id"] == "run_B", "retried row is made by this run"
+    assert all(len(r["git_commit"]) == 40 for r in rows)
+    assert all("llm_cache_disabled" in r for r in rows)
+
+
+def test_manifest_records_resumed_rows(tmp_path):
+    from experiments.manifest import resumed_rows
+
+    rows = {
+        "Naive RAG": [{"id": "q0", "run_id": "run_A"}, {"id": "q1", "run_id": "run_B"}],
+        "Loop": [{"id": "q0", "run_id": "run_B"}],
+    }
+    resumed = resumed_rows("run_B", rows)
+    assert resumed["rows_reused"] == 1
+    assert resumed["source_run_ids"] == ["run_A"]
+    assert resumed["by_variant"] == {"Naive RAG": {"rows_reused": 1, "source_run_ids": ["run_A"]}}

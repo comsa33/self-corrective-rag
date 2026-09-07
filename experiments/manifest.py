@@ -77,6 +77,10 @@ REQUIRED_ROW_FIELDS = (
     "reasoning_tokens",
     "cost_usd",
     "response_models",
+    # provenance (row_provenance): which run, commit and cache setting made it
+    "run_id",
+    "git_commit",
+    "llm_cache_disabled",
 )
 
 # Request parameters that carry credentials or routing and are not part of the
@@ -129,6 +133,10 @@ class RunManifest(BaseModel):
     preflight: dict = Field(default_factory=lambda: {"status": "pending"})
     observed_response_models: list[str] = Field(default_factory=list)
     usage_total: dict | None = None
+    # Rows reused from a checkpoint written by an earlier process. Those rows
+    # were made under that process's conditions, not this manifest's, and
+    # carry their own run_id / git_commit stamps for the verifier to compare.
+    resumed: dict | None = None
 
     # -- persistence ---------------------------------------------------
     def save(self, run_dir: Path) -> Path:
@@ -186,13 +194,20 @@ class RunManifest(BaseModel):
             )
         logger.info(f"Preflight OK: {[(r.slot, r.observed_response_model) for r in self.models]}")
 
-    def finish_run(self, run_dir: Path, meter: LiteLLMMeter | None) -> None:
+    def finish_run(
+        self,
+        run_dir: Path,
+        meter: LiteLLMMeter | None,
+        results: dict[str, list[dict]] | None = None,
+    ) -> None:
         """Record what the whole run observed, then rewrite the manifest."""
         self.finished_at = _now()
         if meter is not None:
             meter.drain()
             self.observed_response_models = sorted(meter.observed_models)
             self.usage_total = meter.usage_total()
+        if results is not None:
+            self.resumed = resumed_rows(self.run_id, results)
         self.save(run_dir)
 
 
@@ -349,6 +364,22 @@ def _observe_response_model(spec: str, run_id: str, meter: LiteLLMMeter) -> str 
         logger.warning(f"Preflight for {spec}: no response was metered")
         return None
     return calls[-1].response_model or None
+
+
+def resumed_rows(run_id: str, results: dict[str, list[dict]]) -> dict:
+    """Count, per variant, the rows that were not produced by `run_id`."""
+    by_variant: dict[str, dict] = {}
+    all_sources: set[str] = set()
+    total = 0
+    for variant, rows in results.items():
+        foreign = [r for r in rows if r.get("run_id") != run_id]
+        if not foreign:
+            continue
+        sources = sorted({str(r.get("run_id")) for r in foreign})
+        by_variant[variant] = {"rows_reused": len(foreign), "source_run_ids": sources}
+        all_sources.update(sources)
+        total += len(foreign)
+    return {"rows_reused": total, "source_run_ids": sorted(all_sources), "by_variant": by_variant}
 
 
 def load_manifest_or_none(run_dir: Path) -> RunManifest | None:

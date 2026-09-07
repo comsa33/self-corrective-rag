@@ -23,6 +23,7 @@ from agentic_rag.evaluation.metrics import evaluate_batch
 from agentic_rag.pipeline.base import BasePipeline
 from agentic_rag.retriever.hybrid import HybridRetriever
 from agentic_rag.retriever.indexer import DocumentIndexer
+from experiments.manifest import git_state
 
 console = Console()
 
@@ -124,8 +125,14 @@ def run_pipeline_on_dataset(
     checkpoint_dir: Path | None = None,
     max_item_retries: int = 2,
     retry_backoff: float = 30.0,
+    run_id: str | None = None,
 ) -> list[dict]:
     """Run a pipeline on a dataset and collect results.
+
+    Every row is stamped with the run it was produced in (`run_id`, the git
+    commit and the cache flag). A resumed run reuses rows written by an
+    earlier process, and those rows keep their own stamp, so a result file
+    can always say which of its rows were made under which conditions.
 
     Resumption is keyed on question id rather than position, and only items
     that completed successfully are treated as done. An item that failed —
@@ -142,11 +149,15 @@ def run_pipeline_on_dataset(
             with each attempt so a rate-limited run backs off rather than
             burning its remaining quota.
 
+        run_id: Identifier of this run (its result directory name). Rows
+            loaded from a checkpoint keep the run_id they were made in.
+
     Returns list of result dicts with predictions and metadata.
     """
     results: list[dict] = []
     checkpoint_path = None
     done_ids: set[str] = set()
+    provenance = row_provenance(run_id)
 
     # Resume from checkpoint if exists
     if checkpoint_dir is not None:
@@ -167,9 +178,11 @@ def run_pipeline_on_dataset(
                         continue
                     results.append(record)
                     done_ids.add(str(record.get("id")))
+            source_runs = sorted({str(r.get("run_id")) for r in results})
             logger.info(
                 f"[{pipeline_name}] Resumed from checkpoint: "
-                f"{len(done_ids)}/{len(dataset)} done, {n_retry} to retry"
+                f"{len(done_ids)}/{len(dataset)} done, {n_retry} to retry; "
+                f"reused rows come from run(s) {source_runs}"
             )
 
     def _save_checkpoint() -> None:
@@ -231,6 +244,7 @@ def run_pipeline_on_dataset(
                     # differ when litellm retried a call or a tool call went
                     # uncounted, so both are kept.
                     **usage,
+                    **provenance,
                 }
                 done_ids.add(item_id)
                 break
@@ -252,6 +266,7 @@ def run_pipeline_on_dataset(
                     "prediction": "",
                     "error": str(e),
                     "pipeline": pipeline_name,
+                    **provenance,
                 }
 
         results.append(record)
@@ -269,6 +284,15 @@ def run_pipeline_on_dataset(
         )
 
     return results
+
+
+def row_provenance(run_id: str | None) -> dict:
+    """The stamp every result row carries: which run, code and cache made it."""
+    return {
+        "run_id": run_id,
+        "git_commit": git_state()["commit"],
+        "llm_cache_disabled": settings.disable_llm_cache,
+    }
 
 
 # ---------------------------------------------------------------------------

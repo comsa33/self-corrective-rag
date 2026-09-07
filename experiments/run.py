@@ -100,6 +100,7 @@ def _run_variant(
     request_delay: float = 0.0,
     trainset: list | None = None,
     checkpoint_dir: Path | None = None,
+    run_id: str | None = None,
 ) -> list[dict]:
     """Run a single variant: apply settings, create pipeline, execute.
 
@@ -136,6 +137,7 @@ def _run_variant(
         slug,
         request_delay=request_delay,
         checkpoint_dir=checkpoint_dir,
+        run_id=run_id,
     )
     return results, used
 
@@ -388,6 +390,7 @@ def run_experiment(
             request_delay,
             trainset=trainset if variant.optimization else None,
             checkpoint_dir=checkpoint_base / slug,
+            run_id=run_dir.name,
         )
         all_results[variant.name] = results
         used_settings[variant.name] = used
@@ -408,7 +411,7 @@ def run_experiment(
             compute_llm_judge=compute_llm_judge,
             settings_used=used_settings.get(name),
         )
-    manifest.finish_run(run_dir, get_meter())
+    manifest.finish_run(run_dir, get_meter(), all_results)
 
     return all_results
 
@@ -465,6 +468,7 @@ def run_ablation(
             indexer,
             request_delay,
             checkpoint_dir=checkpoint_base / slug,
+            run_id=run_dir.name,
         )
         all_results[variant.name] = results
         used_settings[variant.name] = used
@@ -484,7 +488,7 @@ def run_ablation(
             compute_llm_judge=compute_llm_judge,
             settings_used=used_settings.get(name),
         )
-    manifest.finish_run(run_dir, get_meter())
+    manifest.finish_run(run_dir, get_meter(), all_results)
 
     return all_results
 

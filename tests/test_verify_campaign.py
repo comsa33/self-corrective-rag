@@ -15,11 +15,16 @@ from experiments.manifest import REQUIRED_ROW_FIELDS, RunManifest
 from experiments.verify import FAIL, WARN, verify_run_dir
 
 SNAPSHOT = "gpt-5-mini-2025-08-07"
+RUN_ID = "run"
+COMMIT = "0" * 40
 
 
 def _row(i: int, **overrides) -> dict:
     row = {f: None for f in REQUIRED_ROW_FIELDS}
     row.update(
+        run_id=RUN_ID,
+        git_commit=COMMIT,
+        llm_cache_disabled=True,
         id=f"q{i}",
         question=f"question {i}",
         reference="a",
@@ -45,7 +50,7 @@ def _manifest(**overrides) -> dict:
         "observed_response_model": SNAPSHOT,
     }
     m = {
-        "run_id": "run",
+        "run_id": RUN_ID,
         "created_at": "t",
         "finished_at": "t",
         "command": ["run.py"],
@@ -54,7 +59,7 @@ def _manifest(**overrides) -> dict:
         "n": 2,
         "variants": ["Naive RAG"],
         "seed": 42,
-        "git": {"commit": "0" * 40, "branch": "main", "dirty": False, "modified_files": []},
+        "git": {"commit": COMMIT, "branch": "main", "dirty": False, "modified_files": []},
         "packages": {"dspy": "3.1.3"},
         "cache": {"llm_cache_disabled": True},
         "model_defaults": {},
@@ -195,6 +200,36 @@ def test_summary_without_settings_fails(tmp_path):
 def test_variant_count_must_match_manifest(tmp_path):
     run = _write_run(tmp_path, [_row(0), _row(1)], _manifest(variants=["A", "B"]), _summary())
     assert "variants complete" in _failed(verify_run_dir(run))
+
+
+# ---------------------------------------------------------------------------
+# Resumed runs: rows written by an earlier process
+# ---------------------------------------------------------------------------
+def test_resumed_rows_from_same_commit_only_warn(tmp_path):
+    rows = [_row(0, run_id="earlier_run"), _row(1)]
+    run = _write_run(tmp_path, rows, _manifest(), _summary())
+    checks = verify_run_dir(run)
+    assert not _failed(checks)
+    warned = [c for c in checks if c.status == WARN and c.name.endswith("resumed rows")]
+    assert warned and "earlier_run" in warned[0].detail and "1 row(s)" in warned[0].detail
+
+
+def test_resumed_rows_from_another_commit_fail(tmp_path):
+    rows = [_row(0, run_id="earlier_run", git_commit="f" * 40), _row(1)]
+    run = _write_run(tmp_path, rows, _manifest(), _summary())
+    assert "resumed rows commit" in _failed(verify_run_dir(run))
+
+
+def test_rows_without_provenance_fail(tmp_path):
+    rows = [_row(0, run_id=None, git_commit=None), _row(1)]
+    run = _write_run(tmp_path, rows, _manifest(), _summary())
+    assert "provenance" in _failed(verify_run_dir(run))
+
+
+def test_rows_made_with_cache_on_fail(tmp_path):
+    rows = [_row(0, run_id="earlier_run", llm_cache_disabled=False), _row(1)]
+    run = _write_run(tmp_path, rows, _manifest(), _summary())
+    assert "row cache" in _failed(verify_run_dir(run))
 
 
 def test_march_2026_paper_run_is_rejected():
