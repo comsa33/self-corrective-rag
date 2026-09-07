@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from experiments.manifest import REQUIRED_ROW_FIELDS, RunManifest
-from experiments.verify import FAIL, WARN, verify_repeat_set, verify_run_dir
+from experiments.verify import FAIL, WARN, verify_judged, verify_repeat_set, verify_run_dir
 
 SNAPSHOT = "gpt-5-mini-2025-08-07"
 RUN_ID = "run"
@@ -29,6 +29,7 @@ def _row(i: int, **overrides) -> dict:
         id=f"q{i}",
         question=f"question {i}",
         reference="a",
+        all_references=["a"],
         prediction="a",
         pipeline="naive_rag",
         passages_used=50,
@@ -415,3 +416,42 @@ def test_ircot_rows_within_the_step_bound_pass(tmp_path):
     rows = [_row(0, llm_calls=5), _row(1, llm_calls=3)]
     run = _write_run(tmp_path, rows, _ircot_manifest(4), _summary())
     assert not _failed(verify_run_dir(run))
+
+
+# ---------------------------------------------------------------------------
+# Judge re-scoring (opt-in)
+# ---------------------------------------------------------------------------
+def _write_judged(run: Path, ids: list[str], tag: str = "gpt") -> None:
+    (run / f"rq1_naive_rag_judged_{tag}.jsonl").write_text(
+        "".join(json.dumps({"id": i, "judge": 1}) + "\n" for i in ids)
+    )
+
+
+def test_missing_judged_file_fails(clean_run):
+    assert "judged" in _failed(verify_judged(clean_run, "gpt"))
+
+
+def test_judged_with_same_ids_passes(clean_run):
+    _write_judged(clean_run, ["q0", "q1"])
+    assert not _failed(verify_judged(clean_run, "gpt"))
+
+
+def test_judged_with_different_ids_fails(clean_run):
+    _write_judged(clean_run, ["q0", "q9"])
+    checks = verify_judged(clean_run, "gpt")
+    assert "judged" in _failed(checks)
+    assert any("id sets differ" in c.detail for c in checks)
+
+
+def test_judged_with_fewer_rows_fails(clean_run):
+    _write_judged(clean_run, ["q0"])
+    assert "judged" in _failed(verify_judged(clean_run, "gpt"))
+
+
+def test_all_references_is_required(tmp_path):
+    rows = [_row(0), _row(1)]
+    del rows[0]["all_references"]
+    run = _write_run(tmp_path, rows, _manifest(), _summary())
+    checks = verify_run_dir(run)
+    assert "required fields" in _failed(checks)
+    assert any("all_references" in c.detail for c in checks if c.status == FAIL)

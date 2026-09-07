@@ -113,6 +113,37 @@ def verify_run_dir(
     return checks
 
 
+def verify_judged(run_dir: str | Path, judge_tag: str) -> list[Check]:
+    """Every result file must have a judge re-scoring covering exactly its rows.
+
+    Judging is a separate, later step, so this is opt-in
+    (`--require-judge <tag>`). The judged file is `<stem>_judged_<tag>.jsonl`
+    and must contain the same ids as the result file, no more and no fewer.
+    """
+    run_dir = Path(run_dir)
+    run = run_dir.name
+    out: list[Check] = []
+    for path in _result_files(run_dir):
+        tag = path.stem
+        judged = path.with_name(f"{tag}_judged_{judge_tag}.jsonl")
+        if not judged.exists():
+            out.append(Check(run, f"{tag}: judged", FAIL, f"{judged.name} missing"))
+            continue
+        ids = [str(r.get("id")) for r in _read_rows(path)]
+        judged_ids = [str(r.get("id")) for r in _read_rows(judged)]
+        same = len(judged_ids) == len(ids) and set(judged_ids) == set(ids)
+        out.append(
+            Check(
+                run,
+                f"{tag}: judged",
+                OK if same else FAIL,
+                f"{len(judged_ids)} judged rows for {len(ids)} result rows"
+                + ("" if set(judged_ids) == set(ids) else "; id sets differ"),
+            )
+        )
+    return out
+
+
 def verify_repeat_set(run_dirs: list[str | Path]) -> list[Check]:
     """Checks across several result directories that form repeated runs.
 

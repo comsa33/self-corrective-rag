@@ -21,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from rich.console import Console
 from rich.table import Table
 
-from experiments.verify import FAIL, OK, WARN, verify_repeat_set, verify_run_dir
+from experiments.verify import FAIL, OK, WARN, verify_judged, verify_repeat_set, verify_run_dir
 
 STYLE = {OK: "green", WARN: "yellow", FAIL: "bold red"}
 
@@ -34,12 +34,20 @@ def main() -> int:
         "--allow-dirty", action="store_true", help="Do not fail a run made from a dirty tree"
     )
     parser.add_argument("--only-failures", action="store_true", help="Hide OK rows")
+    parser.add_argument(
+        "--require-judge",
+        metavar="TAG",
+        default=None,
+        help="Also require <file>_judged_<TAG>.jsonl with the same ids for every result file",
+    )
     args = parser.parse_args()
 
     console = Console()
     all_checks = []
     for run_dir in args.run_dirs:
         all_checks.extend(verify_run_dir(run_dir, n=args.n, allow_dirty=args.allow_dirty))
+        if args.require_judge:
+            all_checks.extend(verify_judged(run_dir, args.require_judge))
     all_checks.extend(verify_repeat_set(args.run_dirs))
 
     table = Table(title="Campaign verification")

@@ -58,6 +58,9 @@ REQUIRED_ROW_FIELDS = (
     "id",
     "question",
     "reference",
+    # every accepted answer: refusal/hop analyses take the best F1 over these
+    # and would silently fall back to `reference` alone if missing
+    "all_references",
     "prediction",
     "pipeline",
     "retry_count",
