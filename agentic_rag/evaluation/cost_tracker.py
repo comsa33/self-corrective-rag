@@ -309,6 +309,10 @@ def empty_usage() -> dict:
         "cost_usd": 0.0,
         "calls_without_cost": 0,
         "response_models": [],
+        # False when a call started by this question never reported in
+        # time: the totals above are then a lower bound.
+        "usage_complete": True,
+        "leaked_calls": 0,
     }
 
 
@@ -323,6 +327,11 @@ class LiteLLMMeter(CustomLogger):
         super().__init__()
         self._lock = threading.Lock()
         self._pending: set[str] = set()
+        # Calls whose report did not arrive before `drain` gave up. Their
+        # usage belongs to no row: when the report finally lands it is
+        # dropped rather than counted into whichever question is running.
+        self._leaked: set[str] = set()
+        self.leaked_calls: int = 0
         self.calls: list[MeteredCall] = []
         self.failures: int = 0
 
@@ -354,13 +363,18 @@ class LiteLLMMeter(CustomLogger):
             ended_at=ended,
         )
         with self._lock:
+            if rec.call_id in self._leaked:
+                self._leaked.discard(rec.call_id)
+                return
             self.calls.append(rec)
             self._pending.discard(rec.call_id)
 
     def log_failure_event(self, kwargs, response_obj, start_time, end_time) -> None:
+        call_id = kwargs.get("litellm_call_id") or ""
         with self._lock:
             self.failures += 1
-            self._pending.discard(kwargs.get("litellm_call_id") or "")
+            self._pending.discard(call_id)
+            self._leaked.discard(call_id)
 
     # -- lifecycle -----------------------------------------------------
     def install(self) -> LiteLLMMeter:
@@ -375,8 +389,10 @@ class LiteLLMMeter(CustomLogger):
     def drain(self, timeout: float = 10.0) -> bool:
         """Wait until every call that started has been reported.
 
-        Returns False if some callback never arrived within `timeout`; the
-        numbers read afterwards are then a lower bound.
+        Returns False if some callback never arrived within `timeout`. The
+        numbers read afterwards are then a lower bound, and the missing
+        calls are written off as leaked so that their late reports cannot
+        be counted into the next window.
         """
         deadline = time.monotonic() + timeout
         while True:
@@ -386,7 +402,13 @@ class LiteLLMMeter(CustomLogger):
             if time.monotonic() >= deadline:
                 with self._lock:
                     n = len(self._pending)
-                logger.warning(f"LiteLLMMeter: {n} call(s) never reported within {timeout}s")
+                    self._leaked |= self._pending
+                    self._pending.clear()
+                    self.leaked_calls += n
+                logger.warning(
+                    f"LiteLLMMeter: {n} call(s) never reported within {timeout}s; "
+                    f"their usage is lost to every row"
+                )
                 return False
             time.sleep(0.01)
 

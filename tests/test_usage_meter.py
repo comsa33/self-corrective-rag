@@ -123,3 +123,53 @@ def test_rows_without_a_meter_still_have_the_fields(monkeypatch):
     rows = run_pipeline_on_dataset(_MeteredPipeline(meter), [{"id": "q", "question": "?"}], "p")
     assert rows[0]["metered_calls"] == 0
     assert rows[0]["cost_usd"] == 0.0
+
+
+# ---------------------------------------------------------------------------
+# A call that never reports in time must not be billed to the next question
+# ---------------------------------------------------------------------------
+def test_leaked_call_is_written_off_not_billed_to_next_window():
+    meter = LiteLLMMeter()
+    kwargs = {"litellm_call_id": "slow", "model": "azure/gpt-5-mini", "response_cost": 9.0}
+    meter.log_pre_api_call("azure/gpt-5-mini", [], kwargs)
+    assert meter.drain(timeout=0.05) is False
+    assert meter.leaked_calls == 1
+
+    # Next question starts; the slow report lands now.
+    mark = meter.mark()
+    t0 = datetime.now()
+    meter.log_success_event(kwargs, _response(), t0, t0)
+    _call(meter, "next", cost=0.001)
+
+    usage = meter.usage_since(mark)
+    assert usage["metered_calls"] == 1, "the late report must not appear in this window"
+    assert usage["cost_usd"] == 0.001
+    assert meter.drain(timeout=0.05) is True
+
+
+class _SlowCallbackPipeline:
+    """Every run starts one call whose success report never arrives in time."""
+
+    def __init__(self, meter: LiteLLMMeter) -> None:
+        self.meter = meter
+        self.n = 0
+
+    def run(self, question: str) -> PipelineResult:
+        self.n += 1
+        self.meter.log_pre_api_call("m", [], {"litellm_call_id": f"slow{self.n}"})
+        _call(self.meter, f"fast{self.n}")
+        return PipelineResult(question=question, answer="x", llm_calls=2)
+
+
+def test_row_marks_incomplete_usage(monkeypatch):
+    meter = LiteLLMMeter()
+    monkeypatch.setattr(common, "_meter", meter)
+    monkeypatch.setattr(common, "DRAIN_TIMEOUT_SECONDS", 0.05)
+    dataset = [{"id": "q1", "question": "one"}, {"id": "q2", "question": "two"}]
+
+    rows = run_pipeline_on_dataset(_SlowCallbackPipeline(meter), dataset, "p")
+
+    assert [r["usage_complete"] for r in rows] == [False, False]
+    assert [r["leaked_calls"] for r in rows] == [1, 1]
+    assert [r["metered_calls"] for r in rows] == [1, 1], "only the reported call is counted"
+    assert meter.leaked_calls == 2

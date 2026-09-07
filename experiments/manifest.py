@@ -77,6 +77,7 @@ REQUIRED_ROW_FIELDS = (
     "reasoning_tokens",
     "cost_usd",
     "response_models",
+    "usage_complete",
     # provenance (row_provenance): which run, commit and cache setting made it
     "run_id",
     "git_commit",
@@ -205,7 +206,7 @@ class RunManifest(BaseModel):
         if meter is not None:
             meter.drain()
             self.observed_response_models = sorted(meter.observed_models)
-            self.usage_total = meter.usage_total()
+            self.usage_total = {**meter.usage_total(), "leaked_calls": meter.leaked_calls}
         if results is not None:
             self.resumed = resumed_rows(self.run_id, results)
         self.save(run_dir)

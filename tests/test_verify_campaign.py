@@ -33,6 +33,7 @@ def _row(i: int, **overrides) -> dict:
         llm_calls=1,
         latency_seconds=3.2,
         metered_calls=1,
+        usage_complete=True,
         cost_usd=0.001,
         response_models=[SNAPSHOT],
     )
@@ -128,6 +129,7 @@ def test_missing_manifest_fails(tmp_path):
         ),
         ([_row(0), _row(1, latency_seconds=0.01)], "latency < 1s share"),
         ([_row(0), _row(1, metered_calls=0)], "usage metered"),
+        ([_row(0), _row(1, usage_complete=False)], "usage complete"),
         ([_row(0), _row(1, response_models=["gpt-5-mini-2099"])], "row snapshots"),
     ],
 )

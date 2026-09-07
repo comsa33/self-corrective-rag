@@ -11,6 +11,8 @@ Every check here corresponds to a way a past run was silently wrong:
   latency < 1 s share      cache contamination (see latency_analysis)
   required fields          a table needing a value that was never stored
   metered calls            usage that was not captured cannot be re-measured
+  usage complete           a late callback would bill one question to the next
+  provenance               a resumed row was made by another process
 
 `verify_run_dir` returns the checks; `scripts/verify_campaign.py` prints
 them as a table and exits non-zero when any FAIL remains.
@@ -191,6 +193,8 @@ def _rows_checks(
 
     unmetered = sum(1 for r in valid if not r.get("metered_calls"))
     add("usage metered", unmetered == 0, f"{unmetered} row(s) with no metered call")
+    incomplete = sum(1 for r in valid if r.get("usage_complete") is False)
+    add("usage complete", incomplete == 0, f"{incomplete} row(s) with unreported calls")
 
     if expected:
         stray = sorted(

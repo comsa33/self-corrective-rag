@@ -32,6 +32,12 @@ console = Console()
 # result row carry the measured tokens and cost of its own question.
 _meter: LiteLLMMeter | None = None
 
+# How long to wait after a question for litellm's late success callbacks.
+# A question whose calls have not all reported by then is marked
+# usage_complete=False and its missing calls are written off (see
+# LiteLLMMeter.drain), never counted into the next question.
+DRAIN_TIMEOUT_SECONDS = 10.0
+
 
 def get_meter() -> LiteLLMMeter | None:
     """The installed usage meter, or None before `setup_experiment` ran."""
@@ -209,6 +215,7 @@ def run_pipeline_on_dataset(
         meter = get_meter()
         for attempt in range(max_item_retries + 1):
             mark = meter.mark() if meter is not None else 0
+            leaked_before = meter.leaked_calls if meter is not None else 0
             start = time.perf_counter()
             try:
                 result = pipeline.run(question)
@@ -216,8 +223,15 @@ def run_pipeline_on_dataset(
                 # Read the meter only after every call started by this item
                 # has reported; litellm delivers success callbacks late.
                 if meter is not None:
-                    meter.drain()
+                    complete = meter.drain(DRAIN_TIMEOUT_SECONDS)
                     usage = meter.usage_since(mark)
+                    usage["usage_complete"] = complete
+                    usage["leaked_calls"] = meter.leaked_calls - leaked_before
+                    if not complete:
+                        logger.warning(
+                            f"[{pipeline_name}] Item {i} ({item_id}): usage incomplete, "
+                            f"{usage['leaked_calls']} call(s) unreported"
+                        )
                 else:
                     usage = empty_usage()
                 record = {
